@@ -196,7 +196,7 @@ def sta_info_from_inv(inv):
             location.append(inv[0][i][0].location_code)
         else: location.append('00')
 
-    if len(inv[0])==0:
+    if len(inv[0])==1:
         sta=sta[0]
         net=net[0]
         lon=lon[0]
