@@ -158,6 +158,7 @@ def qml_to_event_list(events_QML):
 
 # sta_info_from_inv(inv) is modified from noise_module (with the same name)
 #Check NoisePy: https://github.com/mdenolle/NoisePy
+# added functionality to process an array of inventory
 def sta_info_from_inv(inv):
     '''
     this function outputs station info from the obspy inventory object
@@ -195,6 +196,14 @@ def sta_info_from_inv(inv):
             location.append(inv[0][i][0].location_code)
         else: location.append('00')
 
+    if len(inv[0])==0:
+        sta=sta[0]
+        net=net[0]
+        lon=lon[0]
+        lat=lat[0]
+        elv=elv[0]
+        location=location[0]
+        
     return sta,net,lon,lat,elv,location
 
 #Stolen from NoisePy
