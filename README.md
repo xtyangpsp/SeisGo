@@ -1,2 +1,2 @@
 # SeisPy
-My own Python utility functions for seismic data processing
+My collection of Python utility functions for seismic data processing
