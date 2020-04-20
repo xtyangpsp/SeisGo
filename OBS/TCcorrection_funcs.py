@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
+"""
+This file contains a series of functions used for tilt and compliance corrections for OBS data. For the theoretical backgrund of tilt and compiance corrections, please read Bell et al. (2015, BSSA).
 
-# In[ ]:
-
-
+### References:
+1. Bell, S. W., D. W. Forsyth, & Y. Ruan (2015), Removing Noise from the Vertical Component Records of Ocean-Bottom Seismometers: Results from Year One of the Cascadia Initiative, Bull. Seismol. Soc. Am., 105(1), 300-313, doi:10.1785/0120140054.
+"""
 ############################################
 ##functions used by the main routine
 ############################################
