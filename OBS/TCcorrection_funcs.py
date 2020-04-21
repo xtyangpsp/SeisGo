@@ -5,6 +5,7 @@ This file contains a series of functions used for tilt and compliance correction
 
 ### References:
 1. Bell, S. W., D. W. Forsyth, & Y. Ruan (2015), Removing Noise from the Vertical Component Records of Ocean-Bottom Seismometers: Results from Year One of the Cascadia Initiative, Bull. Seismol. Soc. Am., 105(1), 300-313, doi:10.1785/0120140054.
+2. Tian, Y., & M. H. Ritzwoller (2017), Improving ambient noise cross-correlations in the noisy ocean bottom environment of the Juan de Fuca plate, Geophys. J. Int., 210(3), 1787-1805, doi:10.1093/gji/ggx281.
 """
 ############################################
 ##functions used by the main routine
@@ -172,10 +173,10 @@ def docorrection(tr1,tr2,adm,adm_err,phs,phs_err,freqmin,freqmax,ff,iplot=0):
 
 def maxcompfreq(d,iplot=False,figname="waterdepth_maxcompfreq.png"):
     """
-    computes the maximum compliance frequency based on eq-11 of Bell et al., BSSA, 2015
+    computes the maximum compliance frequency based on eq-7 of Tian and Ritzwoller, GJI, 2017
     """
 #     d=np.arange(1,5051,50) #water depth
-    f=np.sqrt(9.8/2/np.pi/d)
+    f=np.sqrt(9.8/1.6/np.pi/d)
     if iplot:
         plt.figure(figsize=(10,5))
         plt.plot(d,f)
@@ -183,7 +184,7 @@ def maxcompfreq(d,iplot=False,figname="waterdepth_maxcompfreq.png"):
         plt.grid(which="both")
         plt.xlabel("water depth (m)")
         plt.ylabel("frequency (Hz)")
-        plt.text(1.2*np.mean(d),0.5*np.max(f),r'$\sqrt{(\frac{g}{2 \pi d})}$',fontsize=20)
+        plt.text(1.2*np.mean(d),0.5*np.max(f),r'$\sqrt{(\frac{g}{1.6 \pi d})}$',fontsize=20)
         plt.savefig(figname,orientation='landscape')
         plt.show()
         plt.close()
