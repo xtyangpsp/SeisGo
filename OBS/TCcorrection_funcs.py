@@ -25,7 +25,7 @@ from scipy.fftpack import fft,fftfreq,ifft
 from scipy.fftpack import rfft,rfftfreq,irfft
 
 # Modified from Zhitu Ma. Modified by Xiaotao Yang
-# 1. Reduce input arguments to only read in windown length. Windows will be calculated.
+# 1. Reduce input arguments to only read in window length. Windows will be calculated.
 # 2. Future: Need to revert back to getting windows by excluding earthquakes
 # 3. The original code had bugs when computing the admittance and phases. Q and C were not computed.
 # 4. The original code hard-coded sample interval when computing the frequencies, which caused wrong
