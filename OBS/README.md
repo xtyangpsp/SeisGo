@@ -5,6 +5,7 @@
 To run the script, which uses ObsPy for downloading and some processing, the user need to go through the following setup steps (if not already done so):
 
 1. Install ObsPy and recommended packages following the [instructions here](https://github.com/obspy/obspy/wiki/Installation-via-Anaconda). Here are the main steps for reference:
+
     *`conda config --add channels conda-forge`
     *`conda create -n obspy python=3.7`
     *`conda activate obspy`
