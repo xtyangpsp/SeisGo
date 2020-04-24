@@ -251,12 +251,11 @@ def plot_trace(tr_list,freqmin=0.02,freqmax=[],size=(10,9),ylabels=[],datalabels
     myymax=[]
     for itr,tr in enumerate(tr_list,1):
         tt=tr.times()
-        if len(xlimit)>0:
-            imin = np.searchsorted(tt,xlimit[0],side="left")
-            imax = np.searchsorted(tt,xlimit[1],side="left")
-        else:
-            imin=0
-            imax=len(tr.data)-1
+        if len(xlimit)==0:
+            xlimit=[np.min(tt),np.max(tt)]
+            
+        imin = np.searchsorted(tt,xlimit[0],side="left")
+        imax = np.searchsorted(tt,xlimit[1],side="left")
 
         tc=tr.copy()
 
