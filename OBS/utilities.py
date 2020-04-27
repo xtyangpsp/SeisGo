@@ -263,7 +263,7 @@ def plot_trace(tr_list,freqmin=0.02,freqmax=[],size=(10,9),ylabels=[],datalabels
             freqmax=0.4999*tr.stats.sampling_rate #slightly lower than the Nyquist frequency
 
         print("station %s.%s, filtered at [%6.3f, %6.3f]" % (tr.stats.network,                                                             tr.stats.station,freqmin,freqmax))
-        tc.filter('bandpass',freqmin=freqmin,freqmax=freqmax)
+        tc.filter('bandpass',freqmin=freqmin,freqmax=freqmax,zerophase=True)
 
         if mode=="subplot":
             ax=plt.subplot(subplotpar[0],subplotpar[1],itr)
