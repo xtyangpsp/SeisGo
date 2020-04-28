@@ -30,12 +30,12 @@ from scipy.fftpack import rfft,rfftfreq,irfft
 # 3. The original code had bugs when computing the admittance and phases. Q and C were not computed.
 # 4. The original code hard-coded sample interval when computing the frequencies, which caused wrong
 # results if not changed.
-def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png"):
+def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",coherence_only=False):
     """ calculate the transfer function from x to y
     return the coherence, admittance, phase and their corresponding error
     """
     winlen=int(winlen/delta)
-    iopt=1
+#     iopt=1
     nsamp=len(x)
     wins=np.arange(0,nsamp-winlen,winlen)
     nd=len(wins)
@@ -80,7 +80,7 @@ def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png"):
 #     coh=np.abs(Gxy)**2/np.real(Gxx)/np.real(Gyy)
     coh=np.real(np.abs(Gxy)**2/(Gxx*Gyy))
     coh=np.sqrt(coh)
-    if (iopt == 0):
+    if coherence_only:
         adm=0.
         phs=0.
         adm_err=0.
