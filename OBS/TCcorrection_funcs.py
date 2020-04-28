@@ -30,7 +30,7 @@ from scipy.fftpack import rfft,rfftfreq,irfft
 # 3. The original code had bugs when computing the admittance and phases. Q and C were not computed.
 # 4. The original code hard-coded sample interval when computing the frequencies, which caused wrong
 # results if not changed.
-def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",coherence_only=False):
+def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",cohonly=False):
     """ calculate the transfer function from x to y
     return the coherence, admittance, phase and their corresponding error
     """
@@ -80,7 +80,7 @@ def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",c
 #     coh=np.abs(Gxy)**2/np.real(Gxx)/np.real(Gyy)
     coh=np.real(np.abs(Gxy)**2/(Gxx*Gyy))
     coh=np.sqrt(coh)
-    if coherence_only:
+    if cohonly:
         adm=0.
         phs=0.
         adm_err=0.
@@ -104,8 +104,12 @@ def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",c
         plt.savefig(figname,orientation='landscape')
         plt.show()
         plt.close()
+    
+    if cohonly:
+        return coh
+    else:
+        return ff,coh,adm,phs,adm_err,phs_err
 
-    return ff,coh,adm,phs,adm_err,phs_err
 
 # From Zhitu Ma. Modified by Xiaotao Yang
 # 1. Use freqmin and freqmax, instead of f1 and f2
@@ -171,6 +175,7 @@ def docorrection(tr1,tr2,adm,adm_err,phs,phs_err,freqmin,freqmax,ff,iplot=0):
     tr_left.data=tr2.data-Htmp
     return tr_pred,tr_left
 
+#
 def maxcompfreq(d,iplot=False,figname="waterdepth_maxcompfreq.png"):
     """
     computes the maximum compliance frequency based on eq-7 of Tian and Ritzwoller, GJI, 2017
