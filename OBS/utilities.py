@@ -238,7 +238,9 @@ def segment_interpolate(sig1,nfric):
 # 1. added titles for multiple plots
 # 2. determine freqmax as the Nyquist frequency, if not specified
 # 3. Added mode with option to plot overlapping figures.
-def plot_trace(tr_list,freqmin=0.02,freqmax=[],size=(10,9),ylabels=[],datalabels=[],               title=[],outfile='test.ps',xlimit=[],subplotpar=[],              mode="subplot",spacing=2.0,colors=[]):
+def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
+               title=[],outfile='test.ps',xlimit=[],subplotpar=[],              \
+               mode="subplot",spacing=2.0,colors=[]):
     """
     mode: subplot OR overlap
     """
@@ -259,11 +261,15 @@ def plot_trace(tr_list,freqmin=0.02,freqmax=[],size=(10,9),ylabels=[],datalabels
 
         tc=tr.copy()
 
-        if freqmax==[]:
-            freqmax=0.4999*tr.stats.sampling_rate #slightly lower than the Nyquist frequency
+#         if freqmax==[]:
+#             freqmax=0.4999*tr.stats.sampling_rate #slightly lower than the Nyquist frequency
 
-        print("station %s.%s, filtered at [%6.3f, %6.3f]" % (tr.stats.network,                                                             tr.stats.station,freqmin,freqmax))
-        tc.filter('bandpass',freqmin=freqmin,freqmax=freqmax,zerophase=True)
+        
+        if len(freq)>0:
+            print("station %s.%s, filtered at [%6.3f, %6.3f]" % (tr.stats.network,                                                             tr.stats.station,freq[0],freq[1]))
+            tc.filter('bandpass',freqmin=freq[0],freqmax=freq[1],zerophase=True)
+        else:
+            print("station %s.%s" % (tr.stats.network,tr.stats.station))
 
         if mode=="subplot":
             ax=plt.subplot(subplotpar[0],subplotpar[1],itr)
@@ -285,7 +291,9 @@ def plot_trace(tr_list,freqmin=0.02,freqmax=[],size=(10,9),ylabels=[],datalabels
             if len(xlimit)>0:
                 plt.xlim(xlimit)
             plt.ylim(0.9*np.min(tc.data[imin:imax]),1.1*np.max(tc.data[imin:imax]))
-            plt.text(np.mean(xlimit),0.9*np.max(tc.data[imin:imax]),"["+str(freqmin)+", "+str(freqmax)+"] Hz",                     horizontalalignment='center',verticalalignment='center',fontsize=12)
+            if len(freq)>0:
+                plt.text(np.mean(xlimit),0.9*np.max(tc.data[imin:imax]),"["+str(freq[0])+", "+str(freq[1])+"] Hz", \
+                         horizontalalignment='center',verticalalignment='center',fontsize=12)
         else:
             if itr==1:ax=plt.subplot(1,1,1)
             if len(colors)==0:
@@ -307,7 +315,9 @@ def plot_trace(tr_list,freqmin=0.02,freqmax=[],size=(10,9),ylabels=[],datalabels
                 if len(xlimit)>0:
                     plt.xlim(xlimit)
                 plt.ylim(np.min(myymin),np.max(myymax))
-                plt.text(np.mean(xlimit),0.85*np.max(myymax),"["+str(freqmin)+", "+str(freqmax)+"] Hz",                         horizontalalignment='center',verticalalignment='center',fontsize=14)
+                if len(freq)>0:
+                    plt.text(np.mean(xlimit),0.85*np.max(myymax),"["+str(freq[0])+", "+str(freq[1])+"] Hz",\
+                             horizontalalignment='center',verticalalignment='center',fontsize=14)
 
     plt.savefig(outfile,orientation='landscape')
     plt.show()

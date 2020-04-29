@@ -30,7 +30,7 @@ from scipy.fftpack import rfft,rfftfreq,irfft
 # 3. The original code had bugs when computing the admittance and phases. Q and C were not computed.
 # 4. The original code hard-coded sample interval when computing the frequencies, which caused wrong
 # results if not changed.
-def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",cohonly=False):
+def gettransfer(x,y,delta,winlen=2000,cohonly=False):
     """ calculate the transfer function from x to y
     return the coherence, admittance, phase and their corresponding error
     """
@@ -55,20 +55,15 @@ def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",c
             Gxx=np.conj(x_fft)*x_fft
             Gyy=np.conj(y_fft)*y_fft
 
-            Cxy=np.real(x_fft*np.real(y_fft)+np.imag(x_fft*np.imag(y_fft)))
-            Qxy=np.real(x_fft*np.imag(y_fft)-np.imag(x_fft*np.real(y_fft)))
+            Cxy=np.real(x_fft)*np.real(y_fft)+np.imag(x_fft)*np.imag(y_fft)
+            Qxy=np.real(x_fft)*np.imag(y_fft)-np.imag(x_fft)*np.real(y_fft)
         else:
             Gxy=Gxy+np.conj(x_fft)*y_fft
             Gxx=Gxx+np.conj(x_fft)*x_fft
             Gyy=Gyy+np.conj(y_fft)*y_fft
 
-            Cxy=Cxy+np.real(x_fft*np.real(y_fft)+np.imag(x_fft*np.imag(y_fft)))
-            Qxy=Qxy+np.real(x_fft*np.imag(y_fft)-np.imag(x_fft*np.real(y_fft)))
-
-        cohtmp=np.abs(Gxy)**2/np.real(Gxx)/np.real(Gyy)
-        cohtmp=np.sqrt(cohtmp)
-        coh_debug.append(np.mean(cohtmp))
-        win_debug.append(win)
+            Cxy=Cxy+np.real(x_fft)*np.real(y_fft)+np.imag(x_fft)*np.imag(y_fft)
+            Qxy=Qxy+np.real(x_fft)*np.imag(y_fft)-np.imag(x_fft)*np.real(y_fft)
 
     #normalize by number of windows
     Gxy=Gxy/nd
@@ -79,31 +74,19 @@ def gettransfer(x,y,delta,winlen=2000,iplot=False,figname="debug_transfer.png",c
 
 #     coh=np.abs(Gxy)**2/np.real(Gxx)/np.real(Gyy)
     coh=np.real(np.abs(Gxy)**2/(Gxx*Gyy))
-    coh=np.sqrt(coh)
+#     coh=np.sqrt(coh)
     if cohonly:
         adm=0.
         phs=0.
         adm_err=0.
         phs_err=0.
     else:
-#         adm=np.abs(Gxy)/np.real(Gxx)
-        adm=np.real(np.abs(Gxy)/Gxx)
+        adm=np.abs(Gxy)/np.real(Gxx)
 #         phs=np.angle(Gxy)
         phs=np.arctan(Qxy/Cxy)
-        adm_err=np.sqrt(1.-coh**2)/np.abs(coh)/np.sqrt(2*nd)
-        coh_err=np.sqrt((1.-coh**2)*np.sqrt(2.0)/np.abs(coh)/np.sqrt(nd))
+        adm_err=np.sqrt(1.-coh)/np.abs(np.sqrt(coh))/np.sqrt(2*nd)
+        coh_err=(1.-coh)*np.sqrt(2.0)/np.abs(np.sqrt(coh))/np.sqrt(nd)
         phs_err=adm_err
-
-
-    if iplot:
-        plt.figure(figsize=(8,4))
-        plt.plot(win_debug,coh_debug,'o')
-        plt.xlabel("window")
-        plt.ylabel("coherence")
-        plt.title("Debug transfer function")
-        plt.savefig(figname,orientation='landscape')
-        plt.show()
-        plt.close()
     
     if cohonly:
         return coh
@@ -146,7 +129,9 @@ def docorrection(tr1,tr2,adm,adm_err,phs,phs_err,freqmin,freqmax,ff,iplot=0):
         plt.plot(ff_select,phs_fit)
         plt.xlabel("frequency (Hz)")
         plt.ylabel("phase shift")
-        plt.savefig(tr1.stats.network+"."+tr1.stats.station+"."+tr1.stats.channel+"_"+                    tr2.stats.network+"."+tr2.stats.station+"."+tr2.stats.channel+"_adm_phs.png",                    orientation='landscape')
+        plt.savefig(tr1.stats.network+"."+tr1.stats.station+"."+tr1.stats.channel+"_"+\
+                    tr2.stats.network+"."+tr2.stats.station+"."+tr2.stats.channel+"_adm_phs.png", \
+                    orientation='landscape')
         plt.show()
         plt.close()
 
