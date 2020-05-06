@@ -56,7 +56,8 @@ down_list = False                                                # download stat
 flag      = True                                               # print progress when running the script; recommend to use it at the begining
 samp_freq = 10                                                  # targeted sampling rate at X samples per seconds
 rm_resp   = 'inv'                                               # select 'no' to not remove response and use 'inv','spectrum','RESP', or 'polozeros' to remove response
-rm_resp_exclude_chan = ["HDH","BDH"]				#Added by Xiaotao Yang. This is needed when downloading some special channels, e.g., pressure data. These channels will be skipped when removing responses.
+rm_resp_out = 'DISP'
+pressure_chan = ["HDH","BDH"]				#Added by Xiaotao Yang. This is needed when downloading some special channels, e.g., pressure data. VEL output for these channels.
 respdir   = os.path.join(rootpath,'resp')                       # directory where resp files are located (required if rm_resp is neither 'no' nor 'inv')
 freqmin   = 0.01                                                # pre filtering frequency bandwidth
 freqmax   = 5                                                   # note this cannot exceed Nquist freq
@@ -86,7 +87,7 @@ if flag:
     print('station.list selected [%s] for data from %s to %s with %sh interval'%(down_list,starttime,endtime,inc_hours))
 
 # assemble parameters used for pre-processing
-prepro_para = {'rm_resp':rm_resp,'respdir':respdir,'freqmin':freqmin,'freqmax':freqmax,'samp_freq':samp_freq,'start_date':\
+prepro_para = {'rm_resp':rm_resp,'rm_resp_out':rm_resp_out,'respdir':respdir,'freqmin':freqmin,'freqmax':freqmax,'samp_freq':samp_freq,'start_date':\
     start_date,'end_date':end_date,'inc_hours':inc_hours,'cc_len':cc_len,'step':step,'MAX_MEM':MAX_MEM,'lamin':lamin,\
     'lamax':lamax,'lomin':lomin,'lomax':lomax,'ncomp':ncomp}
 metadata = os.path.join(direc,'download_info.txt')
@@ -255,11 +256,11 @@ for ick in range(rank,splits,size):
             # preprocess to clean data
             print(sta[ista])
             #exclude some channels in removing response
-            if chan[ista] in rm_resp_exclude_chan:
-            	prepro_para['rm_resp']='no'
-            	print(chan[ista]+" is in rm_resp_exclude_chan list. Skipped when removing response!")
+            if chan[ista] in pressure_chan:
+            	prepro_para['rm_resp_out']='VEL'
+            	print(chan[ista]+" is a pressure channel. Force to use VEL as output when removing response!")
             else:
-                prepro_para['rm_resp']=rm_resp
+                prepro_para['rm_resp_out']=rm_resp_out
             tr = noise_module.preprocess_raw(tr,sta_inv,prepro_para,date_info)
             t2 = time.time()
             tp += t2-t1
