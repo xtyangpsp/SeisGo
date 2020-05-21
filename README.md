@@ -23,7 +23,13 @@ $ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python=3.7 ob
 $ conda activate seispy
 ```
 
-2. Install `seispy` package functions using `pip`
+2. Download `seispy`
+`cd` to the directory you want to save the package files. Then,
+```
+$ git clone https://github.com/xtyangpsp/SeisPy.git
+```
+
+3. Install `seispy` package functions using `pip`
 This step will install the modules under seispy environment and could be in any working directory.
 
 ```
@@ -62,7 +68,7 @@ Data for testing or running the tutorials is saved under this folder.
 Here we put figures embeded in tutorials and other places.
 
 ## Tutorials
-
+To-be-added.
 
 ## Contribute
 Any bugs and ideas are welcome. Please contact me.
