@@ -318,7 +318,7 @@ def gettflist(help=False):
         print('| Key    |'+' Default  |'+' Note                                       |')
         print('------------------------------------------------------------------')
         print('| ZP     |'+' True     |'+' Vertical and pressure                      |')
-        print('| Z1     |'+' True     |'+' Vertical and horizontal-1')
+        print('| Z1     |'+' True     |'+' Vertical and horizontal-1                  |')
         print('| Z2-1   |'+' True     |'+' Vertical and horizontals (1 and 2)         |')
         print('| ZP-21  |'+' True     |'+' Vertical, pressure, and two horizontals    |')
         print('| ZH     |'+' True     |'+' Vertical and rotated horizontal            |')
