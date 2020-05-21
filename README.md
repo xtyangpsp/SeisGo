@@ -19,17 +19,21 @@ This module contains functions to get and processing Ocean Bottom Seismometer (O
 This step is required to have all dependencies installed for the package. You can also manually install the listed packages without creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python=3.7 obspy
+$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python=3.7 obspy basemap
 $ conda activate seispy
 ```
 
+The `jupyter` and `basemap` packages are not needed, if you don't plan to run the acompanied Jupyter notebooks under **notebooks**.
+
 2. Download `seispy`
+
 `cd` to the directory you want to save the package files. Then,
 ```
 $ git clone https://github.com/xtyangpsp/SeisPy.git
 ```
 
 3. Install `seispy` package functions using `pip`
+
 This step will install the modules under seispy environment and could be in any working directory.
 
 ```
@@ -37,6 +41,7 @@ $ pip install .
 ```
 
 3. Test the installation
+
 Run the following commands to test your installation.
 ```
 $ python
@@ -56,15 +61,19 @@ $ python
 
 ## Structure of the package
 1. **seispy**
+
 This directory contains the main modules.
 
 2. **notebooks**
+
 This directory contains the jupyter notebooks that provide tutorials for all modules.
 
 3. **data**
+
 Data for testing or running the tutorials is saved under this folder.
 
 4. **figs**
+
 Here we put figures embeded in tutorials and other places.
 
 ## Tutorials
