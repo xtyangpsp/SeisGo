@@ -37,7 +37,7 @@ $ git clone https://github.com/xtyangpsp/SeisPy.git
 
 3. Install `seispy` package functions using `pip`
 
-This step will install the modules under seispy environment and could be in any working directory.
+This step will install the **SeisPy** modules under `seispy` environment. The modules would then be imported under any working directory.
 
 ```
 $ pip install .
