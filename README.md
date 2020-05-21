@@ -16,10 +16,10 @@ This module contains frequently used utility functions not readily available in 
 
 This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from **OBStools** (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
-## Installation using conda
-1. Create and activate the `seispy` environment
+## Installation
+1. Create and activate the **conda** `seispy` environment
 
-This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
+Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
 $ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python=3.7 obspy basemap
