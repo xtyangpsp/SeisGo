@@ -9,13 +9,16 @@ This package is currently heavily dependent on [`obspy`] (www.obspy.org). Users 
 ## Available modules
 This package is unver active development. The currently available modules are list here.
 1. `utils`
+
 This module contains frequently used utility functions not readily available in `obspy`.
 
 2. `obsmaster`
+
 This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from [OBStools] (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
 ## Installation using conda
 1. Create and activate the `seispy` environment
+
 This step is required to have all dependencies installed for the package. You can also manually install the listed packages without creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
