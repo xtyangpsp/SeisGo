@@ -1345,7 +1345,8 @@ def correctdict2stream(trIN,correctdict,subset=None):
     return outstream,tags
 
 #save corrected traces
-def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf',debug=False):
+def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf',
+                    debug=False,saveoriginal=False):
     """
     Save the corrected vertical trace to file with specified format (default is ASDF format).
 
@@ -1359,6 +1360,12 @@ def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf'
             File name.
     subset : dictionary
             Subset to only save selected corrections.
+    sta_inv :: class `~obspy.core.inventory`
+            Station inventory to handle station metadata.
+    format : string
+            Saving format, default is 'asdf'
+    saveoriginal : bool
+            If True, the original vertical trace will also be saved. Default is False.
     """
 
     clist=correctdict.keys()
@@ -1375,13 +1382,14 @@ def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf'
 
     streams,tags = correctdict2stream(trIN,correctdict,subset)
 
-    streams.append(trIN)
-    if len(trIN.stats.location) == 0:
-        tlocation='00'
-    else:
-        tlocation=trIN.stats.location
+    if saveoriginal:
+        streams.append(trIN)
+        if len(trIN.stats.location) == 0:
+            tlocation='00'
+        else:
+            tlocation=trIN.stats.location
 
-    tags.append(trIN.stats.channel.lower()+'_'+tlocation.lower())
+        tags.append(trIN.stats.channel.lower()+'_'+tlocation.lower())
 
     if debug: print(streams)
     if format.lower() == 'asdf':
