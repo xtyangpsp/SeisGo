@@ -686,3 +686,27 @@ def ftest(res1, pars1, res2, pars2):
 
 def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()
+
+#save trace to files.
+def save2asdf(fname,st,tag,sta_inv=None):
+    """
+    Save obspy stream to asdf file.
+    """
+    if len(st) != len(tag):
+        raise(Exception('save2asdf: the steam and tag list should have the same length.'))
+
+    if not os.path.isfile(fname):
+        with pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='w') as ds:
+            if sta_inv is not None:
+                ds.add_stationxml(sta_inv)
+
+            for i in range(len(st)):
+                ds.add_waveforms(st[i],tag=tag[i])
+    else:
+        # appending when file exists
+        with pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='a') as ds:
+            if sta_inv is not None:
+                ds.add_stationxml(sta_inv)
+
+            for i in range(len(st)):
+                ds.add_waveforms(st[i],tag=tag[i])

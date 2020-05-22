@@ -336,6 +336,35 @@ def gettflist(help=False):
 
     return tflist
 
+#
+def getcorrectlist(help=False):
+    """
+    Get a full list of corrections. This is usefull to get a default
+    list and modify based on cases.
+
+    Parameters
+    ----------
+    help : bool
+        Print out explanation of each correction component. Default: False.
+    """
+
+    #print exaplanations of each elements in the output tflist.
+    if help:
+        print('------------------------------------------------------------------')
+        print('| Key    |'+' Note                                       |')
+        print('------------------------------------------------------------------')
+        print('| ZP     |'+' Vertical and pressure                      |')
+        print('| Z1     |'+' Vertical and horizontal-1                  |')
+        print('| Z2-1   |'+' Vertical and horizontals (1 and 2)         |')
+        print('| ZP-21  |'+' Vertical, pressure, and two horizontals    |')
+        print('| ZH     |'+' Vertical and rotated horizontal            |')
+        print('| ZP-H   |'+' Vertical, pressure, and rotated horizontal |')
+        print('------------------------------------------------------------------')
+
+    tflist=gettflist()
+    clist=tflist.keys()
+
+    return clist
 # modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
 def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
     """
@@ -1199,7 +1228,7 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
     plt.figure(figsize=size)
 
     for ickey,ckey in enumerate(clist,1):
-        plt.subplot(len(clist),1,ickey+1)
+        plt.subplot(len(clist),1,ickey)
         plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
 
         tr.data=np.squeeze(correctdict[ckey])
@@ -1220,8 +1249,8 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
         plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
                                    scilimits=(-3, 3))
         plt.xlim(xlimit)
-        plt.xlabel('Time (sec)')
 
+    plt.xlabel('Time (sec)')
     plt.tight_layout()
 
     # Save or show figure
@@ -1269,16 +1298,62 @@ def TCremoval_wrapper(tr1,tr2,trZ,trP,window=7200,overlap=0.3,merge_taper=0.1,
     return spectra,transferfunc,correct
 
 #save corrected traces
-def savecorrection(correctdict,fname,parent_trace=None,subset=None,format='asdf'):
+def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf',debug=False):
     """
     Save the corrected vertical trace to file with specified format (default is ASDF format).
 
     Parameters
     ----------
+    trIN :: class `~obspy.core.Trace`
+            Trace before correction that provides metadata for the corrected traces.
     correctdict : dictionary
             Dictionary containing the tilt and compliance correction results.
-
+    fname : string
+            File name.
 
     """
 
-    print('Saving function is currently under develpment.')
+    clist=correctdict.keys()
+    if subset is None:
+        subset=clist
+
+    if fname is None:
+        year = trIN.stats.starttime.year
+        julday = trIN.stats.starttime.julday
+        hour = trIN.stats.starttime.hour
+        mnt = trIN.stats.starttime.minute
+        sec = trIN.stats.starttime.second
+        tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
+
+    # This is to hold the metadata.
+    tr=trIN.copy()
+    tr.data=np.ndarray((len(trIN.data),),dtype=trIN.data.dtype)
+    trall=[]
+    tagall=[]
+    trall.append(trIN)
+    if len(trIN.stats.location) == 0:
+        tlocation='00'
+    else:
+        tlocation=trIN.stats.location
+
+    tagall.append(trIN.stats.channel.lower()+'_'+tlocation.lower())
+
+    for ckey in subset:
+        if debug: print('  saving '+ckey)
+        if ckey in clist:
+            tr.data=np.squeeze(correctdict[ckey])
+            tag = 'c_'+ckey.replace('-','_')
+            trall.append(tr)
+            tagall.append(tag.lower())
+        else:
+            print('Correction key ['+ckey+'] is NOT found in the correctdict. Skipped!')
+
+    streamall=Stream(traces=trall)
+    if debug: print(streamall)
+    if format.lower() == 'asdf':
+        if fname is None:
+            fname = trIN.stats.network+'.'+trIN.stats.station+'_'+tstamp+'_LEN'+\
+            str(trIN.stats.endtime-trIN.stats.starttime)+'s_corrected.h5'
+        utils.save2asdf(fname,streamall,tagall,sta_inv)
+    else:
+        print('Saving to format other than ASDF is currently under develpment.')
