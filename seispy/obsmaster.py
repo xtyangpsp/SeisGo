@@ -1147,19 +1147,21 @@ def docorrection(tr1,tr2,trZ,trP,tf,tflist=gettflist(),overlap=0.1,taper=None,fu
 
     return correct
 
-def plotcorrection(trIN, correctdict, freq=None,size=None,
+def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
             xlimit=None,save=False, fname=None, form='png'):
     """
     Function to plot the corrected vertical component seismograms.
 
     Parameters
     ----------
-    trIn : :class:`~obspy.core.Trace`
+    trIN : :class:`~obspy.core.Trace`
             Original vertical component.
     correctdict : dictionary
             Corrected vertical records in a dictionary. See obsmaster.docorrection() for details.
     freq : :class:`~numpy.ndarray`
             Two element array specifying the frequency range for plotting. Default: [0.001, 0.49*samping_rate]
+    normalize : bool
+            If True, the traces will be normalized by the maximum absolute amplitudes before plotting.
     """
     sr = trIN.stats.sampling_rate
     taxis = trIN.times()
@@ -1190,17 +1192,27 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,
 
     tr=trIN.copy()
 
+    if normalize:
+        rawdata=trIN.data/np.max(np.abs(trIN.data[imin:imax]))
+    else:
+        rawdata=trIN.data
     plt.figure(figsize=size)
 
     plt.subplot(611)
-    plt.plot(taxis, trIN.data, 'lightgray', lw=0.5)
+    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
     if 'Z1' in clist:
         tr.data=np.squeeze(correctdict['Z1'])
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
         plt.plot(taxis, tr.data, 'k', lw=0.5)
-        plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(trIN.data[imin:imax])]),
-                1.1*np.max([np.max(tr.data[imin:imax]),np.max(trIN.data[imin:imax])]))
+
+        if normalize:
+            plt.ylim(-1.0,1.0)
+        else:
+            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
+                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
 
     plt.title(st+':'+tstamp +
               ': Z1', fontdict={'fontsize': 8})
@@ -1209,70 +1221,100 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,
     plt.xlim(xlimit)
 
     plt.subplot(612)
-    plt.plot(taxis, trIN.data, 'lightgray', lw=0.5)
+    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
     if 'Z2-1' in clist:
         tr.data=np.squeeze(correctdict['Z2-1'])
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
         plt.plot(taxis, tr.data, 'k', lw=0.5)
-        plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(trIN.data[imin:imax])]),
-                1.1*np.max([np.max(tr.data[imin:imax]),np.max(trIN.data[imin:imax])]))
+
+        if normalize:
+            plt.ylim(-1.0,1.0)
+        else:
+            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
+                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
     plt.title(st+':'+tstamp+': Z2-1', fontdict={'fontsize': 8})
     plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
                                scilimits=(-3, 3))
     plt.xlim(xlimit)
 
     plt.subplot(613)
-    plt.plot(taxis, trIN.data, 'lightgray', lw=0.5)
+    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
     if 'ZP-21' in clist:
         tr.data=np.squeeze(correctdict['ZP-21'])
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
         plt.plot(taxis, tr.data, 'k', lw=0.5)
-        plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(trIN.data[imin:imax])]),
-                1.1*np.max([np.max(tr.data[imin:imax]),np.max(trIN.data[imin:imax])]))
+
+        if normalize:
+            plt.ylim(-1.0,1.0)
+        else:
+            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
+                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
     plt.title(st+':'+tstamp+': ZP-21', fontdict={'fontsize': 8})
     plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
                                scilimits=(-3, 3))
     plt.xlim(xlimit)
 
     plt.subplot(614)
-    plt.plot(taxis, trIN.data, 'lightgray', lw=0.5)
+    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
     if 'ZH' in clist:
         tr.data=np.squeeze(correctdict['ZH'])
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
         plt.plot(taxis, tr.data, 'k', lw=0.5)
-        plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(trIN.data[imin:imax])]),
-                1.1*np.max([np.max(tr.data[imin:imax]),np.max(trIN.data[imin:imax])]))
+
+        if normalize:
+            plt.ylim(-1.0,1.0)
+        else:
+            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
+                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
     plt.title(st+':'+tstamp+': ZH', fontdict={'fontsize': 8})
     plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
                                scilimits=(-3, 3))
     plt.xlim(xlimit)
 
     plt.subplot(615)
-    plt.plot(taxis, trIN.data, 'lightgray', lw=0.5)
+    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
     if 'ZP-H' in clist:
         tr.data=np.squeeze(correctdict['ZP-H'])
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
         plt.plot(taxis, tr.data, 'k', lw=0.5)
-        plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(trIN.data[imin:imax])]),
-                1.1*np.max([np.max(tr.data[imin:imax]),np.max(trIN.data[imin:imax])]))
+
+        if normalize:
+            plt.ylim(-1.0,1.0)
+        else:
+            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
+                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
     plt.title(st+':'+tstamp+': ZP-H', fontdict={'fontsize': 8})
     plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
                                scilimits=(-3, 3))
     plt.xlim(xlimit)
 
     plt.subplot(616)
-    plt.plot(taxis, trIN.data, 'lightgray', lw=0.5)
+    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
     if 'ZP' in clist:
         tr.data=np.squeeze(correctdict['ZP'])
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
         plt.plot(taxis, tr.data, 'k', lw=0.5)
-        plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(trIN.data[imin:imax])]),
-                1.1*np.max([np.max(tr.data[imin:imax]),np.max(trIN.data[imin:imax])]))
+
+        if normalize:
+            plt.ylim(-1.0,1.0)
+        else:
+            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
+                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
     plt.title(st+':'+tstamp+': ZP', fontdict={'fontsize': 8})
     plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
                                scilimits=(-3, 3))
@@ -1284,7 +1326,10 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,
     # Save or show figure
     if save:
         if fname is None:
-            fname = st+"_"+tstamp+"_corrections.png"
+            if normalize:
+                fname = st+"_"+tstamp+"_corrections_normalized.png"
+            else:
+                fname = st+"_"+tstamp+"_corrections_normalized.png"
         plt.savefig(fname,dpi=300, bbox_inches='tight', format=form)
     else:
         plt.show()
