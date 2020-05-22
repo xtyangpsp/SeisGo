@@ -1198,10 +1198,11 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
         rawdata=trIN.data
     plt.figure(figsize=size)
 
-    plt.subplot(611)
-    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
-    if 'Z1' in clist:
-        tr.data=np.squeeze(correctdict['Z1'])
+    for ickey,ckey in enumerate(clist,1):
+        plt.subplot(len(clist),1,ickey+1)
+        plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
+
+        tr.data=np.squeeze(correctdict[ckey])
         if normalize:
             tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
@@ -1214,113 +1215,13 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
             plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
                     1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
 
-    plt.title(st+':'+tstamp +
-              ': Z1', fontdict={'fontsize': 8})
-    plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
-                               scilimits=(-3, 3))
-    plt.xlim(xlimit)
+        plt.title(st+':'+tstamp +
+                  ': '+ckey, fontdict={'fontsize': 8})
+        plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
+                                   scilimits=(-3, 3))
+        plt.xlim(xlimit)
+        plt.xlabel('Time (sec)')
 
-    plt.subplot(612)
-    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
-    if 'Z2-1' in clist:
-        tr.data=np.squeeze(correctdict['Z2-1'])
-        if normalize:
-            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
-        tr.filter('bandpass', freqmin=freqmin,
-                            freqmax=freqmax, corners=2, zerophase=True)
-        plt.plot(taxis, tr.data, 'k', lw=0.5)
-
-        if normalize:
-            plt.ylim(-1.0,1.0)
-        else:
-            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
-                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
-    plt.title(st+':'+tstamp+': Z2-1', fontdict={'fontsize': 8})
-    plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
-                               scilimits=(-3, 3))
-    plt.xlim(xlimit)
-
-    plt.subplot(613)
-    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
-    if 'ZP-21' in clist:
-        tr.data=np.squeeze(correctdict['ZP-21'])
-        if normalize:
-            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
-        tr.filter('bandpass', freqmin=freqmin,
-                            freqmax=freqmax, corners=2, zerophase=True)
-        plt.plot(taxis, tr.data, 'k', lw=0.5)
-
-        if normalize:
-            plt.ylim(-1.0,1.0)
-        else:
-            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
-                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
-    plt.title(st+':'+tstamp+': ZP-21', fontdict={'fontsize': 8})
-    plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
-                               scilimits=(-3, 3))
-    plt.xlim(xlimit)
-
-    plt.subplot(614)
-    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
-    if 'ZH' in clist:
-        tr.data=np.squeeze(correctdict['ZH'])
-        if normalize:
-            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
-        tr.filter('bandpass', freqmin=freqmin,
-                            freqmax=freqmax, corners=2, zerophase=True)
-        plt.plot(taxis, tr.data, 'k', lw=0.5)
-
-        if normalize:
-            plt.ylim(-1.0,1.0)
-        else:
-            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
-                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
-    plt.title(st+':'+tstamp+': ZH', fontdict={'fontsize': 8})
-    plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
-                               scilimits=(-3, 3))
-    plt.xlim(xlimit)
-
-    plt.subplot(615)
-    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
-    if 'ZP-H' in clist:
-        tr.data=np.squeeze(correctdict['ZP-H'])
-        if normalize:
-            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
-        tr.filter('bandpass', freqmin=freqmin,
-                            freqmax=freqmax, corners=2, zerophase=True)
-        plt.plot(taxis, tr.data, 'k', lw=0.5)
-
-        if normalize:
-            plt.ylim(-1.0,1.0)
-        else:
-            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
-                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
-    plt.title(st+':'+tstamp+': ZP-H', fontdict={'fontsize': 8})
-    plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
-                               scilimits=(-3, 3))
-    plt.xlim(xlimit)
-
-    plt.subplot(616)
-    plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
-    if 'ZP' in clist:
-        tr.data=np.squeeze(correctdict['ZP'])
-        if normalize:
-            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
-        tr.filter('bandpass', freqmin=freqmin,
-                            freqmax=freqmax, corners=2, zerophase=True)
-        plt.plot(taxis, tr.data, 'k', lw=0.5)
-
-        if normalize:
-            plt.ylim(-1.0,1.0)
-        else:
-            plt.ylim(0.9*np.min([np.min(tr.data[imin:imax]),np.min(rawdata[imin:imax])]),
-                    1.1*np.max([np.max(tr.data[imin:imax]),np.max(rawdata[imin:imax])]))
-    plt.title(st+':'+tstamp+': ZP', fontdict={'fontsize': 8})
-    plt.gca().ticklabel_format(axis='y', style='sci', useOffset=True,
-                               scilimits=(-3, 3))
-    plt.xlim(xlimit)
-
-    plt.xlabel('Time (sec)')
     plt.tight_layout()
 
     # Save or show figure
@@ -1366,3 +1267,18 @@ def TCremoval_wrapper(tr1,tr2,trZ,trP,window=7200,overlap=0.3,merge_taper=0.1,
                                 overlap=overlap,taper=merge_taper)
 
     return spectra,transferfunc,correct
+
+#save corrected traces
+def savecorrection(correctdict,fname,parent_trace=None,subset=None,format='asdf'):
+    """
+    Save the corrected vertical trace to file with specified format (default is ASDF format).
+
+    Parameters
+    ----------
+    correctdict : dictionary
+            Dictionary containing the tilt and compliance correction results.
+
+
+    """
+
+    print('Saving function is currently under develpment.')
