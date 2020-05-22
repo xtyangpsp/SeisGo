@@ -350,16 +350,16 @@ def getcorrectlist(help=False):
 
     #print exaplanations of each elements in the output tflist.
     if help:
-        print('------------------------------------------------------------------')
-        print('| Key    |'+' Note                                       |')
-        print('------------------------------------------------------------------')
-        print('| ZP     |'+' Vertical and pressure                      |')
-        print('| Z1     |'+' Vertical and horizontal-1                  |')
-        print('| Z2-1   |'+' Vertical and horizontals (1 and 2)         |')
-        print('| ZP-21  |'+' Vertical, pressure, and two horizontals    |')
-        print('| ZH     |'+' Vertical and rotated horizontal            |')
-        print('| ZP-H   |'+' Vertical, pressure, and rotated horizontal |')
-        print('------------------------------------------------------------------')
+        print('--------------------------------------------------------------------------------------')
+        print('| Key    |'+' Note                                                                      |')
+        print('--------------------------------------------------------------------------------------')
+        print('| ZP     |'+' Vertical corrected for compliance noise                                   |')
+        print('| Z1     |'+' Vertical corrected for tilt leakage from horizontal-1                     |')
+        print('| Z2-1   |'+' Vertical corrected for tilt leakage from horizontals (1 and 2)            |')
+        print('| ZP-21  |'+' Vertical corrected for compliance and tilt noise                          |')
+        print('| ZH     |'+' Vertical corrected for tilt leakage from rotated horizontal               |')
+        print('| ZP-H   |'+' Vertical corrected for compliance and tilt noise from rotated horizontals |')
+        print('--------------------------------------------------------------------------------------')
 
     tflist=gettflist()
     clist=tflist.keys()
@@ -1297,6 +1297,53 @@ def TCremoval_wrapper(tr1,tr2,trZ,trP,window=7200,overlap=0.3,merge_taper=0.1,
 
     return spectra,transferfunc,correct
 
+# convert the correction dictionary to obspy stream
+def correctdict2stream(trIN,correctdict,subset=None):
+    """
+    Convert corrected vertical trace (numpy.ndarray) to obspy.core.stream Stream object.
+
+    Parameters
+    ----------
+    trIN :: class `~obspy.core.Trace`
+            Trace before correction that provides metadata for the corrected traces.
+    correctdict : dictionary
+            Dictionary containing the tilt and compliance correction results.
+    subset : dictionary
+            Subset to only save selected corrections.
+
+    Returns
+    ----------
+    outstream :: class `~obspy.core.Stream`
+            The output stream containing the corrected vertical data, with metadata
+            inherited from trIN
+    tags :: string list
+            List of string that label the corrected data, e.g., c_zp_h means corrected
+            data component ZP-H. These tags follow the waveform tag requirement by ASDF.
+    """
+
+    clist=correctdict.keys()
+    if subset is None:
+        subset=clist
+
+    # This is to hold the metadata.
+    tr=trIN.copy()
+    tr.data=np.ndarray((len(trIN.data),),dtype=trIN.data.dtype)
+    trall=[]
+    tags=[]
+
+    for ckey in subset:
+        if ckey in clist:
+            tr.data=np.squeeze(correctdict[ckey])
+            tag = 'c_'+ckey.replace('-','_')
+            trall.append(tr)
+            tags.append(tag.lower())
+        else:
+            print('Correction key ['+ckey+'] is NOT found in the correctdict. Skipped!')
+
+    outstream=Stream(traces=trall)
+
+    return outstream,tags
+
 #save corrected traces
 def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf',debug=False):
     """
@@ -1310,7 +1357,8 @@ def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf'
             Dictionary containing the tilt and compliance correction results.
     fname : string
             File name.
-
+    subset : dictionary
+            Subset to only save selected corrections.
     """
 
     clist=correctdict.keys()
@@ -1325,35 +1373,21 @@ def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf'
         sec = trIN.stats.starttime.second
         tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
 
-    # This is to hold the metadata.
-    tr=trIN.copy()
-    tr.data=np.ndarray((len(trIN.data),),dtype=trIN.data.dtype)
-    trall=[]
-    tagall=[]
-    trall.append(trIN)
+    streams,tags = correctdict2stream(trIN,correctdict,subset)
+
+    streams.append(trIN)
     if len(trIN.stats.location) == 0:
         tlocation='00'
     else:
         tlocation=trIN.stats.location
 
-    tagall.append(trIN.stats.channel.lower()+'_'+tlocation.lower())
+    tags.append(trIN.stats.channel.lower()+'_'+tlocation.lower())
 
-    for ckey in subset:
-        if debug: print('  saving '+ckey)
-        if ckey in clist:
-            tr.data=np.squeeze(correctdict[ckey])
-            tag = 'c_'+ckey.replace('-','_')
-            trall.append(tr)
-            tagall.append(tag.lower())
-        else:
-            print('Correction key ['+ckey+'] is NOT found in the correctdict. Skipped!')
-
-    streamall=Stream(traces=trall)
-    if debug: print(streamall)
+    if debug: print(streams)
     if format.lower() == 'asdf':
         if fname is None:
             fname = trIN.stats.network+'.'+trIN.stats.station+'_'+tstamp+'_LEN'+\
             str(trIN.stats.endtime-trIN.stats.starttime)+'s_corrected.h5'
-        utils.save2asdf(fname,streamall,tagall,sta_inv)
+        utils.save2asdf(fname,streams,tags,sta_inv)
     else:
         print('Saving to format other than ASDF is currently under develpment.')
