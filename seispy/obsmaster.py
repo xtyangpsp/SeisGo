@@ -604,7 +604,7 @@ def getspectra(tr1,tr2,trZ,trP,window=7200,overlap=0.3,pd=[0.004, 0.2], tol=1.5,
 
     # Select bandpass frequencies
     indf = (f >= pd[0]) & (f <= pd[1])
-    ff=f[indf]
+    # ff=f[indf]
     if smooth:
         # Smooth out the log of the PSDs
         sl_psdZ = utils.smooth(psdZ, 50, axis=0)
