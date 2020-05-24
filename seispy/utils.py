@@ -208,6 +208,41 @@ def sta_info_from_inv(inv):
                 location.append('00')
     return sta,net,lon,lat,elv,location
 
+# split_datetimestr(inv) is modified from noise_module get_event_list()
+#Check NoisePy: https://github.com/mdenolle/NoisePy
+def split_datetimestr(dtstr1,dtstr2,inc_hours):
+    '''
+    this function calculates the datetime list between datetime1 and datetime2 by
+    increment of inc_hours in the formate of %Y_%m_%d_%H_%M_%S
+
+    PARAMETERS:
+    ----------------
+    dtstr1: string of the starting time -> 2010_01_01_0_0
+    dtstr2: string of the ending time -> 2010_10_11_0_0
+    inc_hours: integer of incremental hours
+    RETURNS:
+    ----------------
+    dtlist: a numpy character list
+    '''
+    date1=dtstr1.split('_')
+    date2=dtstr2.split('_')
+    y1=int(date1[0]);m1=int(date1[1]);d1=int(date1[2])
+    h1=int(date1[3]);mm1=int(date1[4]);mn1=int(date1[5])
+    y2=int(date2[0]);m2=int(date2[1]);d2=int(date2[2])
+    h2=int(date2[3]);mm2=int(date2[4]);mn2=int(date2[5])
+
+    d1=datetime.datetime(y1,m1,d1,h1,mm1,mn1)
+    d2=datetime.datetime(y2,m2,d2,h2,mm2,mn2)
+    dt=datetime.timedelta(hours=inc_hours)
+
+    dtlist = []
+    while(d1<d2):
+        dtlist.append(d1.strftime('%Y_%m_%d_%H_%M_%S'))
+        d1+=dt
+    dtlist.append(d2.strftime('%Y_%m_%d_%H_%M_%S'))
+
+    return dtlist
+
 #Stolen from NoisePy
 def segment_interpolate(sig1,nfric):
     '''
