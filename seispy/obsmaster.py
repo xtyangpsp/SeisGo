@@ -905,7 +905,8 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
     return transfunc
 
 
-def docorrection(tr1,tr2,trZ,trP,tf,tflist=gettflist(),overlap=0.1,taper=None,full_length=True):
+def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
+                taper=None,full_length=True):
     """
     Applies transfer functions between multiple components (and
     component combinations) to produce corrected/cleaned vertical
@@ -917,9 +918,8 @@ def docorrection(tr1,tr2,trZ,trP,tf,tflist=gettflist(),overlap=0.1,taper=None,fu
         Seismic traces for horizontals, vertical, and pressure. Use None if missing.
     tf : Dictionary
         Transfer functions computed using gettransferfunc().
-    correct : :class:`~obstools.atacr.classes.EventStream.CorrectDict`
-        Container Dictionary for all possible corrections from the
-        transfer functions
+    correctlist : string list
+        Correction components.
     overlap : float
         Fraction of overlap when sliding windows to remove the noise. The window length is the same as
         used when computing the spectra and the transfer functions and is passed from `tf`.
@@ -949,6 +949,7 @@ def docorrection(tr1,tr2,trZ,trP,tf,tflist=gettflist(),overlap=0.1,taper=None,fu
     tps = int(0)
     step=None
     wind=None
+    tflist=gettflist()
 
     if overlap is not None:
         step = int(window*(1-overlap)*trZ.stats.sampling_rate)
@@ -1007,172 +1008,166 @@ def docorrection(tr1,tr2,trZ,trP,tf,tflist=gettflist(),overlap=0.1,taper=None,fu
         print("windows connect at the following times:")
         print((idx+tps)/trZ.stats.sampling_rate)
 
-    for key, value in tflist.items():
-        if key == 'ZP':
-            if value and tflist[key]:
-                dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
-                TF_ZP = tf[key]['TF_ZP']
-                fTF_ZP = np.hstack(
-                    (TF_ZP, np.conj(TF_ZP[::-1][1:len(f)-1])))
-                for j in range(len(idx)):
-                    ftZ_temp = ftZ[j]
-                    ftP_temp = ftP[j]
-                    corrspec = ftZ_temp - fTF_ZP*ftP_temp
-                    corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
-                    if j==0:
-                        dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
-                    elif j+1 == len(idx):
-                        dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
-                    else:
-                        dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
+    for key in correctlist:
+        if key == 'ZP' and tflist[key]:
+            dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
+            TF_ZP = tf[key]['TF_ZP']
+            fTF_ZP = np.hstack(
+                (TF_ZP, np.conj(TF_ZP[::-1][1:len(f)-1])))
+            for j in range(len(idx)):
+                ftZ_temp = ftZ[j]
+                ftP_temp = ftP[j]
+                corrspec = ftZ_temp - fTF_ZP*ftP_temp
+                corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
+                if j==0:
+                    dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
+                elif j+1 == len(idx):
+                    dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
+                else:
+                    dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
 
-                correct['ZP'] = dout
+            correct['ZP'] = dout
 
-        if key == 'Z1':
-            if value and tflist[key]:
-                dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
-                TF_Z1 = tf[key]['TF_Z1']
-                fTF_Z1 = np.hstack(
-                    (TF_Z1, np.conj(TF_Z1[::-1][1:len(f)-1])))
-                for j in range(len(idx)):
-                    ftZ_temp = ftZ[j]
-                    ft1_temp = ft1[j]
-                    corrspec = ftZ_temp - fTF_Z1*ft1_temp
-                    corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
-                    if j==0:
-                        dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
-                    elif j+1 == len(idx):
-                        dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
-                    else:
-                        dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
+        if key == 'Z1' and tflist[key]:
+            dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
+            TF_Z1 = tf[key]['TF_Z1']
+            fTF_Z1 = np.hstack(
+                (TF_Z1, np.conj(TF_Z1[::-1][1:len(f)-1])))
+            for j in range(len(idx)):
+                ftZ_temp = ftZ[j]
+                ft1_temp = ft1[j]
+                corrspec = ftZ_temp - fTF_Z1*ft1_temp
+                corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
+                if j==0:
+                    dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
+                elif j+1 == len(idx):
+                    dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
+                else:
+                    dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
 
-                correct['Z1'] = dout
+            correct['Z1'] = dout
 
-        if key == 'Z2-1':
-            if value and tflist[key]:
-                dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
-                TF_Z1 = tf['Z1']['TF_Z1']
-                fTF_Z1 = np.hstack(
-                    (TF_Z1, np.conj(TF_Z1[::-1][1:len(f)-1])))
-                TF_21 = tf[key]['TF_21']
-                fTF_21 = np.hstack(
-                    (TF_21, np.conj(TF_21[::-1][1:len(f)-1])))
-                TF_Z2_1 = tf[key]['TF_Z2-1']
-                fTF_Z2_1 = np.hstack(
-                    (TF_Z2_1, np.conj(TF_Z2_1[::-1][1:len(f)-1])))
+        if key == 'Z2-1' and tflist[key]:
+            dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
+            TF_Z1 = tf['Z1']['TF_Z1']
+            fTF_Z1 = np.hstack(
+                (TF_Z1, np.conj(TF_Z1[::-1][1:len(f)-1])))
+            TF_21 = tf[key]['TF_21']
+            fTF_21 = np.hstack(
+                (TF_21, np.conj(TF_21[::-1][1:len(f)-1])))
+            TF_Z2_1 = tf[key]['TF_Z2-1']
+            fTF_Z2_1 = np.hstack(
+                (TF_Z2_1, np.conj(TF_Z2_1[::-1][1:len(f)-1])))
 
-                for j in range(len(idx)):
-                    ftZ_temp = ftZ[j]
-                    ft1_temp = ft1[j]
-                    ft2_temp = ft2[j]
-                    corrspec = ftZ_temp - fTF_Z1*ft1_temp - (ft2_temp - ft1_temp*fTF_21)*fTF_Z2_1
-                    corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
-                    if j==0:
-                        dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
-                    elif j+1 == len(idx):
-                        dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
-                    else:
-                        dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
+            for j in range(len(idx)):
+                ftZ_temp = ftZ[j]
+                ft1_temp = ft1[j]
+                ft2_temp = ft2[j]
+                corrspec = ftZ_temp - fTF_Z1*ft1_temp - (ft2_temp - ft1_temp*fTF_21)*fTF_Z2_1
+                corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
+                if j==0:
+                    dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
+                elif j+1 == len(idx):
+                    dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
+                else:
+                    dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
 
-                correct['Z2-1'] = dout
+            correct['Z2-1'] = dout
 
-        if key == 'ZP-21':
-            if value and tflist[key]:
-                dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
-                TF_Z1 = tf[key]['TF_Z1']
-                fTF_Z1 = np.hstack(
-                    (TF_Z1, np.conj(TF_Z1[::-1][1:len(f)-1])))
-                TF_21 = tf[key]['TF_21']
-                fTF_21 = np.hstack(
-                    (TF_21, np.conj(TF_21[::-1][1:len(f)-1])))
-                TF_Z2_1 = tf[key]['TF_Z2-1']
-                fTF_Z2_1 = np.hstack(
-                    (TF_Z2_1, np.conj(TF_Z2_1[::-1][1:len(f)-1])))
-                TF_P1 = tf[key]['TF_P1']
-                fTF_P1 = np.hstack(
-                    (TF_P1, np.conj(TF_P1[::-1][1:len(f)-1])))
-                TF_P2_1 = tf[key]['TF_P2-1']
-                fTF_P2_1 = np.hstack(
-                    (TF_P2_1, np.conj(TF_P2_1[::-1][1:len(f)-1])))
-                TF_ZP_21 = tf[key]['TF_ZP-21']
-                fTF_ZP_21 = np.hstack(
-                    (TF_ZP_21, np.conj(TF_ZP_21[::-1][1:len(f)-1])))
+        if key == 'ZP-21' and tflist[key]:
+            dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
+            TF_Z1 = tf[key]['TF_Z1']
+            fTF_Z1 = np.hstack(
+                (TF_Z1, np.conj(TF_Z1[::-1][1:len(f)-1])))
+            TF_21 = tf[key]['TF_21']
+            fTF_21 = np.hstack(
+                (TF_21, np.conj(TF_21[::-1][1:len(f)-1])))
+            TF_Z2_1 = tf[key]['TF_Z2-1']
+            fTF_Z2_1 = np.hstack(
+                (TF_Z2_1, np.conj(TF_Z2_1[::-1][1:len(f)-1])))
+            TF_P1 = tf[key]['TF_P1']
+            fTF_P1 = np.hstack(
+                (TF_P1, np.conj(TF_P1[::-1][1:len(f)-1])))
+            TF_P2_1 = tf[key]['TF_P2-1']
+            fTF_P2_1 = np.hstack(
+                (TF_P2_1, np.conj(TF_P2_1[::-1][1:len(f)-1])))
+            TF_ZP_21 = tf[key]['TF_ZP-21']
+            fTF_ZP_21 = np.hstack(
+                (TF_ZP_21, np.conj(TF_ZP_21[::-1][1:len(f)-1])))
 
-                for j in range(len(idx)):
-                    ftZ_temp = ftZ[j]
-                    ftP_temp = ftP[j]
-                    ft1_temp = ft1[j]
-                    ft2_temp = ft2[j]
-                    corrspec = ftZ_temp - fTF_Z1*ft1_temp - \
-                        (ft2_temp - ft1_temp*fTF_21)*fTF_Z2_1 - \
-                        (ftP_temp - ft1_temp*fTF_P1 -
-                         (ft2_temp - ft1_temp*fTF_21)*fTF_P2_1)*fTF_ZP_21
-                    corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
-                    if j==0:
-                        dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
-                    elif j+1 == len(idx):
-                        dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
-                    else:
-                        dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
+            for j in range(len(idx)):
+                ftZ_temp = ftZ[j]
+                ftP_temp = ftP[j]
+                ft1_temp = ft1[j]
+                ft2_temp = ft2[j]
+                corrspec = ftZ_temp - fTF_Z1*ft1_temp - \
+                    (ft2_temp - ft1_temp*fTF_21)*fTF_Z2_1 - \
+                    (ftP_temp - ft1_temp*fTF_P1 -
+                     (ft2_temp - ft1_temp*fTF_21)*fTF_P2_1)*fTF_ZP_21
+                corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
+                if j==0:
+                    dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
+                elif j+1 == len(idx):
+                    dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
+                else:
+                    dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
 
-                correct['ZP-21'] = dout
+            correct['ZP-21'] = dout
 
-        if key == 'ZH':
-            if value and tflist[key]:
-                dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
-                TF_ZH = tf[key]['TF_ZH']
-                fTF_ZH = np.hstack(
-                    (TF_ZH, np.conj(TF_ZH[::-1][1:len(f)-1])))
+        if key == 'ZH' and tflist[key]:
+            dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
+            TF_ZH = tf[key]['TF_ZH']
+            fTF_ZH = np.hstack(
+                (TF_ZH, np.conj(TF_ZH[::-1][1:len(f)-1])))
 
-                for j in range(len(idx)):
-                    ftZ_temp = ftZ[j]
-                    ft1_temp = ft1[j]
-                    ft2_temp = ft2[j]
-                    # Rotate horizontals
-                    ftH = utils.rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
+            for j in range(len(idx)):
+                ftZ_temp = ftZ[j]
+                ft1_temp = ft1[j]
+                ft2_temp = ft2[j]
+                # Rotate horizontals
+                ftH = utils.rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
 
-                    corrspec = ftZ_temp - fTF_ZH*ftH
-                    corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
-                    if j==0:
-                        dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
-                    elif j+1 == len(idx):
-                        dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
-                    else:
-                        dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
+                corrspec = ftZ_temp - fTF_ZH*ftH
+                corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
+                if j==0:
+                    dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
+                elif j+1 == len(idx):
+                    dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
+                else:
+                    dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
 
-                correct['ZH'] = dout
+            correct['ZH'] = dout
 
-        if key == 'ZP-H':
-            if value and tflist[key]:
-                dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
-                TF_ZH = tf['ZH']['TF_ZH']
-                fTF_ZH = np.hstack(
-                    (TF_ZH, np.conj(TF_ZH[::-1][1:len(f)-1])))
-                TF_PH = tf[key]['TF_PH']
-                fTF_PH = np.hstack(
-                    (TF_PH, np.conj(TF_PH[::-1][1:len(f)-1])))
-                TF_ZP_H = tf[key]['TF_ZP-H']
-                fTF_ZP_H = np.hstack(
-                    (TF_ZP_H, np.conj(TF_ZP_H[::-1][1:len(f)-1])))
+        if key == 'ZP-H' and tflist[key]:
+            dout = np.zeros((trZ.stats.npts,), dtype=trZ.data.dtype)
+            TF_ZH = tf['ZH']['TF_ZH']
+            fTF_ZH = np.hstack(
+                (TF_ZH, np.conj(TF_ZH[::-1][1:len(f)-1])))
+            TF_PH = tf[key]['TF_PH']
+            fTF_PH = np.hstack(
+                (TF_PH, np.conj(TF_PH[::-1][1:len(f)-1])))
+            TF_ZP_H = tf[key]['TF_ZP-H']
+            fTF_ZP_H = np.hstack(
+                (TF_ZP_H, np.conj(TF_ZP_H[::-1][1:len(f)-1])))
 
-                for j in range(len(idx)):
-                    ftZ_temp = ftZ[j]
-                    ftP_temp = ftP[j]
-                    ft1_temp = ft1[j]
-                    ft2_temp = ft2[j]
-                    # Rotate horizontals
-                    ftH = utils.rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
+            for j in range(len(idx)):
+                ftZ_temp = ftZ[j]
+                ftP_temp = ftP[j]
+                ft1_temp = ft1[j]
+                ft2_temp = ft2[j]
+                # Rotate horizontals
+                ftH = utils.rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
 
-                    corrspec = ftZ_temp - fTF_ZH*ftH - (ftP_temp - ftH*fTF_PH)*fTF_ZP_H
-                    corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
-                    if j==0:
-                        dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
-                    elif j+1 == len(idx):
-                        dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
-                    else:
-                        dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
+                corrspec = ftZ_temp - fTF_ZH*ftH - (ftP_temp - ftH*fTF_PH)*fTF_ZP_H
+                corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
+                if j==0:
+                    dout[idx[j]:idx[j]+ws-tps] = corrtime[0:ws-tps]
+                elif j+1 == len(idx):
+                    dout[idx[j]+tps:idx[j]+ws] = corrtime[tps:ws]
+                else:
+                    dout[idx[j]+tps:idx[j]+ws-tps] = corrtime[tps:ws-tps]
 
-                correct['ZP-H'] = dout
+            correct['ZP-H'] = dout
 
     return correct
 
@@ -1267,7 +1262,7 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
 # wrappers for key functionalities
 def TCremoval_wrapper(tr1,tr2,trZ,trP,window=7200,overlap=0.3,merge_taper=0.1,
                     qc_freq=[0.004, 0.2],qc_spectra=True,fig_spectra=False,
-                    save_spectrafig=False,fig_transfunc=False,tflist=gettflist(),
+                    save_spectrafig=False,fig_transfunc=False,correctlist=getcorrectlist(),
                     targettracelist=None):
     """
     This is a wrapper to remove tilt and compliance noises.
@@ -1282,17 +1277,17 @@ def TCremoval_wrapper(tr1,tr2,trZ,trP,window=7200,overlap=0.3,merge_taper=0.1,
     2. Compute transfer functions
     """
     #compute transfer functions for all possible combinations
-    transferfunc=gettransferfunc(spectra['auto'],spectra['cross'],spectra['rotation'])
+    transferfunc=gettransferfunc(spectra['auto'],spectra['cross'],spectra['rotation'],tflist=gettflist())
 
     """
     3. Do corrections and plot the comparison
     """
     if targettracelist is None:
-        correct = docorrection(tr1,tr2,trZ,trP,transferfunc,
+        correct = docorrection(tr1,tr2,trZ,trP,transferfunc,correctlist,
                                 overlap=overlap,taper=merge_taper)
     else:
         correct = docorrection(targettracelist[0],targettracelist[1],targettracelist[2],
-                                targettracelist[3],transferfunc,
+                                targettracelist[3],transferfunc,correctlist,
                                 overlap=overlap,taper=merge_taper)
 
     return spectra,transferfunc,correct
