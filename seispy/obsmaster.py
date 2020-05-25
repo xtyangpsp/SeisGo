@@ -91,29 +91,34 @@ class Rotation(object):
         Coherence between horizontal components
     ph : :class:`~numpy.ndarray`
         Phase of cross-power spectrum between horizontal components
+    direc :: class: `~numpy.ndarray`
+        All directions considered when computing the coh and ph.
     tilt : float
         Angle (azimuth) of tilt axis
+    admt_value : : class :`~numpy.ndarray`
+        Admittance between rotated horizontal at the tilt direction and vertical.
     coh_value : float
         Maximum coherence
     phase_value : float
         Phase at maximum coherence
-    direc : :class:`~numpy.ndarray`
-        Directions for which the coherence is calculated
-
+    angle : :class:`~numpy.ndarray`
+        Tilt angle.
     """
 
-    def __init__(spectra, cHH=None, cHZ=None, cHP=None, coh=None, ph=None,
-                 tilt=None, coh_value=None, phase_value=None, direc=None,
+    def __init__(spectra, cHH=None, cHZ=None, cHP=None, coh=None, ph=None,direc=None,
+                 tilt=None, angle=None, admt_value=None,coh_value=None, phase_value=None,
                  window=None,overlap=None,freq=None):
         spectra.cHH = cHH
         spectra.cHZ = cHZ
         spectra.cHP = cHP
         spectra.coh = coh
         spectra.ph = ph
+        spectra.direc = direc
         spectra.tilt = tilt
+        spectra.admt_value = admt_value
         spectra.coh_value = coh_value
         spectra.phase_value = phase_value
-        spectra.direc = direc
+        spectra.angle = angle
         spectra.window = window
         spectra.overlap = overlap
         spectra.freq = freq
@@ -238,7 +243,6 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
                    subplotpar=(4,1),ylabels=["raw","raw",
                                              "raw","raw"],
                    outfile=net+"."+sta+"_"+tstamp+"_raw.png",spacing=1,colors=['r','b','g','k'])
-
 
     """
     d. Remove responses
@@ -391,8 +395,8 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
         Coherence value between rotated H and Z components, as a function of directions (azimuths)
     ph : :class:`~numpy.ndarray`
         Phase value between rotated H and Z components, as a function of directions (azimuths)
-    direc : :class:`~numpy.ndarray`
-        Array of directions (azimuths) considered
+    angle : :class:`~numpy.ndarray`
+        Tilt angle
     tilt : float
         Direction (azimuth) of maximum coherence between rotated H1 and Z
     coh_value : float
@@ -480,13 +484,15 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
     cHH = np.abs(np.mean(ftH[goodwins, :] *
                          np.conj(ftH[goodwins, :]), axis=0))[0:len(f)]
     cHZ = np.mean(ftH[goodwins, :]*np.conj(ftZ[goodwins, :]), axis=0)[0:len(f)]
+    admt_value = utils.admittance(cHZ,cHH)
+    angle = np.degrees(np.arctan(admt_value))
     if np.any(ftP):
         cHP = np.mean(ftH[goodwins, :] *
                       np.conj(ftP[goodwins, :]), axis=0)[0:len(f)]
     else:
         cHP = None
 
-    return cHH, cHZ, cHP, coh, ph, direc, tilt, coh_value, phase_value
+    return cHH, cHZ, cHP, coh, ph, direc,tilt, angle,admt_value,coh_value, phase_value
 
 #modified from QC_daily_spectra() method in DayNoise class from OBStools
 #https://github.com/nfsi-canada/OBStools
@@ -611,7 +617,6 @@ def getspectra(tr1,tr2,trZ,trP,window=7200,overlap=0.3,pd=[0.004, 0.2], tol=1.5,
         sl_psdP = utils.smooth(psdP, 50, axis=0)
         sl_psd1 = utils.smooth(psd1, 50, axis=0)
         sl_psd2 = utils.smooth(psd2, 50, axis=0)
-
     else:
         # Take the log of the PSDs
         sl_psdZ = psdZ
@@ -770,11 +775,12 @@ def getspectra(tr1,tr2,trZ,trP,window=7200,overlap=0.3,pd=[0.004, 0.2], tol=1.5,
     cZP = np.mean(ftZ[goodwins, :] *
                   np.conj(ftP[goodwins, :]), axis=0)[0:len(f)]
 
-    cHH, cHZ, cHP, coh, ph, direc, tilt, coh_value, phase_value = \
+    cHH, cHZ, cHP, coh, ph, direc,tilt, angle,admt_value,coh_value, phase_value = \
             calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins)
 
     # Store as attribute containers
-    rotation = Rotation(cHH, cHZ, cHP, coh, ph, tilt, coh_value, phase_value, direc,window,overlap,f)
+    rotation = Rotation(cHH, cHZ, cHP, coh, ph, direc,tilt, angle, admt_value,
+                        coh_value, phase_value, window,overlap,f)
     auto = Power(c11, c22, cZZ, cPP,window,overlap,f)
     cross = Cross(c12, c1Z, c1P, c2Z, c2P, cZP,window,overlap,f)
     # bad = Power(bc11, bc22, bcZZ, bcPP,window,overlap,f)
@@ -906,7 +912,7 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
 
 
 def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
-                taper=None,full_length=True):
+                taper=None,full_length=True,verbose=False):
     """
     Applies transfer functions between multiple components (and
     component combinations) to produce corrected/cleaned vertical
@@ -1003,7 +1009,7 @@ def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
 
     # Important step below: merge multiple windows after correction.
     # The windows will be put back to the exact location as documented in idx.
-    if len(idx) > 1:
+    if len(idx) > 1 and verbose:
         print('Merging multiple corrected segments.')
         print("windows connect at the following times:")
         print((idx+tps)/trZ.stats.sampling_rate)

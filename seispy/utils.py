@@ -208,7 +208,7 @@ def sta_info_from_inv(inv):
                 location.append('00')
     return sta,net,lon,lat,elv,location
 
-# split_datetimestr(inv) is modified from noise_module get_event_list()
+# split_datetimestr(inv) is modified from NoisePy.noise_module.get_event_list()
 #Check NoisePy: https://github.com/mdenolle/NoisePy
 def split_datetimestr(dtstr1,dtstr2,inc_hours):
     '''
@@ -723,25 +723,54 @@ def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()
 
 #save trace to files.
-def save2asdf(fname,st,tag,sta_inv=None):
+def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None):
     """
-    Save obspy stream to asdf file.
+    A wrapper to save obspy stream to asdf file.
+
+    Parameters
+    ----------
+    fname : string
+        Output ASDF file name, with *.h5 extension.
+    data :: class `~obspy.core.Stream` or class `~numpy.ndarray`
+        Obspy Stream or numpy.ndarray object. For stream, all traces should belong to one single station,
+        particularly when sta_inv is provided.
+    tag :: string list
+        List of tags for each trace in the `data` object.
+    sta_inv : station inventory
+        Staion xml (obspy station inventory).
+    group : string
+        Group to save the data. Available options include 'waveforms', 'auxiliary'
+    para : dictionary
+        A dictionary to store saving parameters.
     """
-    if len(st) != len(tag):
-        raise(Exception('save2asdf: the steam and tag list should have the same length.'))
+    if group == 'waveforms':
+        if len(data) != len(tag):
+            raise(Exception('save2asdf: the stream and tag list should have the same length.'))
 
     if not os.path.isfile(fname):
-        with pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='w') as ds:
-            if sta_inv is not None:
-                ds.add_stationxml(sta_inv)
-
-            for i in range(len(st)):
-                ds.add_waveforms(st[i],tag=tag[i])
+        ds=pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='w')
     else:
-        # appending when file exists
-        with pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='a') as ds:
-            if sta_inv is not None:
-                ds.add_stationxml(sta_inv)
+        ds=pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='a')
 
-            for i in range(len(st)):
-                ds.add_waveforms(st[i],tag=tag[i])
+    #save
+    if sta_inv is not None:
+        ds.add_stationxml(sta_inv)
+
+    if group == 'waveforms':
+        for i in range(len(data)):
+            ds.add_waveforms(data[i],tag=tag[i])
+    elif group == 'auxiliary':
+        try:
+            data_type=para['data_type']
+            data_path=para['data_path']
+            parameters = para['parameters']
+        except Exception as e:
+            raise(Exception('save2adsf: '+e))
+
+        providence_id=None
+        try:
+            providence_id=para['providence_id']
+        except Exception as e:
+            print('save2adsf: '+e)
+
+        ds.add_auxiliary_data(data,data_type,data_path,providence_id=providence_id)
