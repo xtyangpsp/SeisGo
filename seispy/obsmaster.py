@@ -101,12 +101,10 @@ class Rotation(object):
         Maximum coherence
     phase_value : float
         Phase at maximum coherence
-    angle : :class:`~numpy.ndarray`
-        Tilt angle.
     """
 
     def __init__(spectra, cHH=None, cHZ=None, cHP=None, coh=None, ph=None,direc=None,
-                 tilt=None, angle=None, admt_value=None,coh_value=None, phase_value=None,
+                 tilt=None, admt_value=None,coh_value=None, phase_value=None,
                  window=None,overlap=None,freq=None):
         spectra.cHH = cHH
         spectra.cHZ = cHZ
@@ -118,7 +116,7 @@ class Rotation(object):
         spectra.admt_value = admt_value
         spectra.coh_value = coh_value
         spectra.phase_value = phase_value
-        spectra.angle = angle
+        # spectra.angle = angle
         spectra.window = window
         spectra.overlap = overlap
         spectra.freq = freq
@@ -305,7 +303,7 @@ def maxcompfreq(d,iplot=False,figname="waterdepth_maxcompfreq.png"):
     return f
 
 #
-def gettflist(help=False):
+def gettflist(help=False,correctlist=None):
     """
     Get a full list of transfer function components. This is usefull to get a default
     list and modify based on cases.
@@ -337,6 +335,21 @@ def gettflist(help=False):
         'ZH':True,
         'ZP-H':True
     }
+
+    #find the tflist that matches the correctlist.
+    if correctlist is not None:
+        tflist={
+            'ZP':False,
+            'Z1':False,
+            'Z2-1':False,
+            'ZP-21':False,
+            'ZH':False,
+            'ZP-H':False
+        }
+        for key in correctlist:
+            tflist[key]=True
+            if key == 'Z2-1': tflist['Z1']=True
+            elif key == 'ZP-H': tflist['ZH']=True
 
     return tflist
 
@@ -370,7 +383,7 @@ def getcorrectlist(help=False):
 
     return clist
 # modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
-def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
+def calculate_tilt(ft1, ft2, ftZ, ftP, f, tiltfreq=[0.005, 0.035]):
     """
     Determines tilt direction from maximum coherence between rotated H1 and Z.
 
@@ -380,9 +393,6 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
         Fourier transform of corresponding H1, H2, HZ and HP components
     f : :class:`~numpy.ndarray`
         Frequency axis in Hz
-    goodwins : list
-        List of booleans representing whether a window is good (True) or not (False).
-        This attribute is returned from the method :func:`~obstools.atacr.classes.DayNoise.QC_daily_spectra`
     tiltfreq : list
         Two floats representing the frequency band at which the tilt is calculated
 
@@ -409,8 +419,8 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
     direc = np.arange(0., 360., 10.)
     coh = np.zeros(len(direc))
     ph = np.zeros(len(direc))
-    cZZ = np.abs(np.mean(ftZ[goodwins, :] *
-                         np.conj(ftZ[goodwins, :]), axis=0))[0:len(f)]
+    cZZ = np.abs(np.mean(ftZ *
+                         np.conj(ftZ), axis=0))[0:len(f)]
 
     for i, d in enumerate(direc):
 
@@ -418,10 +428,10 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
         ftH = utils.rotate_dir(ft1, ft2, d)
 
         # Get transfer functions
-        cHH = np.abs(np.mean(ftH[goodwins, :] *
-                             np.conj(ftH[goodwins, :]), axis=0))[0:len(f)]
-        cHZ = np.mean(ftH[goodwins, :] *
-                      np.conj(ftZ[goodwins, :]), axis=0)[0:len(f)]
+        cHH = np.abs(np.mean(ftH *
+                             np.conj(ftH), axis=0))[0:len(f)]
+        cHZ = np.mean(ftH *
+                      np.conj(ftZ), axis=0)[0:len(f)]
 
         Co = utils.coherence(cHZ, cHH, cZZ)
         Ph = utils.phase(cHZ)
@@ -449,10 +459,10 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
         ftH = utils.rotate_dir(ft1, ft2, d)
 
         # Get transfer functions
-        cHH = np.abs(np.mean(ftH[goodwins, :] *
-                             np.conj(ftH[goodwins, :]), axis=0))[0:len(f)]
-        cHZ = np.mean(ftH[goodwins, :] *
-                      np.conj(ftZ[goodwins, :]), axis=0)[0:len(f)]
+        cHH = np.abs(np.mean(ftH *
+                             np.conj(ftH), axis=0))[0:len(f)]
+        cHZ = np.mean(ftH *
+                      np.conj(ftZ), axis=0)[0:len(f)]
 
         Co = utils.coherence(cHZ, cHH, cZZ)
         Ph = utils.phase(cHZ)
@@ -481,18 +491,17 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins, tiltfreq=[0.005, 0.035]):
     ftH = utils.rotate_dir(ft1, ft2, tilt)
 
     # Get transfer functions
-    cHH = np.abs(np.mean(ftH[goodwins, :] *
-                         np.conj(ftH[goodwins, :]), axis=0))[0:len(f)]
-    cHZ = np.mean(ftH[goodwins, :]*np.conj(ftZ[goodwins, :]), axis=0)[0:len(f)]
+    cHH = np.abs(np.mean(ftH *
+                         np.conj(ftH), axis=0))[0:len(f)]
+    cHZ = np.mean(ftH*np.conj(ftZ), axis=0)[0:len(f)]
     admt_value = utils.admittance(cHZ,cHH)
-    angle = np.degrees(np.arctan(admt_value))
     if np.any(ftP):
-        cHP = np.mean(ftH[goodwins, :] *
-                      np.conj(ftP[goodwins, :]), axis=0)[0:len(f)]
+        cHP = np.mean(ftH *
+                      np.conj(ftP), axis=0)[0:len(f)]
     else:
         cHP = None
 
-    return cHH, cHZ, cHP, coh, ph, direc,tilt, angle,admt_value,coh_value, phase_value
+    return cHH, cHZ, cHP, coh, ph, direc,tilt, admt_value,coh_value, phase_value
 
 #modified from QC_daily_spectra() method in DayNoise class from OBStools
 #https://github.com/nfsi-canada/OBStools
@@ -775,11 +784,12 @@ def getspectra(tr1,tr2,trZ,trP,window=7200,overlap=0.3,pd=[0.004, 0.2], tol=1.5,
     cZP = np.mean(ftZ[goodwins, :] *
                   np.conj(ftP[goodwins, :]), axis=0)[0:len(f)]
 
-    cHH, cHZ, cHP, coh, ph, direc,tilt, angle,admt_value,coh_value, phase_value = \
-            calculate_tilt(ft1, ft2, ftZ, ftP, f, goodwins)
+    cHH, cHZ, cHP, coh, ph, direc,tilt,admt_value,coh_value, phase_value = \
+            calculate_tilt(ft1[goodwins, :], ft2[goodwins, :], ftZ[goodwins, :],
+                            ftP[goodwins, :], f)
 
     # Store as attribute containers
-    rotation = Rotation(cHH, cHZ, cHP, coh, ph, direc,tilt, angle, admt_value,
+    rotation = Rotation(cHH, cHZ, cHP, coh, ph, direc,tilt, admt_value,
                         coh_value, phase_value, window,overlap,f)
     auto = Power(c11, c22, cZZ, cPP,window,overlap,f)
     cross = Cross(c12, c1Z, c1P, c2Z, c2P, cZP,window,overlap,f)
@@ -835,17 +845,14 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
     transfunc['freq']=auto.freq
 
     for tfkey, value in tflist.items():
-
         if tfkey == 'ZP':
             if value:
                 tf_ZP = {'TF_ZP': cross.cZP/auto.cPP}
                 transfunc['ZP']= tf_ZP
-
         elif tfkey == 'Z1':
             if value:
                 tf_Z1 = {'TF_Z1': np.conj(cross.c1Z)/auto.c11}
                 transfunc['Z1'] = tf_Z1
-
         elif tfkey == 'Z2-1':
             if value:
                 lc1c2 = np.conj(cross.c12)/auto.c11
@@ -855,7 +862,6 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
                 lc2cZ_c1 = gc2cZ_c1/gc2c2_c1
                 tf_Z2_1 = {'TF_21': lc1c2, 'TF_Z2-1': lc2cZ_c1}
                 transfunc['Z2-1'] = tf_Z2_1
-
         elif tfkey == 'ZP-21':
             if value:
                 lc1cZ = np.conj(cross.c1Z)/auto.c11
@@ -888,13 +894,11 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
                             'TF_P1': lc1cP, 'TF_P2-1': lc2cP_c1,
                             'TF_Z2-1': lc2cZ_c1, 'TF_ZP-21': lcPcZ_c2c1}
                 transfunc['ZP-21'] = tf_ZP_21
-
         elif tfkey == 'ZH':
             if value:
                 tf_ZH = {'TF_ZH': np.conj(rotation.cHZ)/rotation.cHH}
                 transfunc['ZH'] = tf_ZH
                 transfunc['tilt'] = rotation.tilt
-
         elif tfkey == 'ZP-H':
             if value:
                 lcHcP = np.conj(rotation.cHP)/rotation.cHH
@@ -904,13 +908,12 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
                 lcPcZ_cH = gcPcZ_cH/gcPcP_cH
                 tf_ZP_H = {'TF_PH': lcHcP, 'TF_ZP-H': lcPcZ_cH}
                 transfunc['ZP-H'] = tf_ZP_H
-
         else:
             raise(Exception('Incorrect tfkey'))
 
     return transfunc
 
-
+###########################################################################
 def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
                 taper=None,full_length=True,verbose=False):
     """
@@ -1283,7 +1286,8 @@ def TCremoval_wrapper(tr1,tr2,trZ,trP,window=7200,overlap=0.3,merge_taper=0.1,
     2. Compute transfer functions
     """
     #compute transfer functions for all possible combinations
-    transferfunc=gettransferfunc(spectra['auto'],spectra['cross'],spectra['rotation'],tflist=gettflist())
+    transferfunc=gettransferfunc(spectra['auto'],spectra['cross'],spectra['rotation'],
+                                tflist=gettflist(correctlist=correctlist))
 
     """
     3. Do corrections and plot the comparison

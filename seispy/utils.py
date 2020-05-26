@@ -767,10 +767,10 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None):
         except Exception as e:
             raise(Exception('save2adsf: '+e))
 
-        providence_id=None
         try:
-            providence_id=para['providence_id']
+            provenance_id=para['provenance_id']
         except Exception as e:
-            print('save2adsf: '+e)
+            provenance_id=None
 
-        ds.add_auxiliary_data(data,data_type,data_path,providence_id=providence_id)
+        ds.add_auxiliary_data(data,data_type,data_path,parameters=parameters,
+                            provenance_id=provenance_id)

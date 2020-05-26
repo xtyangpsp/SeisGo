@@ -95,7 +95,8 @@ splits  = nfiles
 if nfiles==0:
     raise IOError('Abort! no available seismic files in '+rawdatadir)
 
-for ifile in range(1):
+t0=time.time()
+for ifile in range(nfiles):
     df=dfiles[ifile]
     print('Working on: '+df+' ... ['+str(ifile+1)+'/'+str(nfiles)+']')
     dfbase=os.path.split(df)[-1]
@@ -105,6 +106,8 @@ for ifile in range(1):
     netstalist = ds.waveforms.list()
     nsta = len(netstalist)
 
+    tilt=[]
+    sta_processed=[]
     for ista in netstalist:
         print('  station: '+ista)
         """
@@ -149,7 +152,8 @@ for ifile in range(1):
             tr1,tr2,trZ,trP,window=window,overlap=overlap,merge_taper=taper,
             qc_freq=qc_freq,qc_spectra=True,fig_spectra=False,
             save_spectrafig=False,fig_transfunc=False,correctlist=tc_subset)
-
+        tilt.append(spectra['rotation'].tilt)
+        sta_processed.append(ista)
         if plot_correction:
             obs.plotcorrection(trZ,correct,normalize=normalizecorrectionplot,freq=[0.005,0.1],
                                size=(12,3),save=True,form='png')
@@ -158,8 +162,18 @@ for ifile in range(1):
         Save to ASDF file.
         """
         trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
-        print('  saving all component after TC removal to: '+df_tc)
+        print('  saving to: '+df_tc)
         utils.save2asdf(df_tc,Stream(traces=[tr1,tr2,trZtc[0],trP]),newtags,sta_inv=inv)
 
+    #save auxiliary data to file.
+    print('  saving auxiliary data to: '+df_tc)
+    tcpara_temp=tcpara
+    tcpara_temp['tilt_stations']=sta_processed
+    utils.save2asdf(df_tc,np.array(tilt),None,group='auxiliary',para={'data_type':'tcremoval',
+                                                'data_path':'tiltdir',
+                                                'parameters':tcpara_temp})
+
+tend=time.time() - t0
+print('Finished all files in '+str(tend)+' seconds, or '+str(tend/3600)+' hours')
 
 # In[ ]:
