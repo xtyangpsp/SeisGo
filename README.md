@@ -4,7 +4,7 @@
 ### Author: Xiaotao Yang (stcyang@gmail.com)
 
 ## Introduction
-This package is currently heavily dependent on **obspy** (www.obspy.org). Users are referred to **obspy** toolbox for related modules and functions.
+This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
 
 ## Available modules
 This package is under active development. The currently available modules are list here.
