@@ -7,7 +7,7 @@
 This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
 
 ## Available modules
-This package is under active development. The currently available modules are list here.
+This package is under active development. The currently available modules are listed here.
 1. `utils`
 
 This module contains frequently used utility functions not readily available in `obspy`.

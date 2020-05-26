@@ -74,7 +74,9 @@ if rank==0:
     #### Optional clean-up block ####
     ####################################
     if not os.path.isdir(rawdatadir):
+        comm.barrier()
         raise IOError('Abort! Directory for raw data NOT found: '+rawdatadir)
+        sys.exit()
 
     if not os.path.isdir(tcdatadir): os.mkdir(tcdatadir)
     dfilesTC0 = glob.glob(os.path.join(tcdatadir,'*.h5'))
@@ -145,7 +147,8 @@ for ifile in range(rank,splits,size):
         #sanity check.
         for tr in [tr1, tr2, trZ, trP]:
             if not isinstance(tr, Trace):
-                print(str(tr)+" is not a Trace object")
+                print(str(tr)+" is not a Trace object. Skip "+ista)
+
 
         """
         Call correction wrapper
