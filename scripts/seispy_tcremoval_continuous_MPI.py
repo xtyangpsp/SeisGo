@@ -38,6 +38,7 @@ downloadexample=False #change to False or remove/comment this block if needed.
 
 #directory to save the data after TC removal
 tcdatadir = os.path.join(rootpath,'tcremoval')
+cleantcdatadir=True #If True, the program will remove all *.h5 files under `tcdatafir` before running.
 
 """
 2. Tilt and compliance removal parameters
@@ -49,24 +50,20 @@ qc_freq=[0.004, 1]
 plot_correction=True
 normalizecorrectionplot=True
 tc_subset=['ZP-H']
-savetcpara=True
+savetcpara=True                     #If True, the parameters are saved to a text file
+                                    #in the `tcdatadir` directory.
+tcparaoutfile=os.path.join(tcdatadir,'tcparameters.txt')
 #assemble all parameters into a dictionary.
 tcpara={'window':window,'overlap':overlap,'taper':taper,'qc_freq':qc_freq,
         'tc_subset':tc_subset}
+
+######################################################################
+#### Normally, no changes are needed for the following processing ####
+######################################################################
 """
 3. Read local data and do correction
-We use the wrapper function for tilt and compliance corrections.
-
-Steps:
-a. read in file list
-b. loop through all files
-c. loop through all stations
-    c-1. read waveform tags and list
-    c-2. read station info if available. skip land stations or stations with only vertical.
-    c-3. assemble all four components for OBS stations
-    c-4. do correction work flow and plot the result if applicable
-    c-5. save auxiliary data, e.g., tilt direction and angle, and TC removal parameters.
-    c-6. save to original file name in different directory
+We use the wrapper function for tilt and compliance corrections. The data after noise removal
+will be saved to the original file name BUT in different directory defined by `tcdatadir`.
 """
 #-------- Set MPI parameters --------------------------------
 comm = MPI.COMM_WORLD
@@ -77,33 +74,19 @@ if rank==0:
     #### Optional clean-up block ####
     ####################################
     if not os.path.isdir(rawdatadir):
-        if downloadexample: os.mkdir(rawdatadir)
-        else: raise IOError('Abort! Directory for raw data NOT found: '+rawdatadir)
+        raise IOError('Abort! Directory for raw data NOT found: '+rawdatadir)
 
     if not os.path.isdir(tcdatadir): os.mkdir(tcdatadir)
-    cleantartgetdir=True #change to False or remove/comment this block if needed.
     dfilesTC0 = glob.glob(os.path.join(tcdatadir,'*.h5'))
-    if cleantartgetdir and len(dfilesTC0)>0:
+    if cleantcdatadir and len(dfilesTC0)>0:
         print('Cleaning up TC removal directory before running ...')
         for df0 in dfilesTC0:os.remove(df0)
     ####################################
     ##### End of clean-up block #####
     ####################################
-
-    ####################################
-    #### Optional downloading block ####
-    ####################################
-    if downloadexample:
-        print('Cleaning up raw data directory before downloading ...')
-        dfiles1 = glob.glob(os.path.join(rawdatadir,'*.h5'))
-        for df1 in dfiles1:os.remove(df1)
-        os.system('python seispy_download_obsdata.py')
-    ####################################
-    ##### End of downloading block #####
-    ####################################
     print(tcpara)
     if savetcpara:
-        fout = open(os.path.join(tcdatadir,'tcparameters.txt'),'w')
+        fout = open(tcparaoutfile,'w')
         fout.write(str(tcpara));
         fout.close()
     dfiles0 = glob.glob(os.path.join(rawdatadir,'*.h5'))
@@ -191,7 +174,7 @@ for ifile in range(rank,splits,size):
     utils.save2asdf(df_tc,np.array(tilt),None,group='auxiliary',para={'data_type':'tcremoval',
                                                 'data_path':'tiltdir',
                                                 'parameters':tcpara_temp})
-#
+###############################################
 comm.barrier()
 if rank == 0:
     tend=time.time() - t0
