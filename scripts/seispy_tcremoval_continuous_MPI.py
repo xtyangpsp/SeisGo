@@ -128,9 +128,6 @@ for ifile in range(rank,splits,size):
 
         all_tags = ds.waveforms[ista].get_waveform_tags()
         print(all_tags)
-        if len(all_tags)!=4:
-            print("  Wrong number of components. Has to be four (4) channels! Skip!")
-            continue
 
         tr1, tr2, trZ, trP=[None for _ in range(4)]
         #assign components by waveform tags.
@@ -145,10 +142,18 @@ for ifile in range(rank,splits,size):
             elif chan[-1].lower() == 'z':trZ=tr_temp;newtags[2]=tg
 
         #sanity check.
+        badtrace=False
         for tr in [tr1, tr2, trZ, trP]:
             if not isinstance(tr, Trace):
-                print(str(tr)+" is not a Trace object. Skip "+ista)
-
+                print(str(tr)+" is not a Trace object. Save as is without processing: "+ista)
+                badtrace=True
+        if badtrace or len(all_tags) < 4:
+            print("  Not enough good traces for TC removal! Save as is without processing!")
+            outtrace=[]
+            for tg in all_tags:
+                outtrace.append(ds.waveforms[ista][tg][0])
+            utils.save2asdf(df_tc,Stream(traces=outtrace),all_tags,sta_inv=inv)
+            continue
 
         """
         Call correction wrapper
@@ -163,20 +168,22 @@ for ifile in range(rank,splits,size):
             obs.plotcorrection(trZ,correct,normalize=normalizecorrectionplot,freq=[0.005,0.1],
                                size=(12,3),save=True,form='png')
 
+        outstream=Stream(traces=[tr1,tr2,trZtc[0],trP])
         """
         Save to ASDF file.
         """
         trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
         print('  saving to: '+df_tc)
-        utils.save2asdf(df_tc,Stream(traces=[tr1,tr2,trZtc[0],trP]),newtags,sta_inv=inv)
+        utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
 
     #save auxiliary data to file.
-    print('  saving auxiliary data to: '+df_tc)
-    tcpara_temp=tcpara
-    tcpara_temp['tilt_stations']=sta_processed
-    utils.save2asdf(df_tc,np.array(tilt),None,group='auxiliary',para={'data_type':'tcremoval',
-                                                'data_path':'tiltdir',
-                                                'parameters':tcpara_temp})
+    if len(tilt) > 0:
+        print('  saving auxiliary data to: '+df_tc)
+        tcpara_temp=tcpara
+        tcpara_temp['tilt_stations']=sta_processed
+        utils.save2asdf(df_tc,np.array(tilt),None,group='auxiliary',para={'data_type':'tcremoval',
+                                                    'data_path':'tiltdir',
+                                                    'parameters':tcpara_temp})
 ###############################################
 comm.barrier()
 if rank == 0:
