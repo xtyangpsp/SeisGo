@@ -1224,7 +1224,8 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
     clist=correctdict.keys()
 
     tr=trIN.copy()
-
+    tr.filter('bandpass', freqmin=freqmin,
+                        freqmax=freqmax, corners=2, zerophase=True)
     if normalize:
         rawdata=trIN.data/np.max(np.abs(trIN.data[imin:imax]))
     else:
@@ -1236,10 +1237,10 @@ def plotcorrection(trIN, correctdict, freq=None,size=None,normalize=False,
         plt.plot(taxis, rawdata, 'lightgray', lw=0.5)
 
         tr.data=np.squeeze(correctdict[ckey])
-        if normalize:
-            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         tr.filter('bandpass', freqmin=freqmin,
                             freqmax=freqmax, corners=2, zerophase=True)
+        if normalize:
+            tr.data=tr.data/np.max(np.abs(tr.data[imin:imax]))
         plt.plot(taxis, tr.data, 'k', lw=0.5)
 
         if normalize:
