@@ -155,7 +155,7 @@ for ifile in range(rank,splits,size):
                 continue
         for tr in [tr1, tr2, trZ, trP]:
             if not isinstance(tr, Trace):
-                print("  "str(tr)+" is not a Trace object. Save as is without processing: "+ista)
+                print("  "+str(tr)+" is not a Trace object. Save as is without processing: "+ista)
                 badtrace=True
                 break
             elif np.sum(np.isnan(tr.data))>0:
