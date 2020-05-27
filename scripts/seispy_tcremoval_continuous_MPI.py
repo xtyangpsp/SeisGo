@@ -148,7 +148,7 @@ for ifile in range(rank,splits,size):
         #sanity check.
         badtrace=False
         hasPressure=False
-        if instance(trP,Trace):
+        if isinstance(trP,Trace):
             hasPressure=True
         if not isinstance(tr1, Trace) and not isinstance(tr2, Trace) and not isinstance(trZ, Trace):
                 print('  No seismic channels found. Drop the station: '+ista)
