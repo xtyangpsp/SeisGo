@@ -168,7 +168,7 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
     if sacheader or getstainv:
         inv = client.get_stations(network=net,station=sta,
                         channel="*",location="*",starttime=starttime,endtime=endtime,
-                        'level'=response)
+                        level='response')
         stlo, stla,stel=utils.sta_info_from_inv(inv[0])[2:4]
         sac['stlo']=stlo
         sac['stla']=stla
