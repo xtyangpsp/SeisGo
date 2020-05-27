@@ -147,6 +147,11 @@ for ifile in range(rank,splits,size):
             if not isinstance(tr, Trace):
                 print(str(tr)+" is not a Trace object. Save as is without processing: "+ista)
                 badtrace=True
+                break
+            elif np.sum(np.isnan(tr.data))>0:
+                print(' NaN found in trace: '+str(tr)+". Save as is without processing.")
+                badtrace=True
+                break
         if badtrace or len(all_tags) < 4:
             print("  Not enough good traces for TC removal! Save as is without processing!")
             outtrace=[]
@@ -168,12 +173,12 @@ for ifile in range(rank,splits,size):
             obs.plotcorrection(trZ,correct,normalize=normalizecorrectionplot,freq=[0.005,0.1],
                                size=(12,3),save=True,form='png')
 
+        trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
         outstream=Stream(traces=[tr1,tr2,trZtc[0],trP])
         """
         Save to ASDF file.
         """
-        trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
-        print('  saving to: '+df_tc)
+        print('  saving corrected data to: '+df_tc)
         utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
 
     #save auxiliary data to file.
