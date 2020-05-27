@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# In[ ]:
-
-
 # import needed packages and functions
 from seispy import utils
 # from warnings import warn
@@ -123,7 +119,8 @@ class Rotation(object):
 
 ####
 def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
-            rmresp=True,pre_filt=None,plot=False,debug=False,metadata=False):
+            rmresp=True,pre_filt=None,plot=False,debug=False,
+            sacheader=False,getstainv=False):
     """
     Function to download 4 component OBS data and (optionally) remove response and downsample if needed.
     Most of the arguments have the same meaning as for obspy.Client.get_waveforms().
@@ -152,11 +149,13 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
             Plot the traces after preprocessing (sampling, removing responses if specified).
     debug : bool
             Plot raw waveforms before preprocessing.
-    metadata : bool
-            Key metadata information in a dictionary using the SAC header naming convention.
+    sacheader : bool
+            Key sacheader information in a dictionary using the SAC header naming convention.
     """
     client = Client(source)
-
+    tr1, tr2, trZ, trP=[None for _ in range(4)]
+    pchan='*H'
+    sac=dict() #place holder to save some sac headers.
     #check arguments
     if rmresp:
         if pre_filt is None:
@@ -166,17 +165,16 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
     """
     a. Downloading
     """
-    sac=dict() #place holder to save some headers.
-    if metadata:
+    if sacheader or getstainv:
         inv = client.get_stations(network=net,station=sta,
-                        channel=pchan,location="*",starttime=starttime,endtime=endtime)
-        stlo, stla,stel,loc=utils.sta_info_from_inv(inv[0])[2:5]
+                        channel="*",location="*",starttime=starttime,endtime=endtime,
+                        'level'=response)
+        stlo, stla,stel=utils.sta_info_from_inv(inv[0])[2:4]
         sac['stlo']=stlo
         sac['stla']=stla
         sac['stel']=stel
 
     # pressure channel
-    pchan='*H'
     trP=client.get_waveforms(network=net,station=sta,
                     channel=pchan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
 #     trP[0].detrend()
@@ -185,13 +183,6 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
 
     pchan0=trP.stats.channel
     print("station "+net+"."+sta+" --> pressure channel: "+pchan0)
-
-    year = trP.stats.starttime.year
-    julday = trP.stats.starttime.julday
-    hour = trP.stats.starttime.hour
-    mnt = trP.stats.starttime.minute
-    sec = trP.stats.starttime.second
-    tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
 
     #other seismic channels
     schan=pchan0[0]+"H?"
@@ -206,10 +197,17 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
 
     print("station "+net+"."+sta+" --> seismic channels: "+hchan1+", "+hchan2+", "+zchan)
 
-    trlabels=[net+"."+sta+"."+tr1.stats.channel,
-             net+"."+sta+"."+tr2.stats.channel,
-             net+"."+sta+"."+trZ.stats.channel,
-             net+"."+sta+"."+trP.stats.channel]
+    if plot or debug:
+        year = trZ.stats.starttime.year
+        julday = trZ.stats.starttime.julday
+        hour = trZ.stats.starttime.hour
+        mnt = trZ.stats.starttime.minute
+        sec = trZ.stats.starttime.second
+        tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
+        trlabels=[net+"."+sta+"."+tr1.stats.channel,
+                 net+"."+sta+"."+tr2.stats.channel,
+                 net+"."+sta+"."+trZ.stats.channel,
+                 net+"."+sta+"."+trP.stats.channel]
     """
     b. Resampling
     """
@@ -279,7 +277,8 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
                          colors=['r','b','g','k'])
 
     #
-    return tr1,tr2,trZ,trP
+    if getstainv:return tr1,tr2,trZ,trP,inv
+    else: return tr1,tr2,trZ,trP
 
 #
 def maxcompfreq(d,iplot=False,figname="waterdepth_maxcompfreq.png"):

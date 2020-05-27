@@ -23,7 +23,7 @@ import datetime
 from mpi4py import MPI
 import os, glob
 import numpy as np
-import pandas as pd
+# import pandas as pd
 # import matplotlib.pyplot  as plt
 # from obspy import UTCDateTime
 from obspy.core import Stream, Trace
