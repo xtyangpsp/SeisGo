@@ -177,24 +177,28 @@ for ifile in range(rank,splits,size):
         """
         Call correction wrapper
         """
-        spectra,transfunc,correct=obs.TCremoval_wrapper(
-            tr1,tr2,trZ,trP,window=window,overlap=overlap,merge_taper=taper,
-            qc_freq=qc_freq,qc_spectra=True,fig_spectra=False,
-            save_spectrafig=False,fig_transfunc=False,correctlist=tc_subset)
-        tilt.append(spectra['rotation'].tilt)
-        sta_processed.append(ista)
-        if plot_correction:
-            obs.plotcorrection(trZ,correct,normalize=normalizecorrectionplot,freq=[0.005,0.1],
-                               size=(12,3),save=True,form='png')
+        try:
+            spectra,transfunc,correct=obs.TCremoval_wrapper(
+                tr1,tr2,trZ,trP,window=window,overlap=overlap,merge_taper=taper,
+                qc_freq=qc_freq,qc_spectra=True,fig_spectra=False,
+                save_spectrafig=False,fig_transfunc=False,correctlist=tc_subset)
+            tilt.append(spectra['rotation'].tilt)
+            sta_processed.append(ista)
+            if plot_correction:
+                obs.plotcorrection(trZ,correct,normalize=normalizecorrectionplot,freq=[0.005,0.1],
+                                   size=(12,3),save=True,form='png')
 
-        trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
-        outstream=Stream(traces=[tr1,tr2,trZtc[0],trP])
-        """
-        Save to ASDF file.
-        """
-        print('  saving corrected data to: '+df_tc)
-        utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
-
+            trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
+            outstream=Stream(traces=[tr1,tr2,trZtc[0],trP])
+            """
+            Save to ASDF file.
+            """
+            print('  saving to: '+df_tc)
+            utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
+        except Exception as e:
+            print(' Error in calling TCremoval procedures. Drop trace.')
+            print(df+' : '+ista+' : '+str(e))
+            continue
     #save auxiliary data to file.
     if len(tilt) > 0:
         print('  saving auxiliary data to: '+df_tc)
