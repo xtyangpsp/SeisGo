@@ -63,25 +63,15 @@ $ python
 ```
 
 ## Structure of the package
-1. **seispy**
+1. **seispy**: This directory contains the main modules.
 
-This directory contains the main modules.
+2. **notebooks**: This directory contains the jupyter notebooks that provide tutorials for all modules.
 
-2. **notebooks**
+3. **data**: Data for testing or running the tutorials is saved under this folder.
 
-This directory contains the jupyter notebooks that provide tutorials for all modules.
+4. **figs**: Here we put figures in tutorials and other places.
 
-3. **data**
-
-Data for testing or running the tutorials is saved under this folder.
-
-4. **figs**
-
-Here we put figures in tutorials and other places.
-
-5. **scripts**
-
-This directory contains example scripts for data processing using `seispy`. Users are welcome to modify from the provided example scripts to work on their own data.
+5. **scripts**: This directory contains example scripts for data processing using `seispy`. Users are welcome to modify from the provided example scripts to work on their own data.
 
 ## Tutorials
 To-be-added.
