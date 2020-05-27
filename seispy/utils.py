@@ -13,7 +13,7 @@ import pyasdf
 import datetime
 import os, glob
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
 from scipy.signal import tukey
