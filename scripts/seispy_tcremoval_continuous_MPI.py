@@ -52,6 +52,9 @@ normalizecorrectionplot=True
 tc_subset=['ZP-H']
 savetcpara=True                     #If True, the parameters are saved to a text file
                                     #in the `tcdatadir` directory.
+requirePressure=False
+for tcs in tc_subset:
+    if 'P' in tcs: requirePressure=True; break
 tcparaoutfile=os.path.join(tcdatadir,'tcparameters.txt')
 #assemble all parameters into a dictionary.
 tcpara={'window':window,'overlap':overlap,'taper':taper,'qc_freq':qc_freq,
@@ -127,7 +130,8 @@ for ifile in range(rank,splits,size):
             inv = None
 
         all_tags = ds.waveforms[ista].get_waveform_tags()
-        print(all_tags)
+        if len(all_tags) < 1: continue #empty waveform group.
+        else: print(all_tags)
 
         tr1, tr2, trZ, trP=[None for _ in range(4)]
         #assign components by waveform tags.
@@ -143,16 +147,26 @@ for ifile in range(rank,splits,size):
 
         #sanity check.
         badtrace=False
+        hasPressure=False
+        if instance(trP,Trace):
+            hasPressure=True
+        if not isinstance(tr1, Trace) and not isinstance(tr2, Trace) and not isinstance(trZ, Trace):
+                print('  No seismic channels found. Drop the station: '+ista)
+                continue
         for tr in [tr1, tr2, trZ, trP]:
             if not isinstance(tr, Trace):
-                print(str(tr)+" is not a Trace object. Save as is without processing: "+ista)
+                print("  "str(tr)+" is not a Trace object. Save as is without processing: "+ista)
                 badtrace=True
                 break
             elif np.sum(np.isnan(tr.data))>0:
-                print(' NaN found in trace: '+str(tr)+". Save as is without processing.")
+                print('  NaN found in trace: '+str(tr)+". Save as is without processing.")
                 badtrace=True
                 break
-        if badtrace or len(all_tags) < 4:
+            elif np.count_nonzero(tr.data) < 1:
+                print('  All zeros in trace: '+str(tr)+". Save as is without processing.")
+                badtrace=True
+                break
+        if badtrace or len(all_tags) < 4 or (requirePressure and not hasPressure):
             print("  Not enough good traces for TC removal! Save as is without processing!")
             outtrace=[]
             for tg in all_tags:
