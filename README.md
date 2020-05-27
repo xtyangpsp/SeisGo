@@ -26,7 +26,7 @@ $ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python=3.7 ob
 $ conda activate seispy
 ```
 
-The `jupyter` and `basemap` packages are not required, if you don't plan to run the accompanied Jupyter notebooks in **notebooks** directory. `mip4py` is required if you want to run parallel scripts stored in **scripts** directory.
+The `pandas`, `jupyter` and `basemap` packages are currently not required, if you **don't** plan to run the accompanied Jupyter notebooks in **notebooks** directory. `mip4py` is required if you want to run parallel scripts stored in **scripts** directory.
 
 2. Download `seispy`
 
