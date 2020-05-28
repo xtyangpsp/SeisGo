@@ -20,5 +20,5 @@ setup(
         'License :: MIT License',
         'Programming Language :: Python :: 3.7'],
     install_requires=['numpy', 'scipy', 'pandas','obspy','pyasdf','basemap'],
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     packages=['seispy']) #scripts=scripts
