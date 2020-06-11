@@ -17,8 +17,153 @@ import numpy as np
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
 from scipy.signal import tukey
+from obspy.clients.fdsn import Client
 # from scipy.fftpack import fft,fftfreq,ifft
 # from scipy.fftpack import rfft,rfftfreq,irfft
+
+####
+#
+def getdata(net,sta,starttime,endtime,chan='*',source='IRIS',samp_freq=None,
+            rmresp=True,rmresp_output='VEL',pre_filt=None,plot=False,debug=False,
+            sacheader=False,getstainv=False):
+    """
+    This is a wrapper that downloads seismic data and (optionally) removes response
+    and downsamples if needed. Most of the arguments have the same meaning as for
+    obspy.Client.get_waveforms().
+
+    Parameters
+    ----------
+    net,sta,chan : string
+            network, station, and channel names for the request.
+    starttime, endtime : UTCDateTime
+            Starting and ending date time for the request.
+    source : string
+            Client names.
+            To get a list of available clients:
+            >> from obspy.clients.fdsn.header import URL_MAPPINGS
+            >> for key in sorted(URL_MAPPINGS.keys()):
+                 print("{0:<11} {1}".format(key,  URL_MAPPINGS[key]))
+    samp_freq : float
+            Target sampling rate. Skip resampling if None.
+    rmresp : bool
+            Remove response if true. For the purpose of download OBS data and remove
+            tilt and compliance noise, the output is "VEL" for pressure data and "DISP"
+            for seismic channels.
+    rmresp_output : string
+            Output format when removing the response, following the same rule as by OBSPY.
+            The default is 'VEL' for velocity output.
+    pre_filt : :class: `numpy.ndarray`
+            Same as the pre_filt in obspy when removing instrument responses.
+    plot : bool
+            Plot the traces after preprocessing (sampling, removing responses if specified).
+    debug : bool
+            Plot raw waveforms before preprocessing.
+    sacheader : bool
+            Key sacheader information in a dictionary using the SAC header naming convention.
+    """
+    client = Client(source)
+    tr = None
+    sac=dict() #place holder to save some sac headers.
+    #check arguments
+    if rmresp:
+        if pre_filt is None:
+            raise(Exception("Error getdata() - "
+                            + " pre_filt is not specified (needed when removing response)"))
+
+    """
+    a. Downloading
+    """
+    if sacheader or getstainv:
+        inv = client.get_stations(network=net,station=sta,
+                        channel=chan,location="*",starttime=starttime,endtime=endtime,
+                        level='response')
+        if sacheader:
+            tempnet,tempsta,stlo, stla,stel,temploc=sta_info_from_inv(inv)
+            sac['knetwk']=tempnet
+            sac['kstnm']=tempsta
+            sac['stlo']=stlo
+            sac['stla']=stla
+            sac['stel']=stel
+            sac['kcmpnm']=chan
+            sac['khole']=temploc
+
+    # pressure channel
+    tr=client.get_waveforms(network=net,station=sta,
+                    channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
+#     trP[0].detrend()
+    tr=tr[0]
+    tr.stats['sac']=sac
+
+    print("station "+net+"."+sta+" --> seismic channel: "+chan)
+
+    if plot or debug:
+        year = tr.stats.starttime.year
+        julday = tr.stats.starttime.julday
+        hour = tr.stats.starttime.hour
+        mnt = tr.stats.starttime.minute
+        sec = tr.stats.starttime.second
+        tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
+        trlabels=[net+"."+sta+"."+tr.stats.channel]
+    """
+    b. Resampling
+    """
+    if samp_freq is not None:
+        sps=int(tr.stats.sampling_rate)
+        delta = tr.stats.delta
+        #assume pressure and vertical channels have the same sampling rat
+        # make downsampling if needed
+        if sps > samp_freq:
+            print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+            if np.sum(np.isnan(tr.data))>0:
+                raise(Exception('NaN found in trace'))
+            else:
+                tr.interpolate(samp_freq,method='weighted_average_slopes')
+                # when starttimes are between sampling points
+                fric = tr.stats.starttime.microsecond%(delta*1E6)
+                if fric>1E-4:
+                    tr.data = segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
+                    #--reset the time to remove the discrepancy---
+                    tr.stats.starttime-=(fric*1E-6)
+                # print('new sampling rate:'+str(tr.stats.sampling_rate))
+
+    """
+    c. Plot raw data before removing responses.
+    """
+    if plot and debug:
+        plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
+                        outfile=net+"."+sta+"_"+tstamp+"_raw.png")
+
+    """
+    d. Remove responses
+    """
+    if rmresp:
+        if np.sum(np.isnan(tr.data))>0:
+            raise(Exception('NaN found in trace'))
+        else:
+            try:
+                print('  removing response using inv for '+net+"."+sta+"."+tr.stats.channel)
+                tr.remove_response(output=rmresp_output,pre_filt=pre_filt,
+                                          water_level=60,zero_mean=True,plot=False)
+
+                # Detrend, filter
+                tr.detrend('demean')
+                tr.detrend('linear')
+                tr.filter('lowpass', freq=0.49*samp_freq,
+                           corners=2, zerophase=True)
+            except Exception as e:
+                print(e)
+                tr = []
+
+    """
+    e. Plot raw data after removing responses.
+    """
+    if plot:
+        plot_trace([trP],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
+                   outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
+
+    #
+    if getstainv:return tr,inv
+    else: return tr
 
 # ##################### qml_to_event_list #####################################
 # modified from obspyDMT.utils.event_handler.py
@@ -184,6 +329,21 @@ def sta_info_from_inv(inv):
     elv=[]
     location=[]
 
+    for i in range(len(inv[0])):
+        sta.append(inv[0][i].code)
+        net.append(inv[0].code)
+        lon.append(inv[0][i].longitude)
+        lat.append(inv[0][i].latitude)
+        if inv[0][i].elevation:
+            elv.append(inv[0][i].elevation)
+        else:
+            elv.append(0.)
+
+        if len(inv[0][i])>0:
+            location.append(inv[0][i][0].location_code)
+        else:
+            location.append('00')
+
     if len(inv[0])==1:
         sta=sta[0]
         net=net[0]
@@ -191,21 +351,7 @@ def sta_info_from_inv(inv):
         lat=lat[0]
         elv=elv[0]
         location=location[0]
-    elif len(inv[0])>1:
-        for i in range(len(inv[0])):
-            sta.append(inv[0][i].code)
-            net.append(inv[0].code)
-            lon.append(inv[0][i].longitude)
-            lat.append(inv[0][i].latitude)
-            if inv[0][i].elevation:
-                elv.append(inv[0][i].elevation)
-            else:
-                elv.append(0.)
 
-            if len(inv[0][i])>0:
-                location.append(inv[0][i][0].location_code)
-            else:
-                location.append('00')
     return sta,net,lon,lat,elv,location
 
 # split_datetimestr(inv) is modified from NoisePy.noise_module.get_event_list()

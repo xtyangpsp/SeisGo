@@ -122,6 +122,20 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
             rmresp=True,pre_filt=None,plot=False,debug=False,
             sacheader=False,getstainv=False):
     """
+    This is a fundtion designed to make the code compatible to older way of getting obs data.
+    It calls getobsdata().
+    """
+    print("**WARNING**: This is the old (deprecated) way of getting OBS data through calling getobsdata. "+
+        "Please call getobsdata() directly in the future!")
+    getobsdata(net,sta,starttime,endtime,source=source,samp_freq=samp_freq,
+                rmresp=rmresp,pre_filt=pre_filt,plot=plot,debug=debug,
+                sacheader=sacheader,getstainv=getstainv)
+
+
+def getobsdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
+            rmresp=True,pre_filt=None,plot=False,debug=False,
+            sacheader=False,getstainv=False):
+    """
     Function to download 4 component OBS data and (optionally) remove response and downsample if needed.
     Most of the arguments have the same meaning as for obspy.Client.get_waveforms().
 

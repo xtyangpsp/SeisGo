@@ -22,11 +22,11 @@ This module contains functions to get and processing Ocean Bottom Seismometer (O
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python=3.7 obspy basemap mpi4py
+$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python>=3.6 obspy mpi4py
 $ conda activate seispy
 ```
 
-The `pandas`, `jupyter` and `basemap` packages are currently not required, if you **don't** plan to run the accompanied Jupyter notebooks in **notebooks** directory. `mip4py` is required if you want to run parallel scripts stored in **scripts** directory.
+The `pandas` and `jupyter` packages are currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests.
 
 2. Download `seispy`
 
