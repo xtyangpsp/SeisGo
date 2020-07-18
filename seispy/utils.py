@@ -334,12 +334,14 @@ def sta_info_from_inv(inv):
         net.append(inv[0].code)
         lon.append(inv[0][i].longitude)
         lat.append(inv[0][i].latitude)
-        if inv[0][i].elevation:
-            elv.append(inv[0][i].elevation)
+        if inv[0][i][0].elevation:
+            elv.append(inv[0][i][0].elevation)
         else:
             elv.append(0.)
 
-        if len(inv[0][i])>0:
+        # print(inv[0][i])
+        # print(inv[0][i].location_code)
+        if len(inv[0][i][0].location_code)>0:
             location.append(inv[0][i][0].location_code)
         else:
             location.append('00')
@@ -351,7 +353,7 @@ def sta_info_from_inv(inv):
         lat=lat[0]
         elv=elv[0]
         location=location[0]
-
+    # print(sta,net,lon,lat,elv,location)
     return sta,net,lon,lat,elv,location
 
 # split_datetimestr(inv) is modified from NoisePy.noise_module.get_event_list()

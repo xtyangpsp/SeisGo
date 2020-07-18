@@ -7,7 +7,9 @@ from scipy.signal import spectrogram, detrend,tukey
 from scipy.linalg import norm
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import time
+import os, glob
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
 
@@ -183,7 +185,10 @@ def getobsdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
         inv = client.get_stations(network=net,station=sta,
                         channel="*",location="*",starttime=starttime,endtime=endtime,
                         level='response')
-        stlo, stla,stel=utils.sta_info_from_inv(inv[0])[2:4]
+        # print(inv[0])
+        ssta,snet,stlo,stla,stel,location=utils.sta_info_from_inv(inv)
+        # print(ssta,snet,stlo,stla,stel,location)
+        # stlo, stla,stel=utils.sta_info_from_inv(inv[0])[2:4]
         sac['stlo']=stlo
         sac['stla']=stla
         sac['stel']=stel
@@ -293,6 +298,119 @@ def getobsdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
     #
     if getstainv:return tr1,tr2,trZ,trP,inv
     else: return tr1,tr2,trZ,trP
+
+#
+def get_orientations(infile,help=False):
+    """
+    Assemble orientations for horizontal components from CSV file.
+    Columns in the CSV file:
+    net,station,orientation_ch1,orientation_ch2,error[optional]
+    """
+    orient_data=dict()
+    if help:
+        print('The CSV file that contains the orientation information needs to have the following columns. Note: headers are required!')
+        print('net,station,orientation_ch1,orientation_ch2,error[optional]')
+        print('7D,J37A,264,354,9')
+        print('...')
+        print('**Additional columns are fine but will be ignored!**')
+        return orient_data
+
+    #read in station list.
+    if not os.path.isfile(infile):
+        raise IOError('file %s not exist! double check!' % infile)
+
+    # read station info from list
+    orient=pd.read_csv(infile)
+    onet  = list(orient.iloc[:]['net'])
+    osta  = list(orient.iloc[:]['station'])
+    oh1  = list(orient.iloc[:]['orientation_ch1'])
+    oh2  = list(orient.iloc[:]['orientation_ch2'])
+    if 'error' in list(orient.columns):
+        oerror  = list(orient.iloc[:]['error'])
+    else:
+        oerror = np.empty(len(osta))
+        oerror[:]=np.nan
+
+    for i in range(len(onet)):
+        onetsta=onet[i]+'.'+osta[i]
+        orient_data[onetsta]=[oh1[i],oh2[i],oerror[i]]
+
+    return orient_data
+#
+def correct_orientations(tr1,tr2,orient):
+    """
+    Correct horizontal orientations with given orientation data.
+
+    Parameters
+    ----------
+    tr1,tr2: :class:`~obspy.core.Trace`
+        Seismic traces for horizontals.
+    """
+    # Check that all traces are valid Trace objects
+    for tr in [tr1, tr2]:
+        if not isinstance(tr, Trace):
+            raise(Exception("Error correct_orientations() - "
+                            + str(tr)+" is not a Trace object"))
+
+    #traces after orientation corrections.
+    trE=[]
+    trN=[]
+
+    #get net and station name for the trace data
+    netsta=tr1.stats.network+'.'+tr1.stats.station
+    if netsta not in orient.keys():
+        print("Error correct_orientations() - "
+                    + netsta+" is not in the orientation list.")
+        return trE,trN
+
+    oh1,oh2,oerror=orient[netsta]
+
+    chan1=tr1.stats.channel
+    chan2=tr2.stats.channel
+    data1=tr1.data
+    data2=tr2.data
+
+    trE=tr2.copy()
+    trE.stats.channel=chan2[0:2]+'E'
+    trN=tr1.copy()
+    trN.stats.channel=chan2[0:2]+'N'
+
+    angle=360 - oh1 #rotation angle to rotate tr1 to trN
+    rot_mat = np.array([[np.cos(angle), -np.sin(angle)],
+                        [np.sin(angle), np.cos(angle)]])
+    v12 = np.array([data2, data1])
+    vEN = np.tensordot(rot_mat, v12, axes=1)
+    trE.data = vEN[0, :]
+    trN.data = vEN[1, :]
+
+
+    #match and do the rotation.
+    # if oh1==0: #due north
+    #     trE=tr2.copy()
+    #     trE.stats.channel=chan2[0:2]+'E'
+    #     trN=tr1.copy()
+    #     trN.stats.channel=chan1[0:2]+'N'
+    # elif oh1==90:
+    #     trE=tr1.copy()
+    #     trE.stats.channel=chan1[0:2]+'E'
+    #     trN=tr2.copy()
+    #     trN.stats.channel=chan2[0:2]+'N'
+    #     trN.data=-1.0*data2
+    # elif oh1==180:
+    #     trE=tr2.copy()
+    #     trE.data=-1.0*data2
+    #     trE.stats.channel=chan2[0:2]+'E'
+    #     trN=tr1.copy()
+    #     trN.stats.channel=chan1[0:2]+'N'
+    #     trN.data=-1.0*data1
+    # elif oh1==270:
+    #     trE=tr1.copy()
+    #     trE.data=-1.0*data1
+    #     trE.stats.channel=chan1[0:2]+'E'
+    #     trN=tr2.copy()
+    #     trN.stats.channel=chan2[0:2]+'N'
+
+    return trE,trN
 
 #
 def maxcompfreq(d,iplot=False,figname="waterdepth_maxcompfreq.png"):
