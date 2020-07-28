@@ -339,12 +339,17 @@ def get_orientations(infile,help=False):
 #
 def correct_orientations(tr1,tr2,orient):
     """
-    Correct horizontal orientations with given orientation data.
+    Correct horizontal orientations with given orientation data. The output traces
+    are corrected and renamed to *E and *N convention.
 
     Parameters
     ----------
     tr1,tr2: :class:`~obspy.core.Trace`
         Seismic traces for horizontals.
+    orient:: Dictionary
+        Dictionary containing the orientation information for the horizonal
+        components for each station in the format of [orient_h1,orient_h2,orient_error].
+        This information can be assembed by calling get_orientations().
     """
     # Check that all traces are valid Trace objects
     for tr in [tr1, tr2]:
