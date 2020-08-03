@@ -8,7 +8,7 @@ from scipy.linalg import norm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import time
+import time,sys
 import os, glob
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
@@ -318,6 +318,7 @@ def get_orientations(infile,help=False):
     #read in station list.
     if not os.path.isfile(infile):
         raise IOError('file %s not exist! double check!' % infile)
+        sys.exit()
 
     # read station info from list
     orient=pd.read_csv(infile)

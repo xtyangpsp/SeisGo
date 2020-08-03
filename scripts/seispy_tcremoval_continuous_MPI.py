@@ -30,7 +30,7 @@ from obspy.core import Stream, Trace
 
 t0=time.time()
 """
-1. Set global data path parameters.
+1. Set global parameters.
 """
 rootpath='../data'
 rawdatadir = os.path.join(rootpath,'raw')
@@ -39,6 +39,13 @@ downloadexample=False #change to False or remove/comment this block if needed.
 #directory to save the data after TC removal
 tcdatadir = os.path.join(rootpath,'tcremoval')
 cleantcdatadir=True #If True, the program will remove all *.h5 files under `tcdatafir` before running.
+
+#parameters for orientation correcttions for horizontal components
+correct_obs_orient=True
+obs_orient_file='OBS_orientation_Cascadia.csv'
+
+#how to deal with stations with bad traces
+drop_if_has_badtrace=True
 
 """
 2. Tilt and compliance removal parameters
@@ -78,7 +85,7 @@ if rank==0:
     ####################################
     if not os.path.isdir(rawdatadir):
         comm.barrier()
-        raise IOError('Abort! Directory for raw data NOT found: '+rawdatadir)
+        IOError('Abort! Directory for raw data NOT found: '+rawdatadir)
         sys.exit()
 
     if not os.path.isdir(tcdatadir): os.mkdir(tcdatadir)
@@ -99,6 +106,7 @@ if rank==0:
     splits0  = nfiles
     if nfiles < 1:
         raise IOError('Abort! no available seismic files in '+rawdatadir)
+        sys.exit()
 else:
     splits0,dfiles0 = [None for _ in range(2)]
 
@@ -107,6 +115,13 @@ splits = comm.bcast(splits0,root=0)
 dfiles  = comm.bcast(dfiles0,root=0)
 #--------End of setting MPI parameters -----------------------
 for ifile in range(rank,splits,size):
+    #read obs orientation data.
+    if correct_obs_orient:
+        try:
+            obs_orient_data=obs.get_orientations(obs_orient_file)
+        except Exception as e:
+            print(e)
+            sys.exit()
     df=dfiles[ifile]
     print('Working on: '+df+' ... ['+str(ifile+1)+'/'+str(len(dfiles))+']')
     dfbase=os.path.split(df)[-1]
@@ -167,11 +182,14 @@ for ifile in range(rank,splits,size):
                 badtrace=True
                 break
         if badtrace or len(all_tags) < 4 or (requirePressure and not hasPressure):
-            print("  Not enough good traces for TC removal! Save as is without processing!")
-            outtrace=[]
-            for tg in all_tags:
-                outtrace.append(ds.waveforms[ista][tg][0])
-            utils.save2asdf(df_tc,Stream(traces=outtrace),all_tags,sta_inv=inv)
+            if not drop_if_has_badtrace:
+                print("  Not enough good traces for TC removal! Save as is without processing!")
+                outtrace=[]
+                for tg in all_tags:
+                    outtrace.append(ds.waveforms[ista][tg][0])
+                utils.save2asdf(df_tc,Stream(traces=outtrace),all_tags,sta_inv=inv)
+            else:
+                print("  Encountered bad trace for "+ista+". Skipped!")
             continue
 
         """
@@ -189,7 +207,15 @@ for ifile in range(rank,splits,size):
                                    size=(12,3),save=True,form='png')
 
             trZtc,tgtemp=obs.correctdict2stream(trZ,correct,tc_subset)
-            outstream=Stream(traces=[tr1,tr2,trZtc[0],trP])
+            if correct_obs_orient:
+                print("  Correctting horizontal orientations for: "+ista)
+                trE,trN = obs.correct_orientations(tr1,tr2,obs_orient_data)
+                newtags[0]=utils.get_tracetag(trE)
+                newtags[1]=utils.get_tracetag(trN)
+                print(newtags)
+                outstream=Stream(traces=[trE,trN,trZtc[0],trP])
+            else:
+                outstream=Stream(traces=[tr1,tr2,trZtc[0],trP])
             """
             Save to ASDF file.
             """

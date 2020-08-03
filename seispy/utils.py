@@ -18,6 +18,7 @@ import matplotlib.pyplot  as plt
 from collections import OrderedDict
 from scipy.signal import tukey
 from obspy.clients.fdsn import Client
+from obspy.core import Stream, Trace, read
 # from scipy.fftpack import fft,fftfreq,ifft
 # from scipy.fftpack import rfft,rfftfreq,irfft
 
@@ -418,6 +419,34 @@ def segment_interpolate(sig1,nfric):
             sig2[ii]=(1-nfric)*sig1[ii+1]+nfric*sig1[ii]
 
     return sig2
+
+#
+def get_tracetag(tr):
+    """
+    Returns the standard OBSPY format tag for seismic trace.
+
+    Parameter
+    ----------
+    tr::class:`~obspy.core.Trace`
+        Seismic trace.
+
+    Return
+    ----------
+    tag::String
+        Tag for the input trace.
+    """
+    tag=''
+    if not isinstance(tr, Trace):
+        raise(Exception("Error get_tracetag() - "
+                        + str(tr)+" is not a Trace object"))
+    if len(tr.stats.location) == 0:
+        tlocation='00'
+    else:
+        tlocation=tr.stats.location
+
+    tag=tr.stats.channel.lower()+'_'+tlocation.lower()
+
+    return tag
 
 # Modified from Zhitu Ma. Modified by Xiaotao to get filter frequencies from the arguments
 # 1. added titles for multiple plots
