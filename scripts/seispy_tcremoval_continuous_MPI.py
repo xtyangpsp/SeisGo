@@ -145,7 +145,7 @@ for ifile in range(rank,splits,size):
             inv = None
 
         all_tags = ds.waveforms[ista].get_waveform_tags()
-        if len(all_tags) < 1: continue #empty waveform group.
+        if len(all_tags) < 1 or len(all_tags) > 4: continue #empty waveform group.
         else: print(all_tags)
 
         tr1, tr2, trZ, trP=[None for _ in range(4)]
@@ -170,18 +170,18 @@ for ifile in range(rank,splits,size):
                 continue
         for tr in [tr1, tr2, trZ, trP]:
             if not isinstance(tr, Trace):
-                print("  "+str(tr)+" is not a Trace object. Save as is without processing: "+ista)
+                print("  "+str(tr)+" is not a Trace object. "+ista)
                 badtrace=True
                 break
             elif np.sum(np.isnan(tr.data))>0:
-                print('  NaN found in trace: '+str(tr)+". Save as is without processing.")
+                print('  NaN found in trace: '+str(tr)+". "+ista)
                 badtrace=True
                 break
             elif np.count_nonzero(tr.data) < 1:
-                print('  All zeros in trace: '+str(tr)+". Save as is without processing.")
+                print('  All zeros in trace: '+str(tr)+". "+ista)
                 badtrace=True
                 break
-        if badtrace or len(all_tags) < 4 or (requirePressure and not hasPressure):
+        if badtrace:
             if not drop_if_has_badtrace:
                 print("  Not enough good traces for TC removal! Save as is without processing!")
                 outtrace=[]
@@ -190,6 +190,21 @@ for ifile in range(rank,splits,size):
                 utils.save2asdf(df_tc,Stream(traces=outtrace),all_tags,sta_inv=inv)
             else:
                 print("  Encountered bad trace for "+ista+". Skipped!")
+            continue
+        elif requirePressure and not hasPressure: #if station doesn't have pressure channel, it might be an obs or a land station
+            if isinstance(tr1, Trace) and isinstance(tr2, Trace) and correct_obs_orient and ista in obs_orient_data.keys():
+                #correct horizontal orientations if in the obs_orient_data list.
+                print("  Correctting horizontal orientations for: "+ista)
+                trE,trN = obs.correct_orientations(tr1,tr2,obs_orient_data)
+                newtags[0]=utils.get_tracetag(trE)
+                newtags[1]=utils.get_tracetag(trN)
+                print(newtags)
+                outstream=Stream(traces=[trE,trN,trZ])
+            else: #save the station as is if it is not in the orientation database, assuming it is a land station.
+                outstream=Stream(traces=[tr1,tr2,trZ])
+
+            print('  Saving without TC removal to: '+df_tc)
+            utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
             continue
 
         """
@@ -219,7 +234,7 @@ for ifile in range(rank,splits,size):
             """
             Save to ASDF file.
             """
-            print('  saving to: '+df_tc)
+            print('  Saving to: '+df_tc)
             utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
         except Exception as e:
             print(' Error in calling TCremoval procedures. Drop trace.')
