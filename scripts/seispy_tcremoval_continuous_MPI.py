@@ -168,7 +168,7 @@ for ifile in range(rank,splits,size):
         if not isinstance(tr1, Trace) and not isinstance(tr2, Trace) and not isinstance(trZ, Trace):
                 print('  No seismic channels found. Drop the station: '+ista)
                 continue
-        for tr in [tr1, tr2, trZ, trP]:
+        for tr in [tr1, tr2, trZ]:
             if not isinstance(tr, Trace):
                 print("  "+str(tr)+" is not a Trace object. "+ista)
                 badtrace=True
@@ -192,19 +192,22 @@ for ifile in range(rank,splits,size):
                 print("  Encountered bad trace for "+ista+". Skipped!")
             continue
         elif requirePressure and not hasPressure: #if station doesn't have pressure channel, it might be an obs or a land station
+            newtags_tmp=[]
             if isinstance(tr1, Trace) and isinstance(tr2, Trace) and correct_obs_orient and ista in obs_orient_data.keys():
                 #correct horizontal orientations if in the obs_orient_data list.
                 print("  Correctting horizontal orientations for: "+ista)
                 trE,trN = obs.correct_orientations(tr1,tr2,obs_orient_data)
-                newtags[0]=utils.get_tracetag(trE)
-                newtags[1]=utils.get_tracetag(trN)
-                print(newtags)
+                newtags_tmp.append(utils.get_tracetag(trE))
+                newtags_tmp.append(utils.get_tracetag(trN))
+                print(newtags_tmp)
                 outstream=Stream(traces=[trE,trN,trZ])
             else: #save the station as is if it is not in the orientation database, assuming it is a land station.
+                newtags_tmp.append(utils.get_tracetag(tr1))
+                newtags_tmp.append(utils.get_tracetag(tr2))
                 outstream=Stream(traces=[tr1,tr2,trZ])
-
-            print('  Saving without TC removal to: '+df_tc)
-            utils.save2asdf(df_tc,outstream,newtags,sta_inv=inv)
+            newtags_tmp.append(utils.get_tracetag(trZ))
+            print('  Saving '+ista+'without TC removal to: '+df_tc)
+            utils.save2asdf(df_tc,outstream,newtags_tmp,sta_inv=inv)
             continue
 
         """
