@@ -687,7 +687,7 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=No
             plt.plot(tt,scale*np.flip(tdata,axis=0)+dist,'k',linewidth=0.8)
         else:
             plt.plot(tt,scale*tdata+dist,'k',linewidth=0.8)
-        plt.title('%s %s filtered @%4.1f-%4.1f Hz' % (sta,ccomp,freqmin,freqmax))
+        plt.title('%s %s filtered @%5.3f-%5.3f Hz' % (sta,ccomp,freqmin,freqmax))
         plt.xlabel('time (s)')
         plt.ylabel('offset (km)')
         plt.text(maxlag*0.9,dist+0.5,receiver,fontsize=6)
@@ -780,7 +780,7 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freqmin,freqmax,lag=None,save=Fal
             else:
                 plt.plot(tt,tdata+dist,'k',linewidth=0.8)
             if ic==1:
-                plt.title('%s filtered @%4.1f-%4.1f Hz' % (sta,freqmin,freqmax))
+                plt.title('%s filtered @%5.3f-%5.3f Hz' % (sta,freqmin,freqmax))
             plt.xlabel('time (s)')
             plt.ylabel('offset (km)')
             if ic==0:
