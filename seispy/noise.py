@@ -519,12 +519,13 @@ def plot_substack_all_spect(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir
         fig.show()
 
 
-def plot_moveout_heatmap(sfiles,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,save=False,sdir=None):
+def plot_moveout_heatmap(sfiles,sta,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,save=False,sdir=None):
     '''
     display the moveout (2D matrix) of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
     ---------------------
     sfile: cross-correlation functions outputed by S2
+    sta: station name as the virtual source.
     dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
@@ -535,14 +536,14 @@ def plot_moveout_heatmap(sfiles,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,sa
     sdir: diresied directory to save the figure (if not provided, save to default dir)
     USAGE:
     ----------------------
-    plot_moveout('temp.h5','Allstack_pws',0.1,0.2,1,'ZZ',200,True,'./temp')
+    plot_moveout('temp.h5','sta','Allstack_pws',0.1,0.2,1,'ZZ',200,True,'./temp')
     '''
     # open data for read
     if save:
         if sdir==None:print('no path selected! save figures in the default path')
 
     path  = ccomp
-
+    receiver = sta+'.h5'
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
@@ -568,6 +569,7 @@ def plot_moveout_heatmap(sfiles,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,sa
     # load cc and parameter matrix
     for ii in range(len(sfiles)):
         sfile = sfiles[ii]
+        treceiver = sfile.split('_')[-1]
 
         ds = pyasdf.ASDFDataSet(sfile,mode='r')
         try:
@@ -575,6 +577,7 @@ def plot_moveout_heatmap(sfiles,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,sa
             dist[ii] = ds.auxiliary_data[dtype][path].parameters['dist']
             ngood[ii]= ds.auxiliary_data[dtype][path].parameters['ngood']
             tdata    = ds.auxiliary_data[dtype][path].data[indx1:indx2]
+            if treceiver == receiver: tdata=np.flip(tdata,axis=0)
         except Exception:
             print("continue! cannot read %s "%sfile);continue
 
@@ -601,7 +604,7 @@ def plot_moveout_heatmap(sfiles,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,sa
     # plotting figures
     fig,ax = plt.subplots()
     ax.matshow(ndata,cmap='seismic',extent=[-lag,lag,ndist[-1],ndist[0]],aspect='auto')
-    ax.set_title('allstack %s @%5.3f-%5.2f Hz'%(stack_method,freqmin,freqmax))
+    ax.set_title('%s allstack %s @%5.3f-%5.2f Hz'%(sta,stack_method,freqmin,freqmax))
     ax.set_xlabel('time [s]')
     ax.set_ylabel('distance [km]')
     ax.set_xticks(t)
@@ -610,8 +613,8 @@ def plot_moveout_heatmap(sfiles,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,sa
 
     # save figure or show
     if save:
-        outfname = sdir+'/moveout_allstack_'+str(stack_method)+'_'+str(dist_inc)+'kmbin.pdf'
-        fig.savefig(outfname, format='pdf', dpi=400)
+        outfname = sdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(dist_inc)+'kmbin.png'
+        fig.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
         fig.show()
@@ -696,8 +699,8 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=No
 
     # save figure or show
     if save:
-        outfname = sdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'.pdf'
-        plt.savefig(outfname, format='pdf', dpi=400)
+        outfname = sdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz_'+'.png'
+        plt.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
         plt.show()
@@ -792,8 +795,8 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freqmin,freqmax,lag=None,save=Fal
 
     # save figure or show
     if save:
-        outfname = sdir+'/moveout_'+sta+'_1D_'+str(stack_method)+'.pdf'
-        plt.savefig(outfname, format='pdf', dpi=300)
+        outfname = sdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz_'+'.png'
+        plt.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
         plt.show()
