@@ -615,7 +615,7 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False
 
     # save figure or show
     if save:
-        outfname = figdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(dist_inc)+'kmbin'+comp+'.png'
+        outfname = figdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(dist_inc)+'kmbin_'+comp+'.png'
         fig.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
