@@ -18,7 +18,7 @@ Credits should be given to the development team for NoisePy (Chengxin Jiang and 
 #############################################################################
 ############### PLOTTING RAW SEISMIC WAVEFORMS ##########################
 #############################################################################
-def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,sdir=None):
+def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
     '''
     display the downloaded waveform for station A
     PARAMETERS:
@@ -83,8 +83,8 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,sdir=None):
         plt.tight_layout()
 
         if save:
-            if not os.path.isdir(sdir):os.mkdir(sdir)
-            outfname = sdir+'/{0:s}_{1:s}.{2:s}.pdf'.format(sfile.split('.')[0],net,sta)
+            if not os.path.ifigdir(figdir):os.mkdir(figdir)
+            outfname = figdir+'/{0:s}_{1:s}.{2:s}.pdf'.format(sfile.split('.')[0],net,sta)
             plt.savefig(outfname, format='pdf', dpi=400)
             plt.close()
         else:
@@ -95,7 +95,7 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,sdir=None):
 ###############PLOTTING XCORR RESULTS AS THE OUTPUT OF NoisePy S1 STEP ##########################
 #############################################################################
 
-def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
+def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
     '''
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
     PARAMETERS:
@@ -111,7 +111,7 @@ def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
     try:
         ds = pyasdf.ASDFDataSet(sfile,mode='r')
@@ -199,16 +199,16 @@ def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
 
             # save figure or just show
             if save:
-                if sdir==None:sdir = sfile.split('.')[0]
-                if not os.path.isdir(sdir):os.mkdir(sdir)
-                outfname = sdir+'/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}.pdf'.format(net1,sta1,chan1,net2,sta2,chan2)
+                if figdir==None:figdir = sfile.split('.')[0]
+                if not os.path.ifigdir(figdir):os.mkdir(figdir)
+                outfname = figdir+'/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}.pdf'.format(net1,sta1,chan1,net2,sta2,chan2)
                 fig.savefig(outfname, format='pdf', dpi=400)
                 plt.close()
             else:
                 fig.show()
 
 
-def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
+def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
     '''
     display the amplitude spectrum of the cross-correlation functions for a time-chunck.
     PARAMETERS:
@@ -224,7 +224,7 @@ def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
     try:
         ds = pyasdf.ASDFDataSet(sfile,mode='r')
@@ -308,9 +308,9 @@ def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
 
             # save figure or just show
             if save:
-                if sdir==None:sdir = sfile.split('.')[0]
-                if not os.path.isdir(sdir):os.mkdir(sdir)
-                outfname = sdir+'/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}.pdf'.format(net1,sta1,chan1,net2,sta2,chan2)
+                if figdir==None:figdir = sfile.split('.')[0]
+                if not os.path.ifigdir(figdir):os.mkdir(figdir)
+                outfname = figdir+'/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}.pdf'.format(net1,sta1,chan1,net2,sta2,chan2)
                 fig.savefig(outfname, format='pdf', dpi=400)
                 plt.close()
             else:
@@ -321,7 +321,7 @@ def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,sdir='./'):
 ###############PLOTTING THE POST-STACKING XCORR FUNCTIONS AS OUTPUT OF S2 STEP IN NOISEPY ##########################
 #############################################################################
 
-def plot_substack_all(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir=None):
+def plot_substack_all(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None):
     '''
     display the 2D matrix of the cross-correlation functions stacked for all time windows.
     PARAMETERS:
@@ -330,16 +330,16 @@ def plot_substack_all(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir=None)
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
     lag: time ranges for display
-    ccomp: cross component of the targeted cc functions
+    comp: cross component of the targeted cc functions
     USAGE:
     ----------------------
     plot_substack_all('temp.h5',0.1,1,'ZZ',50,True,'./')
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
-    paths = ccomp
+    paths = comp
     try:
         ds = pyasdf.ASDFDataSet(sfile,mode='r')
         # extract common variables
@@ -408,16 +408,16 @@ def plot_substack_all(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir=None)
     ax[1].legend(['relative amp','ngood'],loc='upper right')
     # save figure or just show
     if save:
-        if sdir==None:sdir = sfile.split('.')[0]
-        if not os.path.isdir(sdir):os.mkdir(sdir)
-        outfname = sdir+'/{0:s}_{1:4.2f}_{2:4.2f}Hz.pdf'.format(sfile.split('/')[-1],freqmin,freqmax)
+        if figdir==None:figdir = sfile.split('.')[0]
+        if not os.path.ifigdir(figdir):os.mkdir(figdir)
+        outfname = figdir+'/{0:s}_{1:4.2f}_{2:4.2f}Hz.pdf'.format(sfile.split('/')[-1],freqmin,freqmax)
         fig.savefig(outfname, format='pdf', dpi=400)
         plt.close()
     else:
         fig.show()
 
 
-def plot_substack_all_spect(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir=None):
+def plot_substack_all_spect(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None):
     '''
     display the amplitude spectrum of the cross-correlation functions stacked for all time windows.
     PARAMETERS:
@@ -426,16 +426,16 @@ def plot_substack_all_spect(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
     lag: time ranges for display
-    ccomp: cross component of the targeted cc functions
+    comp: cross component of the targeted cc functions
     USAGE:
     -----------------------
     plot_substack_all('temp.h5',0.1,1,'ZZ',50,True,'./')
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
-    paths = ccomp
+    paths = comp
     try:
         ds = pyasdf.ASDFDataSet(sfile,mode='r')
         # extract common variables
@@ -510,16 +510,16 @@ def plot_substack_all_spect(sfile,freqmin,freqmax,ccomp,lag=None,save=False,sdir
     ax[2].legend(['relative amp','ngood'],loc='upper right')
     # save figure or just show
     if save:
-        if sdir==None:sdir = sfile.split('.')[0]
-        if not os.path.isdir(sdir):os.mkdir(sdir)
-        outfname = sdir+'/{0:s}.pdf'.format(sfile.split('/')[-1])
+        if figdir==None:figdir = sfile.split('.')[0]
+        if not os.path.ifigdir(figdir):os.mkdir(figdir)
+        outfname = figdir+'/{0:s}.pdf'.format(sfile.split('/')[-1])
         fig.savefig(outfname, format='pdf', dpi=400)
         plt.close()
     else:
         fig.show()
 
 
-def plot_moveout_heatmap(sfiles,sta,dtype,freqmin,freqmax,ccomp,dist_inc,lag=None,save=False,sdir=None):
+def plot_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False,figdir=None):
     '''
     display the moveout (2D matrix) of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -529,20 +529,22 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freqmin,freqmax,ccomp,dist_inc,lag=Non
     dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
-    ccomp:   cross component
+    comp:   cross component
     dist_inc: distance bins to stack over
     lag: lag times for displaying
     save: set True to save the figures (in pdf format)
-    sdir: diresied directory to save the figure (if not provided, save to default dir)
+    figdir: diresied directory to save the figure (if not provided, save to default dir)
     USAGE:
     ----------------------
     plot_moveout('temp.h5','sta','Allstack_pws',0.1,0.2,1,'ZZ',200,True,'./temp')
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
-    path  = ccomp
+    path  = comp
+    freqmin=freq[0]
+    freqmax=freq[1]
     receiver = sta+'.h5'
     # extract common variables
     try:
@@ -598,7 +600,7 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freqmin,freqmax,ccomp,dist_inc,lag=Non
     ndata = ndata[indx]
     ndist = ndist[indx]
     for ii in range(ndata.shape[0]):
-        print(ii,np.max(np.abs(ndata[ii])))
+        # print(ii,np.max(np.abs(ndata[ii])))
         ndata[ii] /= np.max(np.abs(ndata[ii]))
 
     # plotting figures
@@ -613,14 +615,14 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freqmin,freqmax,ccomp,dist_inc,lag=Non
 
     # save figure or show
     if save:
-        outfname = sdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(dist_inc)+'kmbin.png'
+        outfname = figdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(dist_inc)+'kmbin'+comp+'.png'
         fig.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
         fig.show()
 
 
-def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=None,save=False,sdir=None):
+def plot_moveout_wiggle(sfiles,sta,dtype,freq,comp,scale=1.0,lag=None,save=False,figdir=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -630,27 +632,28 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=No
     dtype: datatype either 'Allstack_pws' or 'Allstack_linear'
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
-    ccomp:   cross component
+    comp:   cross component
     lag: lag times for displaying
     save: set True to save the figures (in pdf format)
-    sdir: diresied directory to save the figure (if not provided, save to default dir)
+    figdir: diresied directory to save the figure (if not provided, save to default dir)
     USAGE:
     ----------------------
     plot_moveout('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
+    freqmin=freq[0]
+    freqmax=freq[1]
     receiver = sta+'.h5'
     stack_method = dtype.split('_')[-1]
-    if scale is None:scale=1.0
 
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
-        dt    = ds.auxiliary_data[dtype][ccomp].parameters['dt']
-        maxlag= ds.auxiliary_data[dtype][ccomp].parameters['maxlag']
+        dt    = ds.auxiliary_data[dtype][comp].parameters['dt']
+        maxlag= ds.auxiliary_data[dtype][comp].parameters['maxlag']
     except Exception:
         print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
 
@@ -673,9 +676,9 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=No
         ds = pyasdf.ASDFDataSet(sfile,mode='r')
         try:
             # load data to variables
-            dist = ds.auxiliary_data[dtype][ccomp].parameters['dist']
-            ngood= ds.auxiliary_data[dtype][ccomp].parameters['ngood']
-            tdata  = ds.auxiliary_data[dtype][ccomp].data[indx1:indx2]
+            dist = ds.auxiliary_data[dtype][comp].parameters['dist']
+            ngood= ds.auxiliary_data[dtype][comp].parameters['ngood']
+            tdata  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
 
         except Exception:
             print("continue! cannot read %s "%sfile);continue
@@ -687,7 +690,7 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=No
             plt.plot(tt,scale*np.flip(tdata,axis=0)+dist,'k',linewidth=0.8)
         else:
             plt.plot(tt,scale*tdata+dist,'k',linewidth=0.8)
-        plt.title('%s %s filtered @%5.3f-%5.3f Hz' % (sta,ccomp,freqmin,freqmax))
+        plt.title('%s %s filtered @%5.3f-%5.3f Hz' % (sta,comp,freqmin,freqmax))
         plt.xlabel('time (s)')
         plt.ylabel('offset (km)')
         plt.text(maxlag*0.9,dist+0.5,receiver,fontsize=6)
@@ -699,14 +702,14 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freqmin,freqmax,ccomp,scale=None,lag=No
 
     # save figure or show
     if save:
-        outfname = sdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz_'+'.png'
+        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz_'+comp+'.png'
         plt.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
         plt.show()
 
 
-def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freqmin,freqmax,lag=None,save=False,sdir=None):
+def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freq,lag=None,save=False,figdir=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -718,29 +721,31 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freqmin,freqmax,lag=None,save=Fal
     freqmax: max frequency to be filtered
     lag: lag times for displaying
     save: set True to save the figures (in pdf format)
-    sdir: diresied directory to save the figure (if not provided, save to default dir)
+    figdir: diresied directory to save the figure (if not provided, save to default dir)
     USAGE:
     ----------------------
     plot_substack_moveout('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
     '''
     # open data for read
     if save:
-        if sdir==None:print('no path selected! save figures in the default path')
+        if figdir==None:print('no path selected! save figures in the default path')
 
+    freqmin=freq[0]
+    freqmax=freq[1]
     receiver = sta+'.h5'
     stack_method = dtype.split('_')[-1]
-    ccomp = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
+    comp = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
 
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
-        dt    = ds.auxiliary_data[dtype][ccomp[0]].parameters['dt']
-        maxlag= ds.auxiliary_data[dtype][ccomp[0]].parameters['maxlag']
+        dt    = ds.auxiliary_data[dtype][comp[0]].parameters['dt']
+        maxlag= ds.auxiliary_data[dtype][comp[0]].parameters['maxlag']
     except Exception:
         print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
 
     # lags for display
-    if not lag:lag=maxlag
+    if lag is None:lag=maxlag
     if lag>maxlag:raise ValueError('lag excceds maxlag!')
     tt = np.arange(-int(lag),int(lag)+dt,dt)
     indx1 = int((maxlag-lag)/dt)
@@ -749,8 +754,8 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freqmin,freqmax,lag=None,save=Fal
     # load cc and parameter matrix
     mdist = 80
     plt.figure(figsize=(14,10.5))
-    for ic in range(len(ccomp)):
-        comp = ccomp[ic]
+    for ic in range(len(comp)):
+        comp = comp[ic]
         tmp  = '33'+str(ic+1)
         plt.subplot(tmp)
 
@@ -795,7 +800,7 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freqmin,freqmax,lag=None,save=Fal
 
     # save figure or show
     if save:
-        outfname = sdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz_'+'.png'
+        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz.png'
         plt.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
