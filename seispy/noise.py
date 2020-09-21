@@ -622,94 +622,8 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False
         fig.show()
 
 
-def plot_moveout_wiggle(sfiles,sta,dtype,freq,comp,scale=1.0,lag=None,save=False,figdir=None):
-    '''
-    display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
-    PARAMETERS:
-    ---------------------
-    sfile: cross-correlation functions outputed by S2
-    sta: source station name
-    dtype: datatype either 'Allstack_pws' or 'Allstack_linear'
-    freqmin: min frequency to be filtered
-    freqmax: max frequency to be filtered
-    comp:   cross component
-    lag: lag times for displaying
-    save: set True to save the figures (in pdf format)
-    figdir: diresied directory to save the figure (if not provided, save to default dir)
-    USAGE:
-    ----------------------
-    plot_moveout('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
-    '''
-    # open data for read
-    if save:
-        if figdir==None:print('no path selected! save figures in the default path')
-
-    freqmin=freq[0]
-    freqmax=freq[1]
-    receiver = sta+'.h5'
-    stack_method = dtype.split('_')[-1]
-
-    # extract common variables
-    try:
-        ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
-        dt    = ds.auxiliary_data[dtype][comp].parameters['dt']
-        maxlag= ds.auxiliary_data[dtype][comp].parameters['maxlag']
-    except Exception:
-        print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
-
-    # lags for display
-    if lag is None:lag=maxlag
-    if lag>maxlag:raise ValueError('lag excceds maxlag!')
-    tt = np.arange(-int(lag),int(lag)+dt,dt)
-    indx1 = int((maxlag-lag)/dt)
-    indx2 = indx1+2*int(lag/dt)+1
-
-    # load cc and parameter matrix
-    mdist = 0
-    for ii in range(len(sfiles)):
-        sfile = sfiles[ii]
-        iflip = 0
-        treceiver = sfile.split('_')[-1]
-        if treceiver == receiver:
-            iflip = 1
-
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
-        try:
-            # load data to variables
-            dist = ds.auxiliary_data[dtype][comp].parameters['dist']
-            ngood= ds.auxiliary_data[dtype][comp].parameters['ngood']
-            tdata  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
-
-        except Exception:
-            print("continue! cannot read %s "%sfile);continue
-
-        tdata = bandpass(tdata,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-        tdata /= np.max(tdata,axis=0)
-
-        if iflip:
-            plt.plot(tt,scale*np.flip(tdata,axis=0)+dist,'k',linewidth=0.8)
-        else:
-            plt.plot(tt,scale*tdata+dist,'k',linewidth=0.8)
-        plt.title('%s %s filtered @%5.3f-%5.3f Hz' % (sta,comp,freqmin,freqmax))
-        plt.xlabel('time (s)')
-        plt.ylabel('offset (km)')
-        plt.text(maxlag*0.9,dist+0.5,receiver,fontsize=6)
-
-        #----use to plot o times------
-        if mdist < dist:
-            mdist = dist
-    plt.plot([0,0],[0,mdist],'r--',linewidth=1)
-
-    # save figure or show
-    if save:
-        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz_'+comp+'.png'
-        plt.savefig(outfname, format='png', dpi=300)
-        plt.close()
-    else:
-        plt.show()
-
-
-def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freq,lag=None,save=False,figdir=None):
+def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],
+                              scale=1.0,lag=None,ylim=None,save=False,figdir=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -734,13 +648,44 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freq,lag=None,save=False,figdir=N
     freqmax=freq[1]
     receiver = sta+'.h5'
     stack_method = dtype.split('_')[-1]
-    comp = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
+    typeofcomp=str(type(ccomp)).split("'")[1]
+    ccomptemp=[]
+    if typeofcomp=='str':
+        ccomptemp.append(ccomp)
+        ccomp=ccomptemp
+    print(ccomp)
+
+    #determine subplot parameters if not specified.
+    if len(ccomp)>9:
+        raise ValueError('ccomp includes more than 9 (maximum allowed) elements!')
+    elif len(ccomp)==9:
+        subplot=[3,3]
+        figsize=[14,10.5]
+    elif len(ccomp) >=7 and len(ccomp) <=8:
+        subplot=[2,4]
+        figsize=[18,7.5]
+    elif len(ccomp) >=5 and len(ccomp) <=6:
+        subplot=[2,3]
+        figsize=[14,7.5]
+    elif len(ccomp) ==4:
+        subplot=[2,2]
+        figsize=[10,7.5]
+    else:
+        subplot=[1,len(ccomp)]
+        if len(ccomp)==3:
+            figsize=[13,3]
+        elif len(ccomp)==2:
+            figsize=[8,3]
+        else:
+            figsize=[4,3]
+
+#     ccomp = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
 
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
-        dt    = ds.auxiliary_data[dtype][comp[0]].parameters['dt']
-        maxlag= ds.auxiliary_data[dtype][comp[0]].parameters['maxlag']
+        dt    = ds.auxiliary_data[dtype][ccomp[0]].parameters['dt']
+        maxlag= ds.auxiliary_data[dtype][ccomp[0]].parameters['maxlag']
     except Exception:
         print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
 
@@ -752,13 +697,12 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freq,lag=None,save=False,figdir=N
     indx2 = indx1+2*int(lag/dt)+1
 
     # load cc and parameter matrix
-    mdist = 80
-    plt.figure(figsize=(14,10.5))
-    for ic in range(len(comp)):
-        comp = comp[ic]
-        tmp  = '33'+str(ic+1)
-        plt.subplot(tmp)
-
+    plt.figure(figsize=figsize)
+    for ic in range(len(ccomp)):
+        comp = ccomp[ic]
+#         tmp  = '33'+str(ic+1)
+        plt.subplot(subplot[0],subplot[1],ic+1)
+        mdist=0
         for ii in range(len(sfiles)):
             sfile = sfiles[ii]
             iflip = 0
@@ -776,31 +720,38 @@ def plot_moveout_wiggle_9comp(sfiles,sta,dtype,freq,lag=None,save=False,figdir=N
             except Exception:
                 print("continue! cannot read %s "%sfile);continue
 
-            if dist>mdist:continue
+
+            if ylim is not None:
+                if dist>ylim[1] or dist<ylim[0]:
+                    continue
+            elif dist>mdist:
+                mdist=dist
+
             tdata = bandpass(tdata,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
             tdata /= np.max(tdata,axis=0)
 
             if iflip:
-                plt.plot(tt,np.flip(tdata,axis=0)+dist,'k',linewidth=0.8)
+                plt.plot(tt,scale*np.flip(tdata,axis=0)+dist,'k',linewidth=0.8)
             else:
-                plt.plot(tt,tdata+dist,'k',linewidth=0.8)
-            if ic==1:
-                plt.title('%s filtered @%5.3f-%5.3f Hz' % (sta,freqmin,freqmax))
+                plt.plot(tt,scale*tdata+dist,'k',linewidth=0.8)
+            plt.title('%s filtered @%5.3f-%5.3f Hz' % (sta,freqmin,freqmax))
             plt.xlabel('time (s)')
             plt.ylabel('offset (km)')
-            if ic==0:
-                plt.plot([0,160],[0,80],'r--',linewidth=0.2)
-                plt.plot([0,80],[0,80],'g--',linewidth=0.2)
-            plt.text(lag*1.1,dist+0.5,treceiver,fontsize=6)
 
-        plt.plot([0,0],[0,mdist],'b--',linewidth=1)
-        font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 16}
-        plt.text(lag*0.65,80,comp,fontdict=font)
+        plt.xlim([-1.0*lag,lag])
+        if ylim is None:
+            ylim=[0.0,mdist]
+        plt.plot([0,0],ylim,'b--',linewidth=1)
+
+        plt.ylim(ylim)
+        font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
+        plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),comp,fontdict=font,
+                 bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
     plt.tight_layout()
 
     # save figure or show
     if save:
-        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+str(freqmin)+'_'+str(freqmax)+'Hz.png'
+        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(len(ccomp))+'ccomp.png'
         plt.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
