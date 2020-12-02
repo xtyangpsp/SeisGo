@@ -9,6 +9,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
+import pygmt as gmt
 
 '''
 Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
@@ -519,7 +520,7 @@ def plot_substack_all_spect(sfile,freqmin,freqmax,comp,lag=None,save=False,figdi
         fig.show()
 
 
-def plot_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False,figdir=None):
+def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False,figdir=None):
     '''
     display the moveout (2D matrix) of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -536,7 +537,7 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False
     figdir: diresied directory to save the figure (if not provided, save to default dir)
     USAGE:
     ----------------------
-    plot_moveout('temp.h5','sta','Allstack_pws',0.1,0.2,1,'ZZ',200,True,'./temp')
+    plot_xcorr_moveout_heatmap('temp.h5','sta','Allstack_pws',0.1,0.2,1,'ZZ',200,True,'./temp')
     '''
     # open data for read
     if save:
@@ -622,8 +623,9 @@ def plot_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False
         fig.show()
 
 
-def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],
-                              scale=1.0,lag=None,ylim=None,save=False,figdir=None):
+#test functions
+def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],
+                              scale=1.0,lag=None,ylim=None,save=False,figdir=None,minsnr=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -633,13 +635,22 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','R
     dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
+    ccomp: x-correlation component names, could be a string or a list of strings.
+    scale: plot the waveforms with scaled amplitudes
     lag: lag times for displaying
     save: set True to save the figures (in pdf format)
     figdir: diresied directory to save the figure (if not provided, save to default dir)
+    minsnr: mimumum SNR as a QC criterion, the SNR is computed as max(abs(trace))/mean(abs(trace)),
+            without signal and noise windows.
     USAGE:
     ----------------------
-    plot_substack_moveout('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
+    plot_xcorr_moveout_wiggle('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
     '''
+    #
+    qc=False
+    if minsnr is not None:
+        qc=True
+
     # open data for read
     if save:
         if figdir==None:print('no path selected! save figures in the default path')
@@ -679,8 +690,6 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','R
         else:
             figsize=[4,3]
 
-#     ccomp = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
-
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
@@ -693,6 +702,7 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','R
     if lag is None:lag=maxlag
     if lag>maxlag:raise ValueError('lag excceds maxlag!')
     tt = np.arange(-int(lag),int(lag)+dt,dt)
+    indx0= int(maxlag/dt) #zero time index
     indx1 = int((maxlag-lag)/dt)
     indx2 = indx1+2*int(lag/dt)+1
 
@@ -717,8 +727,21 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','R
                 ngood= ds.auxiliary_data[dtype][comp].parameters['ngood']
                 tdata  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
 
-            except Exception:
-                print("continue! cannot read %s "%sfile);continue
+                if qc:
+                    #get the pseudo-SNR: maximum absolute amplitude/mean absolute amplitude.
+                    dneg=ds.auxiliary_data[dtype][comp].data[indx1:indx0-1]
+                    dpos=ds.auxiliary_data[dtype][comp].data[indx0+1:indx2]
+                    snrneg=np.max(np.abs(dneg))/np.mean(np.abs(dneg))
+                    snrpos=np.max(np.abs(dpos))/np.mean(np.abs(dpos))
+#                     print([snrneg,snrpos])
+                    if np.max([snrneg,snrpos]) < minsnr:
+#                         print("continue! didn't pass QC.")
+                        continue
+
+            except Exception as e:
+                print("continue! error working on %s "%sfile);
+                print(e)
+                continue
 
 
             if ylim is not None:
@@ -751,8 +774,449 @@ def plot_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','R
 
     # save figure or show
     if save:
-        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(len(ccomp))+'ccomp.png'
+        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(len(ccomp))+'ccomp_minsnr'+str(minsnr)+'.png'
         plt.savefig(outfname, format='png', dpi=300)
         plt.close()
     else:
         plt.show()
+
+#get peak amplitudes
+def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],
+                              scale=1.0,lag=None,ylim=None,save=False,figdir=None,minsnr=None,
+                        velocity=[1.0,5.0]):
+    '''
+    display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
+    PARAMETERS:
+    ---------------------
+    sfile: cross-correlation functions outputed by S2
+    sta: source station name
+    dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
+    freq: [freqmin,freqmax] as a filter.
+    ccomp: xcorr components to extract.
+    scale: scale of the waveforms in plotting the traces.
+    lag: lag times for displaying
+    save: set True to save the figures (in pdf format)
+    figdir: diresied directory to save the figure (if not provided, save to default dir)
+    minsnr: SNR cutoff. the SNR is computed with the given velocity range.
+    velocity: velocity range for the main phase used to estimate the signal windows.
+
+    RETURNS:
+    -----------------------
+    A dictionary that contains the following keys: source, receivers. Source is a dictionary containing
+    the 'name', 'location' of the virtual source. Receivers is a dictionary
+    containing the 'name' keys of an eight element array for the 'longitude', 'latitude', 'elevation' of
+    each receiver and the 'distance', 'az','baz',peak_amplitude', 'peak_amplitude_time', 'snr' of the each receiver.
+
+    USAGE:
+    ----------------------
+    get_peakamplitudes('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
+    '''
+
+    #initialize out dictionary
+    outdic=dict()
+    outdic['source']=dict()
+    outdic['source']['name']=sta
+    outdic['source']['location']=np.empty((1,3,)) #three-element array of longitude, latitude, and elevation/depth
+    outdic['cc_comp']=dict()
+    qc=False
+    if minsnr is not None:
+        qc=True
+
+    # open data for read
+    if save:
+        if figdir==None:print('no path selected! save figures in the default path')
+
+    freqmin=freq[0]
+    freqmax=freq[1]
+    source = sta
+    stack_method = dtype.split('_')[-1]
+    typeofcomp=str(type(ccomp)).split("'")[1]
+    ccomptemp=[]
+    if typeofcomp=='str':
+        ccomptemp.append(ccomp)
+        ccomp=ccomptemp
+    print(ccomp)
+
+    #determine subplot parameters if not specified.
+    if len(ccomp)>9:
+        raise ValueError('ccomp includes more than 9 (maximum allowed) elements!')
+    elif len(ccomp)==9:
+        subplot=[3,3]
+        figsize=[14,10.5]
+    elif len(ccomp) >=7 and len(ccomp) <=8:
+        subplot=[2,4]
+        figsize=[18,7.5]
+    elif len(ccomp) >=5 and len(ccomp) <=6:
+        subplot=[2,3]
+        figsize=[14,7.5]
+    elif len(ccomp) ==4:
+        subplot=[2,2]
+        figsize=[10,7.5]
+    else:
+        subplot=[1,len(ccomp)]
+        if len(ccomp)==3:
+            figsize=[13,3]
+        elif len(ccomp)==2:
+            figsize=[8,3]
+        else:
+            figsize=[4,3]
+
+    # extract common variables
+    try:
+        ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
+        dt    = ds.auxiliary_data[dtype][ccomp[0]].parameters['dt']
+        maxlag= ds.auxiliary_data[dtype][ccomp[0]].parameters['maxlag']
+        iflip = 0
+        treceiver_tmp = sfiles[0].split('_')[-1]
+        treceiver=treceiver_tmp.split('.')[0]+'.'+treceiver_tmp.split('.')[1]
+        if treceiver == source:
+            iflip = 1
+        if iflip:
+            outdic['source']['location']=[ds.auxiliary_data[dtype][ccomp[0]].parameters['lonR'],
+                                         ds.auxiliary_data[dtype][ccomp[0]].parameters['latR'],0.0]
+        else:
+            outdic['source']['location']=[ds.auxiliary_data[dtype][ccomp[0]].parameters['lonS'],
+                                         ds.auxiliary_data[dtype][ccomp[0]].parameters['latS'],0.0]
+    except Exception:
+        print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
+
+    # lags for display
+    if lag is None:lag=maxlag
+    if lag>maxlag:raise ValueError('lag excceds maxlag!')
+    tt = np.arange(-int(lag),int(lag)+dt,dt)
+    indx0= int(maxlag/dt) #zero time index
+    indx1 = int((maxlag-lag)/dt)
+    indx2 = indx1+2*int(lag/dt)+1
+
+    # load cc and parameter matrix
+    plt.figure(figsize=figsize)
+    for ic in range(len(ccomp)):
+        comp = ccomp[ic]
+        outdic['cc_comp'][comp]=dict() #keys of the 'receivers' dictionary are the station names, saving an eight-element array
+        #for 'longitude', 'latitude', 'elevation','distance','az','baz', 'peak_amplitude', 'peak_amplitude_time', 'snr'.
+        #
+
+        plt.subplot(subplot[0],subplot[1],ic+1)
+        mdist=0
+        peakamp=np.empty((len(sfiles),2,))
+        peakamp.fill(np.nan)
+        peaktt=np.empty((len(sfiles),2,))
+        peaktt.fill(np.nan)
+        distall=np.empty((len(sfiles),))
+        distall.fill(np.nan)
+        outdict_tmp=dict()
+        for ii in range(len(sfiles)):
+            sfile = sfiles[ii]
+            iflip = 0
+            treceiver_tmp = sfile.split('_')[-1]
+            treceiver=treceiver_tmp.split('.')[0]+'.'+treceiver_tmp.split('.')[1]
+            tsource=sfile.split('_')[0]
+            if treceiver == source:
+                iflip = 1
+                treceiver=tsource
+
+            ds = pyasdf.ASDFDataSet(sfile,mode='r')
+            try:
+                # load data to variables
+                dist = ds.auxiliary_data[dtype][comp].parameters['dist']
+                distall[ii]=dist
+                ngood= ds.auxiliary_data[dtype][comp].parameters['ngood']
+                tdata  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
+
+                #get key metadata parameters
+                if iflip:
+                    az=ds.auxiliary_data[dtype][comp].parameters['baz']
+                    baz=ds.auxiliary_data[dtype][comp].parameters['azi']
+                    lonR=ds.auxiliary_data[dtype][comp].parameters['lonS']
+                    latR=ds.auxiliary_data[dtype][comp].parameters['latS']
+                else:
+                    az=ds.auxiliary_data[dtype][comp].parameters['azi']
+                    baz=ds.auxiliary_data[dtype][comp].parameters['baz']
+                    lonR=ds.auxiliary_data[dtype][comp].parameters['lonR']
+                    latR=ds.auxiliary_data[dtype][comp].parameters['latR']
+            except Exception as e:
+                print("continue! error working on %s "%sfile);
+                print(e)
+                continue
+
+            if ylim is not None:
+                if dist>ylim[1] or dist<ylim[0]:
+                    continue
+            elif dist>mdist:
+                mdist=dist
+
+            #get signal window: start and end indices
+            signal_neg=[indx0-int(dist/velocity[0]/dt)-indx1,indx0-int(dist/velocity[1]/dt)-indx1]
+            signal_pos=[int(dist/velocity[1]/dt)+indx0-indx1,int(dist/velocity[0]/dt)+indx0-indx1]
+
+            tdata = bandpass(tdata,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
+
+            if dist/velocity[0] > lag:
+                print('Signal window %6.1f is larger than the max lag %6.1f specified by the user' %
+                     (dist/velocity[0],lag))
+                continue
+
+
+            if iflip:
+                dtemp=np.flip(tdata,axis=0)
+                dn=dtemp[signal_neg[0]:signal_neg[1]] #negative data section
+                dp=dtemp[signal_pos[0]:signal_pos[1]] #positive dta section
+
+                if qc:
+                    #get the pseudo-SNR: maximum absolute amplitude/mean absolute amplitude.
+                    snrneg=np.max(np.abs(dn))/np.mean(np.abs(tdata[0:indx0-1-indx1]))
+                    snrpos=np.max(np.abs(dp))/np.mean(np.abs(tdata[indx0+1-indx1:-1]))
+                    if np.nanmax([snrneg,snrpos]) < minsnr:
+                        continue
+                #get maximum index
+                maxidx=[np.argmax(np.abs(dn)),np.argmax(np.abs(dp))]
+                if maxidx[0] >0 and maxidx[0]<len(dn)-1:
+                    peakamp[ii,0]=np.max(np.abs(dn))
+                    peaktt[ii,0]=tt[maxidx[0]+signal_neg[0]]
+                if maxidx[1] >0 and maxidx[1]<len(dn)-1:
+                    peakamp[ii,1]=np.max(np.abs(dp))
+                    peaktt[ii,1]=tt[maxidx[1]+signal_pos[0]]
+                #normalize for plotting
+                plt.plot(tt,dist + scale*dtemp/np.max(dtemp,axis=0),'k',linewidth=0.5)
+            else:
+                dn=tdata[signal_neg[0]:signal_neg[1]] #negative data section
+                dp=tdata[signal_pos[0]:signal_pos[1]] #positive dta section
+
+                if qc:
+                    #get the pseudo-SNR: maximum absolute amplitude/mean absolute amplitude.
+                    snrneg=np.max(np.abs(dn))/np.mean(np.abs(tdata[0:indx0-1-indx1]))
+                    snrpos=np.max(np.abs(dp))/np.mean(np.abs(tdata[indx0+1-indx1:-1]))
+                    if np.nanmax([snrneg,snrpos]) < minsnr:
+                        continue
+                #get maximum index
+                maxidx=[np.argmax(np.abs(dn)),np.argmax(np.abs(dp))]
+                if maxidx[0] >0 and maxidx[0]<len(dn)-1:
+                    peakamp[ii,0]=np.max(np.abs(dn))
+                    peaktt[ii,0]=tt[maxidx[0]+signal_neg[0]]
+                if maxidx[1] >0 and maxidx[1]<len(dn)-1:
+                    peakamp[ii,1]=np.max(np.abs(dp))
+                    peaktt[ii,1]=tt[maxidx[1]+signal_pos[0]]
+
+                plt.plot(tt,dist + scale*tdata/np.max(tdata,axis=0),'k',linewidth=0.5)
+
+
+            #save to out dictionary
+            #initialize the receiver element.
+            outdic['cc_comp'][comp][treceiver]=dict()
+            outdic['cc_comp'][comp][treceiver]['location']=[lonR,latR,0.0]
+            outdic['cc_comp'][comp][treceiver]['az']=az
+            outdic['cc_comp'][comp][treceiver]['baz']=baz
+            outdic['cc_comp'][comp][treceiver]['dist']=dist
+            outdic['cc_comp'][comp][treceiver]['peak_amplitude']=peakamp[ii,:]
+            outdic['cc_comp'][comp][treceiver]['peak_amplitude_time']=peaktt[ii,:]
+
+        #
+        for jj in range(len(sfiles)):
+            plt.plot(peaktt[jj,:],[distall[jj],distall[jj]],'.r',markersize=2)
+        plt.xlim([-1.0*lag,lag])
+        if ylim is None:
+            ylim=[0.0,mdist]
+        plt.plot([0,0],ylim,'b--',linewidth=1)
+
+        #plot the bounding lines for signal windows.
+        plt.plot([0, ylim[1]/velocity[1]],[0, ylim[1]],'c-',linewidth=0.5) #postive lag starting bound
+        plt.plot([0, ylim[1]/velocity[0]],[0, ylim[1]],'c-',linewidth=0.5) #postive lag ending bound
+        plt.plot([0, -ylim[1]/velocity[1]],[0, ylim[1]],'c-',linewidth=0.5) #negative lag starting bound
+        plt.plot([0, -ylim[1]/velocity[0]],[0, ylim[1]],'c-',linewidth=0.5) #negative lag ending bound
+
+        plt.ylim(ylim)
+        font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 10}
+        plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),comp,fontdict=font,
+                 bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
+        plt.title('%s filtered @%5.3f-%5.3f Hz' % (sta,freqmin,freqmax))
+        plt.xlabel('time (s)')
+        plt.ylabel('offset (km)')
+    plt.tight_layout()
+
+    # save figure or show
+    if save:
+        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(len(ccomp))+'ccomp_minsnr'+str(minsnr)+'_peakamp.png'
+        plt.savefig(outfname, format='png', dpi=300)
+        plt.close()
+    else:
+        plt.show()
+
+    return outdic
+
+
+#####
+def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=None,
+                   projection="M5i", xshift="6i",frame="af"):
+    """
+    This function plots the peak amplitude maps for both negative and positive lags,
+    for each xcorr component pair. This function calls pygmt package for plotting.
+
+    PARAMETERS:
+    ----------------------------
+    dict_in: dictionary containing peak amplitude information from one virtual source to all other receivers.
+            This can be the output of get_xcorr_peakamplitudes().
+
+    DEPENDENCIES:
+    ----------------------------
+    PyGMT: for plotting map view with geographical projections, which can be specified as arguments.
+
+    """
+    source=dict_in['source']['name']
+    lonS,latS,eleS=dict_in['source']['location']
+
+    #
+    if fignamebase is None:
+        fignamebase = source
+
+    cc_comp=list(dict_in['cc_comp'].keys())
+
+    for ic in range(len(cc_comp)):
+        comp = cc_comp[ic]
+        receivers=list(dict_in['cc_comp'][comp].keys())
+        lonR=[]
+        latR=[]
+        dist=[]
+        peakamp_neg=[]
+        peakamp_pos=[]
+        peaktt_neg=[]
+        peaktt_pos=[]
+
+        for ir in range(len(receivers)):
+            receiver=receivers[ir]
+            dist0=dict_in['cc_comp'][comp][receiver]['dist']
+            if distance is not None:
+                if dist0<distance[0] or dist0>distance[1]:
+                    continue
+            dist.append(dist0)
+            lonR.append(dict_in['cc_comp'][comp][receiver]['location'][0])
+            latR.append(dict_in['cc_comp'][comp][receiver]['location'][1])
+            peakamp_neg.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude'])[0]*dist0)
+            peakamp_pos.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude'])[1]*dist0)
+            peaktt_neg.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude_time'])[0])
+            peaktt_pos.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude_time'])[1])
+
+        #amplitudes map views
+        panelstring=['(a) negative lag','(b) positive lag']
+        fig = gmt.Figure()
+        for d,dat in enumerate([peakamp_neg,peakamp_pos]):
+            if d>0:
+                fig.shift_origin(xshift=xshift)
+            fig.coast(region=region, projection=projection, frame=frame,land="gray",
+                      shorelines=True,borders=["1/1p,black","2/0.5p,white"])
+            fig.basemap(frame='+t"'+panelstring[d]+'"')
+            fig.plot(
+                x=lonS,
+                y=latS,
+                style="a0.5c",
+                color="black",
+            )
+            gmt.makecpt(cmap="viridis", series=[np.min(dat), np.max(dat)])
+            fig.plot(
+                x=lonR,
+                y=latR,
+                color=dat,
+                cmap=True,
+                style="c0.3c",
+                pen="black",
+            )
+            fig.colorbar(frame='af+l"Amplitude"')
+
+        figname=fignamebase+'_'+comp+'_peakamplitude_map.'+format
+        fig.savefig(figname)
+        print('plot was saved to: '+figname)
+
+        #peak amplitude arrival times
+        fig = gmt.Figure()
+        for d,dat in enumerate([peaktt_neg,peaktt_pos]):
+            if d>0:
+                fig.shift_origin(xshift=xshift)
+            if d==0:
+                dat=np.multiply(dat,-1.0)
+            fig.coast(region=region, projection=projection, frame=frame,land="gray",
+                      shorelines=True,borders=["1/1p,black","2/0.5p,white"])
+            fig.basemap(frame='+t"'+panelstring[d]+'"')
+            fig.plot(
+                x=lonS,
+                y=latS,
+                style="a0.5c",
+                color="black",
+            )
+            gmt.makecpt(cmap="viridis", series=[np.min(dat), np.max(dat)])
+            fig.plot(
+                x=lonR,
+                y=latR,
+                color=dat,
+                cmap=True,
+                style="c0.3c",
+                pen="black",
+            )
+            fig.colorbar(frame='af+l"Arrival time (s)"')
+
+        figname=fignamebase+'_'+comp+'_peaktt_map.'+format
+        fig.savefig(figname)
+        print('plot was saved to: '+figname)
+
+#####
+def save_xcorr_amplitudes(dict_in,filenamebase=None):
+    """
+    This function saves the amplitude data for both negative and positive lags,
+    for each xcorr component pair, to csv files.
+
+    PARAMETERS:
+    ----------------------------
+    dict_in: dictionary containing peak amplitude information from one virtual source to all other receivers.
+            This can be the output of get_xcorr_peakamplitudes().
+    filenamebase: file name base of the csv file, default is source_component_peakamp.txt in the current dir.
+    """
+    source=dict_in['source']['name']
+    lonS0,latS0,eleS0=dict_in['source']['location']
+
+    #
+    if filenamebase is None:
+        filenamebase = source
+
+    cc_comp=list(dict_in['cc_comp'].keys())
+
+    for ic in range(len(cc_comp)):
+        comp = cc_comp[ic]
+        receivers=list(dict_in['cc_comp'][comp].keys())
+        lonS=lonS0*np.ones((len(receivers),))
+        latS=latS0*np.ones((len(receivers),))
+        eleS=eleS0*np.ones((len(receivers),))
+        comp_out=len(receivers)*[comp]
+        source_out=len(receivers)*[source]
+
+        lonR=[]
+        latR=[]
+        eleR=[]
+        dist=[]
+        peakamp_neg=[]
+        peakamp_pos=[]
+        peaktt_neg=[]
+        peaktt_pos=[]
+        az=[]
+        baz=[]
+
+        for ir in range(len(receivers)):
+            receiver=receivers[ir]
+            dist0=dict_in['cc_comp'][comp][receiver]['dist']
+            dist.append(dist0)
+            lonR.append(dict_in['cc_comp'][comp][receiver]['location'][0])
+            latR.append(dict_in['cc_comp'][comp][receiver]['location'][1])
+            eleR.append(0.0)
+            az.append(dict_in['cc_comp'][comp][receiver]['az'])
+            baz.append(dict_in['cc_comp'][comp][receiver]['baz'])
+            peakamp_neg.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude'])[0])
+            peakamp_pos.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude'])[1])
+            peaktt_neg.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude_time'])[0])
+            peaktt_pos.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude_time'])[1])
+
+
+        outDF=pd.DataFrame({'source':source_out,'lonS':lonS,'latS':latS,'eleS':eleS,
+                           'receiver':receivers,'lonR':lonR,'latR':latR,'eleR':eleR,
+                           'az':az,'baz':baz,'dist':dist,'peakamp_neg':peakamp_neg,
+                            'peakamp_pos':peakamp_pos,'peaktt_neg':peaktt_neg,
+                            'peaktt_pos':peaktt_pos,'comp':comp_out})
+        fname=filenamebase+'_'+comp+'_peakamp.txt'
+        outDF.to_csv(fname,index=False)
+        print('data was saved to: '+fname)
