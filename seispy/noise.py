@@ -1050,12 +1050,15 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
                    projection="M5i", xshift="6i",frame="af"):
     """
     This function plots the peak amplitude maps for both negative and positive lags,
-    for each xcorr component pair. This function calls pygmt package for plotting.
+    for each xcorr component pair. The map views plot amplitudes corrected for geometric
+    spreading for surface waves. This function calls pygmt package for plotting. It also plots
+    peak amplitudes v.s. distance, without correcting the amplitudes for geometric spreading.
 
     PARAMETERS:
     ----------------------------
     dict_in: dictionary containing peak amplitude information from one virtual source to all other receivers.
             This can be the output of get_xcorr_peakamplitudes().
+    region: [minlon,maxlon,minlat,maxlat] for map view
 
     DEPENDENCIES:
     ----------------------------
@@ -1104,7 +1107,7 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
                 fig.shift_origin(xshift=xshift)
             fig.coast(region=region, projection=projection, frame=frame,land="gray",
                       shorelines=True,borders=["1/1p,black","2/0.5p,white"])
-            fig.basemap(frame='+t"'+panelstring[d]+'"')
+            fig.basemap(frame='+t"'+fignamebase.split('/')[-1]+'_'+comp+':'+panelstring[d]+'"')
             fig.plot(
                 x=lonS,
                 y=latS,
@@ -1122,7 +1125,7 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
             )
             fig.colorbar(frame='af+l"Amplitude"')
 
-        figname=fignamebase+'_'+comp+'_peakamplitude_map.'+format
+        figname=fignamebase+'_'+comp+'_peakamp_map.'+format
         fig.savefig(figname)
         print('plot was saved to: '+figname)
 
@@ -1135,7 +1138,7 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
                 dat=np.multiply(dat,-1.0)
             fig.coast(region=region, projection=projection, frame=frame,land="gray",
                       shorelines=True,borders=["1/1p,black","2/0.5p,white"])
-            fig.basemap(frame='+t"'+panelstring[d]+'"')
+            fig.basemap(frame='+t"'+fignamebase.split('/')[-1]+'_'+comp+':'+panelstring[d]+'"')
             fig.plot(
                 x=lonS,
                 y=latS,
@@ -1155,6 +1158,18 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
 
         figname=fignamebase+'_'+comp+'_peaktt_map.'+format
         fig.savefig(figname)
+        print('plot was saved to: '+figname)
+
+        #plot amplitudes v.s. distance
+        plt.figure(figsize=[8,6])
+        plt.plot(dist,np.divide(peakamp_neg,dist),'ob',fillstyle='none',markersize=5,label='negative')
+        plt.plot(dist,np.divide(peakamp_pos,dist),'or',markersize=5,label='positive')
+        plt.title(fignamebase.split('/')[-1]+'_'+comp)
+        plt.xlabel('distance (km)')
+        plt.ylabel('Peak amplitudes')
+        plt.legend(loc='upper right')
+        figname=fignamebase+'_'+comp+'_peakamp_dist.'+format
+        plt.savefig(figname)
         print('plot was saved to: '+figname)
 
 #####
