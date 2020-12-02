@@ -16,6 +16,10 @@ This module contains frequently used utility functions not readily available in 
 
 This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from **OBStools** (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
+3. `noise`
+
+This module contains functions used in ambient noise processing, including cross-correlations and plotting functions.
+
 ## Installation
 1. Create and activate the **conda** `seispy` environment
 
@@ -26,7 +30,30 @@ $ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python obspy 
 $ conda activate seispy
 ```
 
-The `pandas` and `jupyter` packages are currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests.
+The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests.
+
+**Install PyGMT plotting funcitons**
+
+Map views with geographical projections are plotted using **PyGMT** (https://www.pygmt.org/latest/). The following are steps to install PyGMT package (please refer to PyGMT webpage for trouble shooting and testing):
+
+Install GMT through conda first into the `SeisPy` environment:
+
+```
+conda activate seispy
+conda install  python pip numpy pandas xarray netcdf4 packaging gmt
+```
+
+In ~/.bash_profile, add this line: `export GMT_LIBRARY_PATH=$SEISPYROOT/lib`, where `$SEISPYROOT` is the root directory of the `seispy` environment. Then, run:
+
+```
+conda install pygmt
+```
+
+Test your installation by running:
+```
+python
+> import pygmt
+```
 
 2. Download `seispy`
 
