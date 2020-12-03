@@ -74,21 +74,25 @@ for idir in range(rank,splits,size):
     print('Plotting ... '+src)
 
     filelist = glob.glob(os.path.join(d,'*.h5'))
-    # print(filelist)
-    for p in range(freqs.shape[0]):
-        ns.plot_xcorr_moveout_heatmap(filelist,src,'Allstack_robust',freqs[p,:],complist[0],
-                                20,lag=400,save=True,figdir=outfigdir)
-        ns.plot_xcorr_moveout_wiggle(filelist,src,'Allstack_robust',freqs[p,:],ccomp=complist,
-                            scale=9,lag=400,ylim=[50,650],save=True,figdir=outfigdir,
-                           minsnr=20)
-        peakampdict=ns.get_xcorr_peakamplitudes(filelist,src,'Allstack_robust',freqs[p,:],ccomp=complist,
-                            scale=7,lag=500,ylim=[50,550],save=True,figdir=outfigdir,
-                           minsnr=minsnr[p],velocity=velocities[p,:])
-        ns.plot_xcorr_amplitudes(peakampdict,region=maparea,fignamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
-                        '_'+str(freqs[p,1])+'Hz',projection='M3.5i',xshift='4.5i',frame='a6f3',
-                       distance=[3.5/freqs[p,0],550])
-        ns.save_xcorr_amplitudes(peakampdict,filenamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
-                        '_'+str(freqs[p,1])+'Hz')
+        # print(filelist)
+    if len(filelist)>0:
+        for p in range(freqs.shape[0]):
+            ns.plot_xcorr_moveout_heatmap(filelist,src,'Allstack_robust',freqs[p,:],complist[0],
+                                    20,lag=400,save=True,figdir=outfigdir)
+            ns.plot_xcorr_moveout_wiggle(filelist,src,'Allstack_robust',freqs[p,:],ccomp=complist,
+                                scale=9,lag=400,ylim=[50,650],save=True,figdir=outfigdir,
+                               minsnr=20)
+            peakampdict=ns.get_xcorr_peakamplitudes(filelist,src,'Allstack_robust',freqs[p,:],ccomp=complist,
+                                scale=7,lag=500,ylim=[50,550],save=True,figdir=outfigdir,
+                               minsnr=minsnr[p],velocity=velocities[p,:])
+            ns.plot_xcorr_amplitudes(peakampdict,region=maparea,fignamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
+                            '_'+str(freqs[p,1])+'Hz',projection='M3.5i',xshift='4.5i',frame='a6f3',
+                           distance=[3.5/freqs[p,0],550])
+            ns.save_xcorr_amplitudes(peakampdict,filenamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
+                            '_'+str(freqs[p,1])+'Hz')
+    else:
+        print('no files found. Continue!')
+        continue
 
 ###############################################
 comm.barrier()
