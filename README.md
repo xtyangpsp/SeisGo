@@ -40,10 +40,11 @@ Install GMT through conda first into the `SeisPy` environment:
 
 ```
 conda activate seispy
+conda config --prepend channels conda-forge
 conda install  python pip numpy pandas xarray netcdf4 packaging gmt
 ```
 
-In ~/.bash_profile, add this line: `export GMT_LIBRARY_PATH=$SEISPYROOT/lib`, where `$SEISPYROOT` is the root directory of the `seispy` environment. Then, run:
+**You may need to specify the python version available on your environment.** In ~/.bash_profile, add this line: `export GMT_LIBRARY_PATH=$SEISPYROOT/lib`, where `$SEISPYROOT` is the root directory of the `seispy` environment. Then, run:
 
 ```
 conda install pygmt
