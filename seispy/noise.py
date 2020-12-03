@@ -12,14 +12,13 @@ from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
 import pygmt as gmt
 
+#############################################################################
+############### PLOTTING RAW SEISMIC WAVEFORMS ##########################
+#############################################################################
 '''
 Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
 Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
 '''
-
-#############################################################################
-############### PLOTTING RAW SEISMIC WAVEFORMS ##########################
-#############################################################################
 def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
     '''
     display the downloaded waveform for station A
@@ -96,7 +95,10 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
 #############################################################################
 ###############PLOTTING XCORR RESULTS AS THE OUTPUT OF NoisePy S1 STEP ##########################
 #############################################################################
-
+'''
+Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
+Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
+'''
 def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
     '''
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
@@ -209,7 +211,10 @@ def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
             else:
                 fig.show()
 
-
+'''
+Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
+Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
+'''
 def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
     '''
     display the amplitude spectrum of the cross-correlation functions for a time-chunck.
@@ -322,7 +327,10 @@ def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./')
 #############################################################################
 ###############PLOTTING THE POST-STACKING XCORR FUNCTIONS AS OUTPUT OF S2 STEP IN NOISEPY ##########################
 #############################################################################
-
+'''
+Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
+Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
+'''
 def plot_substack_all(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None):
     '''
     display the 2D matrix of the cross-correlation functions stacked for all time windows.
@@ -418,7 +426,10 @@ def plot_substack_all(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None
     else:
         fig.show()
 
-
+'''
+Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
+Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
+'''
 def plot_substack_all_spect(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None):
     '''
     display the amplitude spectrum of the cross-correlation functions stacked for all time windows.
@@ -520,7 +531,10 @@ def plot_substack_all_spect(sfile,freqmin,freqmax,comp,lag=None,save=False,figdi
     else:
         fig.show()
 
-
+'''
+Modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
+Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
+'''
 def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False,figdir=None):
     '''
     display the moveout (2D matrix) of the cross-correlation functions stacked for all time chuncks.
@@ -1067,7 +1081,7 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
     """
     source=dict_in['source']['name']
     lonS,latS,eleS=dict_in['source']['location']
-
+    mindatapoints=2 #at least two receivers having data. otherwise, skip.
     #
     if fignamebase is None:
         fignamebase = source
@@ -1099,78 +1113,81 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
             peaktt_neg.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude_time'])[0])
             peaktt_pos.append(np.array(dict_in['cc_comp'][comp][receiver]['peak_amplitude_time'])[1])
 
-        #amplitudes map views
-        panelstring=['(a) negative lag','(b) positive lag']
-        fig = gmt.Figure()
-        for d,dat in enumerate([peakamp_neg,peakamp_pos]):
-            if d>0:
-                fig.shift_origin(xshift=xshift)
-            fig.coast(region=region, projection=projection, frame=frame,land="gray",
-                      shorelines=True,borders=["1/1p,black","2/0.5p,white"])
-            fig.basemap(frame='+t"'+fignamebase.split('/')[-1]+'_'+comp+':'+panelstring[d]+'"')
-            fig.plot(
-                x=lonS,
-                y=latS,
-                style="a0.5c",
-                color="black",
-            )
-            gmt.makecpt(cmap="viridis", series=[np.min(dat), np.max(dat)])
-            fig.plot(
-                x=lonR,
-                y=latR,
-                color=dat,
-                cmap=True,
-                style="c0.3c",
-                pen="black",
-            )
-            fig.colorbar(frame='af+l"Amplitude"')
+        if len(peakamp_neg) >= mindatapoints:
+            #amplitudes map views
+            panelstring=['(a) negative lag','(b) positive lag']
+            fig = gmt.Figure()
+            for d,dat in enumerate([peakamp_neg,peakamp_pos]):
+                if d>0:
+                    fig.shift_origin(xshift=xshift)
+                fig.coast(region=region, projection=projection, frame=frame,land="gray",
+                          shorelines=True,borders=["1/1p,black","2/0.5p,white"])
+                fig.basemap(frame='+t"'+fignamebase.split('/')[-1]+'_'+comp+':'+panelstring[d]+'"')
+                fig.plot(
+                    x=lonS,
+                    y=latS,
+                    style="a0.5c",
+                    color="black",
+                )
+                gmt.makecpt(cmap="viridis", series=[np.min(dat), np.max(dat)])
+                fig.plot(
+                    x=lonR,
+                    y=latR,
+                    color=dat,
+                    cmap=True,
+                    style="c0.3c",
+                    pen="black",
+                )
+                fig.colorbar(frame='af+l"Amplitude"')
 
-        figname=fignamebase+'_'+comp+'_peakamp_map.'+format
-        fig.savefig(figname)
-        print('plot was saved to: '+figname)
+            figname=fignamebase+'_'+comp+'_peakamp_map.'+format
+            fig.savefig(figname)
+            print('plot was saved to: '+figname)
 
-        #peak amplitude arrival times
-        fig = gmt.Figure()
-        for d,dat in enumerate([peaktt_neg,peaktt_pos]):
-            if d>0:
-                fig.shift_origin(xshift=xshift)
-            if d==0:
-                dat=np.multiply(dat,-1.0)
-            fig.coast(region=region, projection=projection, frame=frame,land="gray",
-                      shorelines=True,borders=["1/1p,black","2/0.5p,white"])
-            fig.basemap(frame='+t"'+fignamebase.split('/')[-1]+'_'+comp+':'+panelstring[d]+'"')
-            fig.plot(
-                x=lonS,
-                y=latS,
-                style="a0.5c",
-                color="black",
-            )
-            gmt.makecpt(cmap="viridis", series=[np.min(dat), np.max(dat)])
-            fig.plot(
-                x=lonR,
-                y=latR,
-                color=dat,
-                cmap=True,
-                style="c0.3c",
-                pen="black",
-            )
-            fig.colorbar(frame='af+l"Arrival time (s)"')
+            #peak amplitude arrival times
+            fig = gmt.Figure()
+            for d,dat in enumerate([peaktt_neg,peaktt_pos]):
+                if d>0:
+                    fig.shift_origin(xshift=xshift)
+                if d==0:
+                    dat=np.multiply(dat,-1.0)
+                fig.coast(region=region, projection=projection, frame=frame,land="gray",
+                          shorelines=True,borders=["1/1p,black","2/0.5p,white"])
+                fig.basemap(frame='+t"'+fignamebase.split('/')[-1]+'_'+comp+':'+panelstring[d]+'"')
+                fig.plot(
+                    x=lonS,
+                    y=latS,
+                    style="a0.5c",
+                    color="black",
+                )
+                gmt.makecpt(cmap="viridis", series=[np.min(dat), np.max(dat)])
+                fig.plot(
+                    x=lonR,
+                    y=latR,
+                    color=dat,
+                    cmap=True,
+                    style="c0.3c",
+                    pen="black",
+                )
+                fig.colorbar(frame='af+l"Arrival time (s)"')
 
-        figname=fignamebase+'_'+comp+'_peaktt_map.'+format
-        fig.savefig(figname)
-        print('plot was saved to: '+figname)
+            figname=fignamebase+'_'+comp+'_peaktt_map.'+format
+            fig.savefig(figname)
+            print('plot was saved to: '+figname)
 
-        #plot amplitudes v.s. distance
-        plt.figure(figsize=[8,6])
-        plt.plot(dist,np.divide(peakamp_neg,dist),'ob',fillstyle='none',markersize=5,label='negative')
-        plt.plot(dist,np.divide(peakamp_pos,dist),'or',markersize=5,label='positive')
-        plt.title(fignamebase.split('/')[-1]+'_'+comp)
-        plt.xlabel('distance (km)')
-        plt.ylabel('Peak amplitudes')
-        plt.legend(loc='upper right')
-        figname=fignamebase+'_'+comp+'_peakamp_dist.'+format
-        plt.savefig(figname)
-        print('plot was saved to: '+figname)
+            #plot amplitudes v.s. distance
+            plt.figure(figsize=[8,6])
+            plt.plot(dist,np.divide(peakamp_neg,dist),'ob',fillstyle='none',markersize=5,label='negative')
+            plt.plot(dist,np.divide(peakamp_pos,dist),'or',markersize=5,label='positive')
+            plt.title(fignamebase.split('/')[-1]+'_'+comp)
+            plt.xlabel('distance (km)')
+            plt.ylabel('Peak amplitudes')
+            plt.legend(loc='upper right')
+            figname=fignamebase+'_'+comp+'_peakamp_dist.'+format
+            plt.savefig(figname)
+            print('plot was saved to: '+figname)
+        else:
+            print('less than '+str(mindatapoints)+' receivers with data. Skip!')
 
 #####
 def save_xcorr_amplitudes(dict_in,filenamebase=None):
