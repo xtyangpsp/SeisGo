@@ -85,9 +85,13 @@ for idir in range(rank,splits,size):
             peakampdict=ns.get_xcorr_peakamplitudes(filelist,src,'Allstack_robust',freqs[p,:],ccomp=complist,
                                 scale=7,lag=500,ylim=[50,550],save=True,figdir=outfigdir,
                                minsnr=minsnr[p],velocity=velocities[p,:])
-            ns.plot_xcorr_amplitudes(peakampdict,region=maparea,fignamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
-                            '_'+str(freqs[p,1])+'Hz',projection='M3.5i',xshift='4.5i',frame='a6f3',
-                           distance=[3.5/freqs[p,0],550])
+            try:
+                ns.plot_xcorr_amplitudes(peakampdict,region=maparea,fignamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
+                                '_'+str(freqs[p,1])+'Hz',projection='M3.5i',xshift='4.5i',frame='a6f3',
+                               distance=[3.5/freqs[p,0],550])
+            except Exception as e:
+                print(e)
+                print('failed plotting the amplitudes. Skip!')
             ns.save_xcorr_amplitudes(peakampdict,filenamebase=outfigdir+'/'+src+'_'+str(freqs[p,0])+
                             '_'+str(freqs[p,1])+'Hz')
     else:
