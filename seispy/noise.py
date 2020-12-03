@@ -548,12 +548,12 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
     freqmin=freq[0]
     freqmax=freq[1]
     receiver = sta+'.h5'
+    stack_method = dtype.split('0')[-1]
     # extract common variables
     try:
-        ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
+        ds    = pyasdf.ASDFDataSet(sfiles[0],mpi=False,mode='r')
         dt    = ds.auxiliary_data[dtype][path].parameters['dt']
         maxlag= ds.auxiliary_data[dtype][path].parameters['maxlag']
-        stack_method = dtype.split('0')[-1]
     except Exception:
         print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
 
@@ -575,7 +575,7 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
         sfile = sfiles[ii]
         treceiver = sfile.split('_')[-1]
 
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
+        ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
         try:
             # load data to variables
             dist[ii] = ds.auxiliary_data[dtype][path].parameters['dist']
@@ -665,7 +665,7 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','
     if typeofcomp=='str':
         ccomptemp.append(ccomp)
         ccomp=ccomptemp
-    print(ccomp)
+    # print(ccomp)
 
     #determine subplot parameters if not specified.
     if len(ccomp)>9:
@@ -693,7 +693,7 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','
 
     # extract common variables
     try:
-        ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
+        ds    = pyasdf.ASDFDataSet(sfiles[0],mpi=False,mode='r')
         dt    = ds.auxiliary_data[dtype][ccomp[0]].parameters['dt']
         maxlag= ds.auxiliary_data[dtype][ccomp[0]].parameters['maxlag']
     except Exception:
@@ -721,7 +721,7 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','
             if treceiver == receiver:
                 iflip = 1
 
-            ds = pyasdf.ASDFDataSet(sfile,mode='r')
+            ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
             try:
                 # load data to variables
                 dist = ds.auxiliary_data[dtype][comp].parameters['dist']
@@ -836,7 +836,7 @@ def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','R
     if typeofcomp=='str':
         ccomptemp.append(ccomp)
         ccomp=ccomptemp
-    print(ccomp)
+    # print(ccomp)
 
     #determine subplot parameters if not specified.
     if len(ccomp)>9:
@@ -864,7 +864,7 @@ def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','R
 
     # extract common variables
     try:
-        ds    = pyasdf.ASDFDataSet(sfiles[0],mode='r')
+        ds    = pyasdf.ASDFDataSet(sfiles[0],mpi=False,mode='r')
         dt    = ds.auxiliary_data[dtype][ccomp[0]].parameters['dt']
         maxlag= ds.auxiliary_data[dtype][ccomp[0]].parameters['maxlag']
         iflip = 0
@@ -916,7 +916,7 @@ def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','R
                 iflip = 1
                 treceiver=tsource
 
-            ds = pyasdf.ASDFDataSet(sfile,mode='r')
+            ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
             try:
                 # load data to variables
                 dist = ds.auxiliary_data[dtype][comp].parameters['dist']
