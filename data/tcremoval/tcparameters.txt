@@ -1,0 +1,1 @@
+{'window': 3600, 'overlap': 0.2, 'taper': 0.08, 'qc_freq': [0.004, 1], 'tc_subset': ['ZP-H']}

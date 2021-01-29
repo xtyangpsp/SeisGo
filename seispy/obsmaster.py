@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 # import needed packages and functions
-from seispy import utils
+from seispy import utils,downloaders
 # from warnings import warn
 from scipy.signal import spectrogram, detrend,tukey
 from scipy.linalg import norm

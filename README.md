@@ -1,5 +1,5 @@
 # SeisPy
-*Python modules for seismic data processing*
+*Python modules for seismic data analysis*
 
 ### Author: Xiaotao Yang (stcyang@gmail.com)
 
@@ -12,11 +12,15 @@ This package is under active development. The currently available modules are li
 
 This module contains frequently used utility functions not readily available in `obspy`.
 
-2. `obsmaster`
+2. `downloaders`
+
+This module contains functions used to downloading earthquake waveforms and earthquake catalogs.
+
+3. `obsmaster`
 
 This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from **OBStools** (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
-3. `noise`
+4. `noise`
 
 This module contains functions used in ambient noise processing, including cross-correlations and plotting functions.
 
@@ -26,7 +30,7 @@ This module contains functions used in ambient noise processing, including cross
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas python obspy mpi4py
+$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py
 $ conda activate seispy
 ```
 

@@ -13,159 +13,17 @@ import pyasdf
 import datetime
 import os, glob
 import numpy as np
+from numba import jit
 # import pandas as pd
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
 from scipy.signal import tukey
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
-# from scipy.fftpack import fft,fftfreq,ifft
-# from scipy.fftpack import rfft,rfftfreq,irfft
+from obspy.core.util.base import _get_function_from_entry_point
+from scipy.fftpack import fft,ifft,next_fast_len
 
 ####
-#
-def getdata(net,sta,starttime,endtime,chan='*',source='IRIS',samp_freq=None,
-            rmresp=True,rmresp_output='VEL',pre_filt=None,plot=False,debug=False,
-            sacheader=False,getstainv=False):
-    """
-    This is a wrapper that downloads seismic data and (optionally) removes response
-    and downsamples if needed. Most of the arguments have the same meaning as for
-    obspy.Client.get_waveforms().
-
-    Parameters
-    ----------
-    net,sta,chan : string
-            network, station, and channel names for the request.
-    starttime, endtime : UTCDateTime
-            Starting and ending date time for the request.
-    source : string
-            Client names.
-            To get a list of available clients:
-            >> from obspy.clients.fdsn.header import URL_MAPPINGS
-            >> for key in sorted(URL_MAPPINGS.keys()):
-                 print("{0:<11} {1}".format(key,  URL_MAPPINGS[key]))
-    samp_freq : float
-            Target sampling rate. Skip resampling if None.
-    rmresp : bool
-            Remove response if true. For the purpose of download OBS data and remove
-            tilt and compliance noise, the output is "VEL" for pressure data and "DISP"
-            for seismic channels.
-    rmresp_output : string
-            Output format when removing the response, following the same rule as by OBSPY.
-            The default is 'VEL' for velocity output.
-    pre_filt : :class: `numpy.ndarray`
-            Same as the pre_filt in obspy when removing instrument responses.
-    plot : bool
-            Plot the traces after preprocessing (sampling, removing responses if specified).
-    debug : bool
-            Plot raw waveforms before preprocessing.
-    sacheader : bool
-            Key sacheader information in a dictionary using the SAC header naming convention.
-    """
-    client = Client(source)
-    tr = None
-    sac=dict() #place holder to save some sac headers.
-    #check arguments
-    if rmresp:
-        if pre_filt is None:
-            raise(Exception("Error getdata() - "
-                            + " pre_filt is not specified (needed when removing response)"))
-
-    """
-    a. Downloading
-    """
-    if sacheader or getstainv:
-        inv = client.get_stations(network=net,station=sta,
-                        channel=chan,location="*",starttime=starttime,endtime=endtime,
-                        level='response')
-        if sacheader:
-            tempnet,tempsta,stlo, stla,stel,temploc=sta_info_from_inv(inv)
-            sac['knetwk']=tempnet
-            sac['kstnm']=tempsta
-            sac['stlo']=stlo
-            sac['stla']=stla
-            sac['stel']=stel
-            sac['kcmpnm']=chan
-            sac['khole']=temploc
-
-    # pressure channel
-    tr=client.get_waveforms(network=net,station=sta,
-                    channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
-#     trP[0].detrend()
-    tr=tr[0]
-    tr.stats['sac']=sac
-
-    print("station "+net+"."+sta+" --> seismic channel: "+chan)
-
-    if plot or debug:
-        year = tr.stats.starttime.year
-        julday = tr.stats.starttime.julday
-        hour = tr.stats.starttime.hour
-        mnt = tr.stats.starttime.minute
-        sec = tr.stats.starttime.second
-        tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
-        trlabels=[net+"."+sta+"."+tr.stats.channel]
-    """
-    b. Resampling
-    """
-    if samp_freq is not None:
-        sps=int(tr.stats.sampling_rate)
-        delta = tr.stats.delta
-        #assume pressure and vertical channels have the same sampling rat
-        # make downsampling if needed
-        if sps > samp_freq:
-            print("  downsamping from "+str(sps)+" to "+str(samp_freq))
-            if np.sum(np.isnan(tr.data))>0:
-                raise(Exception('NaN found in trace'))
-            else:
-                tr.interpolate(samp_freq,method='weighted_average_slopes')
-                # when starttimes are between sampling points
-                fric = tr.stats.starttime.microsecond%(delta*1E6)
-                if fric>1E-4:
-                    tr.data = segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
-                    #--reset the time to remove the discrepancy---
-                    tr.stats.starttime-=(fric*1E-6)
-                # print('new sampling rate:'+str(tr.stats.sampling_rate))
-
-    """
-    c. Plot raw data before removing responses.
-    """
-    if plot and debug:
-        plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
-                        outfile=net+"."+sta+"_"+tstamp+"_raw.png")
-
-    """
-    d. Remove responses
-    """
-    if rmresp:
-        if np.sum(np.isnan(tr.data))>0:
-            raise(Exception('NaN found in trace'))
-        else:
-            try:
-                print('  removing response using inv for '+net+"."+sta+"."+tr.stats.channel)
-                tr.remove_response(output=rmresp_output,pre_filt=pre_filt,
-                                          water_level=60,zero_mean=True,plot=False)
-
-                # Detrend, filter
-                tr.detrend('demean')
-                tr.detrend('linear')
-                tr.filter('lowpass', freq=0.49*samp_freq,
-                           corners=2, zerophase=True)
-            except Exception as e:
-                print(e)
-                tr = []
-
-    """
-    e. Plot raw data after removing responses.
-    """
-    if plot:
-        plot_trace([trP],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
-                   outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
-
-    #
-    if getstainv:return tr,inv
-    else: return tr
-
 # ##################### qml_to_event_list #####################################
 # modified from obspyDMT.utils.event_handler.py
 def qml_to_event_list(events_QML):
@@ -357,6 +215,105 @@ def sta_info_from_inv(inv):
     # print(sta,net,lon,lat,elv,location)
     return sta,net,lon,lat,elv,location
 
+def stats2inv(stats,prepro_para,locs=None):
+    '''
+    this function creates inventory given the stats parameters in an obspy stream or a station list.
+    (used in S0B)
+    PARAMETERS:
+    ------------------------
+    stats: obspy trace stats object containing all station header info
+    prepro_para: dict containing fft parameters, such as frequency bands and selection for instrument response removal etc.
+    locs:  panda data frame of the station list. it is needed for convering miniseed files into ASDF
+    RETURNS:
+    ------------------------
+    inv: obspy inventory object of all station info to be used later
+    '''
+    staxml    = prepro_para['stationxml']
+    respdir   = prepro_para['respdir']
+    input_fmt = prepro_para['input_fmt']
+
+    if staxml:
+        if not respdir:
+            raise ValueError('Abort! staxml is selected but no directory is given to access the files')
+        else:
+            invfile = glob.glob(os.path.join(respdir,'*'+stats.station+'*'))
+            if os.path.isfile(str(invfile)):
+                inv = obspy.read_inventory(invfile)
+                return inv
+
+    inv = Inventory(networks=[],source="homegrown")
+
+    if input_fmt=='sac':
+        net = Network(
+            # This is the network code according to the SEED standard.
+            code=stats.network,
+            stations=[],
+            description="created from SAC and resp files",
+            start_date=stats.starttime)
+
+        sta = Station(
+            # This is the station code according to the SEED standard.
+            code=stats.station,
+            latitude=stats.sac["stla"],
+            longitude=stats.sac["stlo"],
+            elevation=stats.sac["stel"],
+            creation_date=stats.starttime,
+            site=Site(name="First station"))
+
+        cha = Channel(
+            # This is the channel code according to the SEED standard.
+            code=stats.channel,
+            # This is the location code according to the SEED standard.
+            location_code=stats.location,
+            # Note that these coordinates can differ from the station coordinates.
+            latitude=stats.sac["stla"],
+            longitude=stats.sac["stlo"],
+            elevation=stats.sac["stel"],
+            depth=-stats.sac["stel"],
+            azimuth=stats.sac["cmpaz"],
+            dip=stats.sac["cmpinc"],
+            sample_rate=stats.sampling_rate)
+
+    elif input_fmt == 'mseed':
+        ista=locs[locs['station']==stats.station].index.values.astype('int64')[0]
+
+        net = Network(
+            # This is the network code according to the SEED standard.
+            code=locs.iloc[ista]["network"],
+            stations=[],
+            description="created from SAC and resp files",
+            start_date=stats.starttime)
+
+        sta = Station(
+            # This is the station code according to the SEED standard.
+            code=locs.iloc[ista]["station"],
+            latitude=locs.iloc[ista]["latitude"],
+            longitude=locs.iloc[ista]["longitude"],
+            elevation=locs.iloc[ista]["elevation"],
+            creation_date=stats.starttime,
+            site=Site(name="First station"))
+
+        cha = Channel(
+            code=stats.channel,
+            location_code=stats.location,
+            latitude=locs.iloc[ista]["latitude"],
+            longitude=locs.iloc[ista]["longitude"],
+            elevation=locs.iloc[ista]["elevation"],
+            depth=-locs.iloc[ista]["elevation"],
+            azimuth=0,
+            dip=0,
+            sample_rate=stats.sampling_rate)
+
+    response = obspy.core.inventory.response.Response()
+
+    # Now tie it all together.
+    cha.response = response
+    sta.channels.append(cha)
+    net.stations.append(sta)
+    inv.networks.append(net)
+
+    return inv
+
 # split_datetimestr(inv) is modified from NoisePy.noise_module.get_event_list()
 #Check NoisePy: https://github.com/mdenolle/NoisePy
 def split_datetimestr(dtstr1,dtstr2,inc_hours):
@@ -393,6 +350,7 @@ def split_datetimestr(dtstr1,dtstr2,inc_hours):
     return dtlist
 
 #Stolen from NoisePy
+@jit('float32[:](float32[:],float32)')
 def segment_interpolate(sig1,nfric):
     '''
     this function interpolates the data to ensure all points located on interger times of the
@@ -899,6 +857,11 @@ def ftest(res1, pars1, res2, pars2):
 def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()
 
+def nextpow2(x):
+    """
+    Returns the next power of 2 of x.
+    """
+    return int(np.ceil(np.log2(np.abs(x))))
 #save trace to files.
 def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None):
     """
@@ -951,3 +914,352 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None):
 
         ds.add_auxiliary_data(data,data_type,data_path,parameters=parameters,
                             provenance_id=provenance_id)
+
+def get_cc(s1,s_ref):
+    # returns the correlation coefficient between waveforms in s1 against reference
+    # waveform s_ref.
+    #
+    cc=np.zeros(s1.shape[0])
+    s_ref_norm = np.linalg.norm(s_ref)
+    for i in range(s1.shape[0]):
+        cc[i]=np.sum(np.multiply(s1[i,:],s_ref))/np.linalg.norm(s1[i,:])/s_ref_norm
+    return cc
+
+@jit(nopython = True)
+def moving_ave(A,N):
+    '''
+    this Numba compiled function does running smooth average for an array.
+    PARAMETERS:
+    ---------------------
+    A: 1-D array of data to be smoothed
+    N: integer, it defines the half window length to smooth
+
+    RETURNS:
+    ---------------------
+    B: 1-D array with smoothed data
+    '''
+    A = np.concatenate((A[:N],A,A[-N:]),axis=0)
+    B = np.zeros(A.shape,A.dtype)
+
+    tmp=0.
+    for pos in range(N,A.size-N):
+        # do summing only once
+        if pos==N:
+            for i in range(-N,N+1):
+                tmp+=A[pos+i]
+        else:
+            tmp=tmp-A[pos-N-1]+A[pos+N]
+        B[pos]=tmp/(2*N+1)
+        if B[pos]==0:
+            B[pos]=1
+    return B[N:-N]
+
+def mad(arr):
+    """
+    Median Absolute Deviation: MAD = median(|Xi- median(X)|)
+    PARAMETERS:
+    -------------------
+    arr: numpy.ndarray, seismic trace data array
+    RETURNS:
+    data: Median Absolute Deviation of data
+    """
+    if not np.ma.is_masked(arr):
+        med = np.median(arr)
+        data = np.median(np.abs(arr - med))
+    else:
+        med = np.ma.median(arr)
+        data = np.ma.median(np.ma.abs(arr-med))
+    return data
+
+
+def detrend(data):
+    '''
+    this function removes the signal trend based on QR decomposion
+    NOTE: QR is a lot faster than the least square inversion used by
+    scipy (also in obspy).
+    PARAMETERS:
+    ---------------------
+    data: input data matrix
+    RETURNS:
+    ---------------------
+    data: data matrix with trend removed
+    '''
+    #ndata = np.zeros(shape=data.shape,dtype=data.dtype)
+    if data.ndim == 1:
+        npts = data.shape[0]
+        X = np.ones((npts,2))
+        X[:,0] = np.arange(0,npts)/npts
+        Q,R = np.linalg.qr(X)
+        rq  = np.dot(np.linalg.inv(R),Q.transpose())
+        coeff = np.dot(rq,data)
+        data = data-np.dot(X,coeff)
+    elif data.ndim == 2:
+        npts = data.shape[1]
+        X = np.ones((npts,2))
+        X[:,0] = np.arange(0,npts)/npts
+        Q,R = np.linalg.qr(X)
+        rq = np.dot(np.linalg.inv(R),Q.transpose())
+        for ii in range(data.shape[0]):
+            coeff = np.dot(rq,data[ii])
+            data[ii] = data[ii] - np.dot(X,coeff)
+    return data
+
+def demean(data):
+    '''
+    this function remove the mean of the signal
+    PARAMETERS:
+    ---------------------
+    data: input data matrix
+    RETURNS:
+    ---------------------
+    data: data matrix with mean removed
+    '''
+    #ndata = np.zeros(shape=data.shape,dtype=data.dtype)
+    if data.ndim == 1:
+        data = data-np.mean(data)
+    elif data.ndim == 2:
+        for ii in range(data.shape[0]):
+            data[ii] = data[ii]-np.mean(data[ii])
+    return data
+
+def taper(data):
+    '''
+    this function applies a cosine taper using obspy functions
+    PARAMETERS:
+    ---------------------
+    data: input data matrix
+    RETURNS:
+    ---------------------
+    data: data matrix with taper applied
+    '''
+    #ndata = np.zeros(shape=data.shape,dtype=data.dtype)
+    if data.ndim == 1:
+        npts = data.shape[0]
+        # window length
+        if npts*0.05>20:wlen = 20
+        else:wlen = npts*0.05
+        # taper values
+        func = _get_function_from_entry_point('taper', 'hann')
+        if 2*wlen == npts:
+            taper_sides = func(2*wlen)
+        else:
+            taper_sides = func(2*wlen+1)
+        # taper window
+        win  = np.hstack((taper_sides[:wlen], np.ones(npts-2*wlen),taper_sides[len(taper_sides) - wlen:]))
+        data *= win
+    elif data.ndim == 2:
+        npts = data.shape[1]
+        # window length
+        if npts*0.05>20:wlen = 20
+        else:wlen = npts*0.05
+        # taper values
+        func = _get_function_from_entry_point('taper', 'hann')
+        if 2*wlen == npts:
+            taper_sides = func(2*wlen)
+        else:
+            taper_sides = func(2*wlen + 1)
+        # taper window
+        win  = np.hstack((taper_sides[:wlen], np.ones(npts-2*wlen),taper_sides[len(taper_sides) - wlen:]))
+        for ii in range(data.shape[0]):
+            data[ii] *= win
+    return data
+
+
+def whiten(data, fft_para):
+    '''
+    This function takes 1-dimensional timeseries array, transforms to frequency domain using fft,
+    whitens the amplitude of the spectrum in frequency domain between *freqmin* and *freqmax*
+    and returns the whitened fft.
+    PARAMETERS:
+    ----------------------
+    data: numpy.ndarray contains the 1D time series to whiten
+    fft_para: dict containing all fft_cc parameters such as
+        dt: The sampling space of the `data`
+        freqmin: The lower frequency bound
+        freqmax: The upper frequency bound
+        smooth_N: integer, it defines the half window length to smooth
+        freq_norm: whitening method between 'one-bit' and 'RMA'
+    RETURNS:
+    ----------------------
+    FFTRawSign: numpy.ndarray contains the FFT of the whitened input trace between the frequency bounds
+    '''
+
+    # load parameters
+    delta   = fft_para['dt']
+    freqmin = fft_para['freqmin']
+    freqmax = fft_para['freqmax']
+    smooth_N  = fft_para['smooth_N']
+    freq_norm = fft_para['freq_norm']
+
+    # Speed up FFT by padding to optimal size for FFTPACK
+    if data.ndim == 1:
+        axis = 0
+    elif data.ndim == 2:
+        axis = 1
+
+    Nfft = int(next_fast_len(int(data.shape[axis])))
+
+    Napod = 100
+    Nfft = int(Nfft)
+    freqVec = scipy.fftpack.fftfreq(Nfft, d=delta)[:Nfft // 2]
+    J = np.where((freqVec >= freqmin) & (freqVec <= freqmax))[0]
+    low = J[0] - Napod
+    if low <= 0:
+        low = 1
+
+    left = J[0]
+    right = J[-1]
+    high = J[-1] + Napod
+    if high > Nfft/2:
+        high = int(Nfft//2)
+
+    FFTRawSign = scipy.fftpack.fft(data, Nfft,axis=axis)
+    # Left tapering:
+    if axis == 1:
+        FFTRawSign[:,0:low] *= 0
+        FFTRawSign[:,low:left] = np.cos(
+            np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[:,low:left]))
+        # Pass band:
+        if freq_norm == 'phase_only':
+            FFTRawSign[:,left:right] = np.exp(1j * np.angle(FFTRawSign[:,left:right]))
+        elif freq_norm == 'rma':
+            for ii in range(data.shape[0]):
+                tave = moving_ave(np.abs(FFTRawSign[ii,left:right]),smooth_N)
+                FFTRawSign[ii,left:right] = FFTRawSign[ii,left:right]/tave
+        # Right tapering:
+        FFTRawSign[:,right:high] = np.cos(
+            np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[:,right:high]))
+        FFTRawSign[:,high:Nfft//2] *= 0
+
+        # Hermitian symmetry (because the input is real)
+        FFTRawSign[:,-(Nfft//2)+1:] = np.flip(np.conj(FFTRawSign[:,1:(Nfft//2)]),axis=axis)
+    else:
+        FFTRawSign[0:low] *= 0
+        FFTRawSign[low:left] = np.cos(
+            np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[low:left]))
+        # Pass band:
+        if freq_norm == 'phase_only':
+            FFTRawSign[left:right] = np.exp(1j * np.angle(FFTRawSign[left:right]))
+        elif freq_norm == 'rma':
+            tave = moving_ave(np.abs(FFTRawSign[left:right]),smooth_N)
+            FFTRawSign[left:right] = FFTRawSign[left:right]/tave
+        # Right tapering:
+        FFTRawSign[right:high] = np.cos(
+            np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[right:high]))
+        FFTRawSign[high:Nfft//2] *= 0
+
+        # Hermitian symmetry (because the input is real)
+        FFTRawSign[-(Nfft//2)+1:] = FFTRawSign[1:(Nfft//2)].conjugate()[::-1]
+
+    return FFTRawSign
+
+def check_sample_gaps(stream,date_info):
+    """
+    this function checks sampling rate and find gaps of all traces in stream.
+    PARAMETERS:
+    -----------------
+    stream: obspy stream object.
+    date_info: dict of starting and ending time of the stream
+
+    RETURENS:
+    -----------------
+    stream: List of good traces in the stream
+    """
+    # remove empty/big traces
+    if len(stream)==0 or len(stream)>100:
+        stream = []
+        return stream
+
+    # remove traces with big gaps
+    if portion_gaps(stream,date_info)>0.3:
+        stream = []
+        return stream
+
+    freqs = []
+    for tr in stream:
+        freqs.append(int(tr.stats.sampling_rate))
+    freq = max(freqs)
+    for tr in stream:
+        if int(tr.stats.sampling_rate) != freq:
+            stream.remove(tr)
+        if tr.stats.npts < 10:
+            stream.remove(tr)
+
+    return stream
+
+
+def portion_gaps(stream,date_info):
+    '''
+    this function tracks the gaps (npts) from the accumulated difference between starttime and endtime
+    of each stream trace. it removes trace with gap length > 30% of trace size.
+    PARAMETERS:
+    -------------------
+    stream: obspy stream object
+    date_info: dict of starting and ending time of the stream
+
+    RETURNS:
+    -----------------
+    pgaps: proportion of gaps/all_pts in stream
+    '''
+    # ideal duration of data
+    starttime = date_info['starttime']
+    endtime   = date_info['endtime']
+    npts      = (endtime-starttime)*stream[0].stats.sampling_rate
+
+    pgaps=0
+    #loop through all trace to accumulate gaps
+    for ii in range(len(stream)-1):
+        pgaps += (stream[ii+1].stats.starttime-stream[ii].stats.endtime)*stream[ii].stats.sampling_rate
+    if npts!=0:pgaps=pgaps/npts
+    if npts==0:pgaps=1
+    return pgaps
+
+
+def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
+    '''
+    this function removes the instrument response using response spectrum from evalresp.
+    the response spectrum is evaluated based on RESP/PZ files before inverted using the obspy
+    function of invert_spectrum. a module of create_resp.py is provided in directory of 'additional_modules'
+    to create the response spectrum
+    PARAMETERS:
+    ----------------------
+    source: obspy stream object of targeted noise data
+    resp_file: numpy data file of response spectrum
+    downsamp_freq: sampling rate of the source data
+    pre_filt: pre-defined filter parameters
+    RETURNS:
+    ----------------------
+    source: obspy stream object of noise data with instrument response removed
+    '''
+    #--------resp_file is the inverted spectrum response---------
+    respz = np.load(resp_file)
+    nrespz= respz[1][:]
+    spec_freq = max(respz[0])
+
+    #-------on current trace----------
+    nfft = _npts2nfft(source[0].stats.npts)
+    sps  = int(source[0].stats.sampling_rate)
+
+    #---------do the interpolation if needed--------
+    if spec_freq < 0.5*sps:
+        raise ValueError('spectrum file has peak freq smaller than the data, abort!')
+    else:
+        indx = np.where(respz[0]<=0.5*sps)
+        nfreq = np.linspace(0,0.5*sps,nfft//2+1)
+        nrespz= np.interp(nfreq,np.real(respz[0][indx]),respz[1][indx])
+
+    #----do interpolation if necessary-----
+    source_spect = np.fft.rfft(source[0].data,n=nfft)
+
+    #-----nrespz is inversed (water-leveled) spectrum-----
+    source_spect *= nrespz
+    source[0].data = np.fft.irfft(source_spect)[0:source[0].stats.npts]
+
+    if pre_filt is not None:
+        source[0].data = np.float32(bandpass(source[0].data,pre_filt[0],pre_filt[-1],df=sps,corners=4,zerophase=True))
+
+    return source

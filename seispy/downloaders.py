@@ -1,16 +1,21 @@
-from seispy import utils
 import obspy
 import os, glob
 import time
 import pyasdf
-from seispy.utils import get_tracetag, save2asdf
 import sys
 import pandas as pd
-from obspy.core import Trace
+from obspy.core import Trace, Stream
+from obspy.clients.fdsn import Client
+from seispy import utils
+from seispy.utils import get_tracetag, save2asdf
 import numpy as np
 
-def get_sta_list(fname, client, net_list, sta_list, chan_list, starttime, endtime, maxseischan, prepro_para, lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
-
+def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan,source='IRIS',
+                lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
+    """
+    Function to get station list with given parameters. It is a wrapper of the obspy function "get_stations()".
+    it is a practical applicaiton of get_stations() for mass downloading.
+    """
     sta = [];
     net = [];
     chan = [];
@@ -19,6 +24,10 @@ def get_sta_list(fname, client, net_list, sta_list, chan_list, starttime, endtim
     lat = [];
     elev = []
 
+    client=Client(source)
+    # time tags
+    starttime_UTC = obspy.UTCDateTime(starttime)
+    endtime_UTC   = obspy.UTCDateTime(endtime)
     # loop through specified network, station and channel lists
     chanhistory = {}
 
@@ -29,7 +38,7 @@ def get_sta_list(fname, client, net_list, sta_list, chan_list, starttime, endtim
                 # gather station info
                 try:
                     inv = client.get_stations(network=inet, station=ista, channel=ichan, location='*', \
-                                              starttime=starttime, endtime=endtime, minlatitude=lamin,
+                                              starttime=starttime_UTC, endtime=endtime_UTC, minlatitude=lamin,
                                               maxlatitude=lamax, \
                                               minlongitude=lomin, maxlongitude=lomax, level='response')
                     dataflag = 1
@@ -45,45 +54,190 @@ def get_sta_list(fname, client, net_list, sta_list, chan_list, starttime, endtim
                         # if ichan in pressure_chan or len(chanhistory)<maxseischan:
                         ckeys = chanhistory.keys()
                         netsta = K.code + '.' + tsta.code
-                        print(K.code + '.' + tsta.code + '.' + ichan)
-                        if netsta not in ckeys:
-                            chanhistory[netsta] = []
-                            sta.append(tsta.code)
-                            net.append(K.code)
-                            chan.append(ichan)
-                            lon.append(tsta.longitude)
-                            lat.append(tsta.latitude)
-                            elev.append(tsta.elevation)
-                            # sometimes one station has many locations and here we only get the first location
-                            if tsta[0].location_code:
-                                location.append(tsta[0].location_code)
-                            else:
-                                location.append('*')
-                            if ichan not in pressure_chan:
-                                chanhistory[netsta].append(ichan)
-                        elif len(chanhistory[netsta]) < maxseischan or ichan in pressure_chan:
-                            sta.append(tsta.code)
-                            net.append(K.code)
-                            chan.append(ichan)
-                            lon.append(tsta.longitude)
-                            lat.append(tsta.latitude)
-                            elev.append(tsta.elevation)
-                            # sometimes one station has many locations and here we only get the first location
-                            if tsta[0].location_code:
-                                location.append(tsta[0].location_code)
-                            else:
-                                location.append('*')
+                        for c in tsta.get_contents()['channels']:
+                            chan_this=c.split('.')[-1]
+                            print(K.code + '.' + tsta.code + '.' + chan_this)
+                            if netsta not in ckeys:
+                                chanhistory[netsta] = []
+                                sta.append(tsta.code)
+                                net.append(K.code)
+                                chan.append(chan_this)
+                                lon.append(tsta.longitude)
+                                lat.append(tsta.latitude)
+                                elev.append(tsta.elevation)
+                                # sometimes one station has many locations and here we only get the first location
+                                if tsta[0].location_code:
+                                    location.append(tsta[0].location_code)
+                                else:
+                                    location.append('*')
+                                if ichan not in pressure_chan:
+                                    chanhistory[netsta].append(chan_this)
+                            elif len(chanhistory[netsta]) < maxseischan or chan_this in pressure_chan:
+                                sta.append(tsta.code)
+                                net.append(K.code)
+                                chan.append(chan_this)
+                                lon.append(tsta.longitude)
+                                lat.append(tsta.latitude)
+                                elev.append(tsta.elevation)
+                                # sometimes one station has many locations and here we only get the first location
+                                if tsta[0].location_code:
+                                    location.append(tsta[0].location_code)
+                                else:
+                                    location.append('*')
 
-                            if ichan not in pressure_chan:
-                                chanhistory[netsta].append(ichan)
-
-    nsta = len(sta)
-    prepro_para['nsta'] = nsta
+                                if ichan not in pressure_chan:
+                                    chanhistory[netsta].append(chan_this)
 
     # output station list
     dict = {'network': net, 'station': sta, 'channel': chan, 'latitude': lat, 'longitude': lon, 'elevation': elev}
     locs = pd.DataFrame(dict)
-    locs.to_csv(fname, index=False)
+    if fname is not None:
+        locs.to_csv(fname, index=False)
+
+    return locs
+
+#
+def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
+            rmresp=True,rmresp_output='VEL',pre_filt=None,plot=False,debug=False,
+            sacheader=False,getstainv=False):
+    """
+    This is a wrapper that downloads seismic data and (optionally) removes response
+    and downsamples if needed. Most of the arguments have the same meaning as for
+    obspy.Client.get_waveforms().
+
+    Parameters
+    ----------
+    net,sta,chan : string
+            network, station, and channel names for the request.
+    starttime, endtime : UTCDateTime
+            Starting and ending date time for the request.
+    source : string
+            Client names.
+            To get a list of available clients:
+            >> from obspy.clients.fdsn.header import URL_MAPPINGS
+            >> for key in sorted(URL_MAPPINGS.keys()):
+                 print("{0:<11} {1}".format(key,  URL_MAPPINGS[key]))
+    samp_freq : float
+            Target sampling rate. Skip resampling if None.
+    rmresp : bool
+            Remove response if true. For the purpose of download OBS data and remove
+            tilt and compliance noise, the output is "VEL" for pressure data and "DISP"
+            for seismic channels.
+    rmresp_output : string
+            Output format when removing the response, following the same rule as by OBSPY.
+            The default is 'VEL' for velocity output.
+    pre_filt : :class: `numpy.ndarray`
+            Same as the pre_filt in obspy when removing instrument responses.
+    plot : bool
+            Plot the traces after preprocessing (sampling, removing responses if specified).
+    debug : bool
+            Plot raw waveforms before preprocessing.
+    sacheader : bool
+            Key sacheader information in a dictionary using the SAC header naming convention.
+    """
+    client = Client(source)
+    tr = None
+    sac=dict() #place holder to save some sac headers.
+    #check arguments
+    if rmresp:
+        if pre_filt is None:
+            raise(Exception("Error getdata() - "
+                            + " pre_filt is not specified (needed when removing response)"))
+
+    """
+    a. Downloading
+    """
+    if sacheader or getstainv:
+        inv = client.get_stations(network=net,station=sta,
+                        channel=chan,location="*",starttime=starttime,endtime=endtime,
+                        level='response')
+        if sacheader:
+            tempnet,tempsta,stlo, stla,stel,temploc=sta_info_from_inv(inv)
+            sac['knetwk']=tempnet
+            sac['kstnm']=tempsta
+            sac['stlo']=stlo
+            sac['stla']=stla
+            sac['stel']=stel
+            sac['kcmpnm']=chan
+            sac['khole']=temploc
+
+    # pressure channel
+    tr=client.get_waveforms(network=net,station=sta,
+                    channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
+#     trP[0].detrend()
+    tr=tr[0]
+    tr.stats['sac']=sac
+
+    print("station "+net+"."+sta+" --> seismic channel: "+chan)
+
+    if plot or debug:
+        year = tr.stats.starttime.year
+        julday = tr.stats.starttime.julday
+        hour = tr.stats.starttime.hour
+        mnt = tr.stats.starttime.minute
+        sec = tr.stats.starttime.second
+        tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
+        trlabels=[net+"."+sta+"."+tr.stats.channel]
+    """
+    b. Resampling
+    """
+    if samp_freq is not None:
+        sps=int(tr.stats.sampling_rate)
+        delta = tr.stats.delta
+        #assume pressure and vertical channels have the same sampling rat
+        # make downsampling if needed
+        if sps > samp_freq:
+            print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+            if np.sum(np.isnan(tr.data))>0:
+                raise(Exception('NaN found in trace'))
+            else:
+                tr.interpolate(samp_freq,method='weighted_average_slopes')
+                # when starttimes are between sampling points
+                fric = tr.stats.starttime.microsecond%(delta*1E6)
+                if fric>1E-4:
+                    tr.data = segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
+                    #--reset the time to remove the discrepancy---
+                    tr.stats.starttime-=(fric*1E-6)
+                # print('new sampling rate:'+str(tr.stats.sampling_rate))
+
+    """
+    c. Plot raw data before removing responses.
+    """
+    if plot and debug:
+        plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
+                        outfile=net+"."+sta+"_"+tstamp+"_raw.png")
+
+    """
+    d. Remove responses
+    """
+    if rmresp:
+        if np.sum(np.isnan(tr.data))>0:
+            raise(Exception('NaN found in trace'))
+        else:
+            try:
+                print('  removing response using inv for '+net+"."+sta+"."+tr.stats.channel)
+                tr.remove_response(output=rmresp_output,pre_filt=pre_filt,
+                                          water_level=60,zero_mean=True,plot=False)
+
+                # Detrend, filter
+                tr.detrend('demean')
+                tr.detrend('linear')
+                tr.filter('lowpass', freq=0.49*samp_freq,
+                           corners=2, zerophase=True)
+            except Exception as e:
+                print(e)
+                tr = []
+
+    """
+    e. Plot raw data after removing responses.
+    """
+    if plot:
+        plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
+                   outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
+
+    #
+    if getstainv:return tr,inv
+    else: return tr
 
 def cleantargetdir(rawdatadir):
     if not os.path.isdir(rawdatadir):
@@ -113,8 +267,9 @@ def in_directory(fname, sta, net, tag):
             else:
                 return False
 
-def butterworth(samp_freq, pfreqmin):
-    pfreqmax = samp_freq / 2
+def butterworth(samp_freq, pfreqmin,pfreqmax=None):
+    if pfreqmax is None:
+        pfreqmax = samp_freq / 2
     f1 = 0.95 * pfreqmin;
     f2 = pfreqmin
     if 1.05 * pfreqmax > 0.48 * samp_freq:
@@ -127,102 +282,119 @@ def butterworth(samp_freq, pfreqmin):
     return pre_filt
 
 
-def download(rawdatadir, starttime, endtime, inc_hours, net, stalist,
-                                            chanlist=['*'],source='IRIS',
-                                            samp_freq=None, plot=False, rmresp=True, rmresp_output='VEL',
-                                            pre_filt=None, sacheader=False, getstainv=True, max_tries=10):
+def download(rawdatadir, starttime, endtime, network, station,channel=None,source='IRIS',
+            sacheader=False, getstainv=True, max_tries=10,drop_if_has_badtrace=True,
+            savetofile=True,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
+            plot=False, rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
+
+    """
+    qc: When True, does QC to clean up the trace.
+
+    =============RETURNS============
+    trlist: Obspy Stream containing all traces. Note that when savetofile is True, the return will be an empty Stream.
+    """
+    if not os.path.isdir(rawdatadir):os.makedirs(rawdatadir)
 
     # if user passes a string instead of a list, make a list of one string
-    if isinstance(stalist, str): stalist = [stalist]
-    if isinstance(chanlist, str): chanlist = [chanlist]
-    if isinstance(net, str): net = [net]
+    if isinstance(station, str): station = [station]
+    if channel is None: channel = ['*']*len(station)
+    if isinstance(channel, str): channel = [channel]
+    if isinstance(network, str): network = [network]
 
-    dtlist = utils.split_datetimestr(starttime, endtime, inc_hours)
-    print(dtlist)
-    for idt in range(len(dtlist) - 1):
-        sdatetime = obspy.UTCDateTime(dtlist[idt])
-        edatetime = obspy.UTCDateTime(dtlist[idt + 1])
-    fname = os.path.join(rawdatadir, str(sdatetime) + 'T' + str(edatetime) + '.h5')
+    pre_filt = butterworth(samp_freq, freqmin,freqmax)
+
+    # dtlist = utils.split_datetimestr(starttime, endtime, inc_hours)
+    # print(dtlist)
+    # for idt in range(len(dtlist) - 1):
+    sdatetime = obspy.UTCDateTime(starttime)
+    edatetime = obspy.UTCDateTime(endtime)
+    fname = os.path.join(rawdatadir, str(sdatetime).replace(':','-') + 'T' + str(edatetime).replace(':','-') + '.h5')
 
     """
     Start downloading.
     """
-    for inet in net:
-        for ista in stalist:
+    trlist=[]
+    #loop through all stations.
+    for i in range(len(station)):
+        inet=network[i]
+        ista=station[i]
+        ichan=channel[i]
 
-            #print('Downloading ' + inet + "." + ista + " ...")
-            """
-            3a. Request data.
-            """
-            for chan in chanlist:
-                for nt in range(max_tries):
-                    print(ista + '.' + chan + '  downloading ... try ' + str(nt + 1))
-                    try:
-                        t0 = time.time()
+        for nt in range(max_tries):
+            print(ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
+            try:
+                t0 = time.time()
 
-                        output = utils.getdata(inet, ista, sdatetime, edatetime, chan=chan, source=source,
-                                                                                samp_freq=samp_freq, plot=plot, rmresp=rmresp, rmresp_output=rmresp_output,
-                                                                               pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
+                if ichan in pressure_chan:
+                    rmresp_out_tmp='VEL'
+                else:
+                    rmresp_out_tmp=rmresp_out
 
-                        if getstainv == True or sacheader == True:
-                            sta_inv = output[1]
-                            tr = output[0]
-                        else:
-                            tr = output
-                            sta_inv = None
+                output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
+                                        samp_freq=samp_freq, plot=plot, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
+                                       pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
 
-                        ta = time.time() - t0
-                        print('  downloaded ' + "." + ista + "." + chan + " in " + str(ta) + " seconds.")
-                        tag = get_tracetag(tr)
-                        chan = tr.stats.channel
+                if getstainv == True or sacheader == True:
+                    sta_inv = output[1]
+                    tr = output[0]
+                else:
+                    tr = output
+                    sta_inv = None
 
-                        """
-                        Add cleanup
-                        """
+                ta = time.time() - t0
+                print('  downloaded ' + "." + ista + "." + ichan + " in " + str(ta) + " seconds.")
+                tag = get_tracetag(tr)
+                chan = tr.stats.channel
 
-                        if chan[-1].lower() == 'h': tag_type= "trP"; hasPressure=True
-                        elif chan[-1].lower() == '1' or chan[-1].lower() == 'e':tag_type="tr1"
-                        elif chan[-1].lower() == '2' or chan[-1].lower() == 'n':tag_type="tr2"
-                        elif chan[-1].lower() == 'z':tag_type="trZ"
-                        else: print('  No seismic channels found. Drop the station: '+ista); break
+                """
+                Add cleanup
+                """
+                if qc:
+                    if chan[-1].lower() == 'h': tag_type= "trP"; hasPressure=True
+                    elif chan[-1].lower() == '1' or chan[-1].lower() == 'e':tag_type="tr1"
+                    elif chan[-1].lower() == '2' or chan[-1].lower() == 'n':tag_type="tr2"
+                    elif chan[-1].lower() == 'z':tag_type="trZ"
+                    else: print('  No seismic channels found. Drop the station: '+ista); break
 
-                        #sanity check.
-                        badtrace=False
-                        hasPressure=False
-                        if not isinstance(tr, Trace):
-                            print("  "+str(tr)+" is not a Trace object. "+ista)
-                            badtrace=True
-                            break
-                        elif np.sum(np.isnan(tr.data))>0:
-                            print('  NaN found in trace: '+str(tr)+". "+ista)
-                            badtrace=True
-                            break
-                        elif np.count_nonzero(tr.data) < 1:
-                            print('  All zeros in trace: '+str(tr)+". "+ista)
-                            badtrace=True
-                            break
+                    #sanity check.
+                    badtrace=False
+                    if not isinstance(tr, Trace):
+                        print("  "+str(tr)+" is not a Trace object. "+ista)
+                        badtrace=True
+                        break
+                    elif np.sum(np.isnan(tr.data))>0:
+                        print('  NaN found in trace: '+str(tr)+". "+ista)
+                        badtrace=True
+                        break
+                    elif np.count_nonzero(tr.data) < 1:
+                        print('  All zeros in trace: '+str(tr)+". "+ista)
+                        badtrace=True
+                        break
 
-                        in_dir = in_directory(fname, ista, inet, tag)
-                        if badtrace:
-                            if not drop_if_has_badtrace:
+
+                    in_dir = in_directory(fname, ista, inet, tag)
+                    if badtrace:
+                        if not drop_if_has_badtrace:
+                            if savetofile:
                                 """
-                                3b. Save to ASDF file.
+                                Save to ASDF file.
                                 """
                                 if in_dir == True:
                                     print(inet + '.' + ista + '.' + chan + '  exists. Continue to next!')
                                     break
                                 else:
-                                    print("  Not enough good traces for TC removal! Save as is without processing!")
-
+                                    print("  Encountered bad trace for " + ista + ". Save as is without processing!")
                                     save2asdf(fname,tr,tag,sta_inv=sta_inv)
-
                                     break
                             else:
-                                print("  Encountered bad trace for " + ista + ". Skipped!")
-                                break
+                                trlist.append(tr)
                         else:
+                            print("  Encountered bad trace for " + ista + ". Skipped!")
+                            break
+                    else:
+                        if savetofile:
                             """
-                            3b. Save to ASDF file.
+                            Save to ASDF file.
                             """
                             if in_dir == True:
                                 print(inet + '.' + ista + "." + chan + '  exists. Continue to next!')
@@ -231,8 +403,18 @@ def download(rawdatadir, starttime, endtime, inc_hours, net, stalist,
                                 print(" Saving data for", inet + '.' + ista  + '.' + chan )
                                 save2asdf(fname,[tr],[tag],sta_inv=sta_inv)
                                 break
+                        else:
+                            trlist.append(tr)
+                else:  #not QC
+                    if savetofile:
+                        print(" Saving data for", inet + '.' + ista  + '.' + chan )
+                        save2asdf(fname,[tr],[tag],sta_inv=sta_inv)
+                        break
+                    else:
+                        trlist.append(tr)
+            except Exception as e:
+                print(e, 'for', ista)
+                time.sleep(0.05)  # sleep for 50ms before next try.
+                continue
 
-                    except Exception as e:
-                        print(e, 'for', ista)
-                        time.sleep(0.05)  # sleep for 50ms before next try.
-                        continue
+    return Stream(trlist)
