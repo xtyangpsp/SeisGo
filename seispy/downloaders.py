@@ -44,8 +44,8 @@ def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxse
                     dataflag = 1
                 except Exception as e:
                     if ichan == chan_list[-1] and dataflag == 0:
-                        print(inet + '.' + ista + '.' + ichan + ': Abort at L137 in S0A due to ' + str(e))
-                        sys.exit()
+                        print(inet + '.' + ista + '.' + ichan + ': Abort due to ' + str(e))
+                        break
                     else:
                         continue
 
@@ -195,7 +195,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                 # when starttimes are between sampling points
                 fric = tr.stats.starttime.microsecond%(delta*1E6)
                 if fric>1E-4:
-                    tr.data = segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
+                    tr.data = utils.segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
                     #--reset the time to remove the discrepancy---
                     tr.stats.starttime-=(fric*1E-6)
                 # print('new sampling rate:'+str(tr.stats.sampling_rate))
@@ -342,7 +342,7 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
                     sta_inv = None
 
                 ta = time.time() - t0
-                print('  downloaded ' + "." + ista + "." + ichan + " in " + str(ta) + " seconds.")
+                print('  downloaded ' + inet+"." + ista + "." + ichan + " in " + str(ta) + " seconds.")
                 tag = get_tracetag(tr)
                 chan = tr.stats.channel
 
