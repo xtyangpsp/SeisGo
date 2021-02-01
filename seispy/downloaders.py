@@ -283,7 +283,7 @@ def butterworth(samp_freq, pfreqmin,pfreqmax=None):
 
 
 def download(rawdatadir, starttime, endtime, network, station,channel=None,source='IRIS',
-            sacheader=False, getstainv=True, max_tries=10,drop_if_has_badtrace=True,
+            sacheader=False, getstainv=True, max_tries=10,
             savetofile=True,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
             plot=False, rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
 
@@ -374,23 +374,19 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
 
                     in_dir = in_directory(fname, ista, inet, tag)
                     if badtrace:
-                        if not drop_if_has_badtrace:
-                            if savetofile:
-                                """
-                                Save to ASDF file.
-                                """
-                                if in_dir == True:
-                                    print(inet + '.' + ista + '.' + chan + '  exists. Continue to next!')
-                                    break
-                                else:
-                                    print("  Encountered bad trace for " + ista + ". Save as is without processing!")
-                                    save2asdf(fname,tr,tag,sta_inv=sta_inv)
-                                    break
+                        if savetofile:
+                            """
+                            Save to ASDF file.
+                            """
+                            if in_dir == True:
+                                print(inet + '.' + ista + '.' + chan + '  exists. Continue to next!')
+                                break
                             else:
-                                trlist.append(tr)
+                                print("  Encountered bad trace for " + ista + ". Save as is without processing!")
+                                save2asdf(fname,tr,tag,sta_inv=sta_inv)
+                                break
                         else:
-                            print("  Encountered bad trace for " + ista + ". Skipped!")
-                            break
+                            trlist.append(tr)
                     else:
                         if savetofile:
                             """
