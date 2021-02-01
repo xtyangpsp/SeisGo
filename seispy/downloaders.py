@@ -417,4 +417,4 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
                 time.sleep(0.05)  # sleep for 50ms before next try.
                 continue
 
-    return Stream(trlist)
+    return trlist
