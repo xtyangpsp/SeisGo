@@ -269,7 +269,7 @@ def in_directory(fname, sta, net, tag):
             else:
                 return False
 
-def butterworth(samp_freq, pfreqmin,pfreqmax=None):
+def set_filter(samp_freq, pfreqmin,pfreqmax=None):
     if pfreqmax is None:
         pfreqmax = samp_freq / 2
     f1 = 0.95 * pfreqmin;
@@ -303,7 +303,7 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
     if isinstance(channel, str): channel = [channel]
     if isinstance(network, str): network = [network]
 
-    pre_filt = butterworth(samp_freq, freqmin,freqmax)
+    pre_filt = set_filter(samp_freq, freqmin,freqmax)
 
     # dtlist = utils.split_datetimestr(starttime, endtime, inc_hours)
     # print(dtlist)
