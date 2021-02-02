@@ -222,12 +222,14 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                 # Detrend, filter
                 tr.detrend('demean')
                 tr.detrend('linear')
-                tr.filter('lowpass', freq=0.49*samp_freq,
-                           corners=2, zerophase=True)
             except Exception as e:
                 print(e)
                 tr = []
-
+    else:
+        tr.detrend('demean')
+        tr.detrend('linear')
+        tr.filter('lowpass', freq=0.49*samp_freq,
+                   corners=2, zerophase=True)
     """
     e. Plot raw data after removing responses.
     """
