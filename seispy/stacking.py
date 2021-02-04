@@ -13,7 +13,7 @@ from scipy.signal import hilbert
 from obspy.signal.util import _npts2nfft
 from scipy.fftpack import fft,ifft,next_fast_len
 
-def robust_stack(cc_array,epsilon):
+def robust_stack(cc_array,epsilon=1E-5):
     """
     this is a robust stacking algorithm described in Palvis and Vernon 2010
 

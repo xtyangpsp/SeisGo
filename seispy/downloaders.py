@@ -98,7 +98,7 @@ def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxse
 
 #
 def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
-            rmresp=True,rmresp_output='VEL',pre_filt=None,plot=False,debug=False,
+            rmresp=True,rmresp_output='VEL',pre_filt=None,debug=False,
             sacheader=False,getstainv=False):
     """
     This is a wrapper that downloads seismic data and (optionally) removes response
@@ -128,10 +128,8 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
             The default is 'VEL' for velocity output.
     pre_filt : :class: `numpy.ndarray`
             Same as the pre_filt in obspy when removing instrument responses.
-    plot : bool
-            Plot the traces after preprocessing (sampling, removing responses if specified).
     debug : bool
-            Plot raw waveforms before preprocessing.
+            Plot raw waveforms before and after preprocessing.
     sacheader : bool
             Key sacheader information in a dictionary using the SAC header naming convention.
     """
@@ -152,7 +150,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                         channel=chan,location="*",starttime=starttime,endtime=endtime,
                         level='response')
         if sacheader:
-            tempnet,tempsta,stlo, stla,stel,temploc=sta_info_from_inv(inv)
+            tempsta,tempnet,stlo, stla,stel,temploc=utils.sta_info_from_inv(inv)
             sac['knetwk']=tempnet
             sac['kstnm']=tempsta
             sac['stlo']=stlo
@@ -170,7 +168,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
 
     print("station "+net+"."+sta+" --> seismic channel: "+chan)
 
-    if plot or debug:
+    if debug:
         year = tr.stats.starttime.year
         julday = tr.stats.starttime.julday
         hour = tr.stats.starttime.hour
@@ -203,7 +201,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     """
     c. Plot raw data before removing responses.
     """
-    if plot and debug:
+    if debug:
         plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
                         outfile=net+"."+sta+"_"+tstamp+"_raw.png")
 
@@ -218,22 +216,16 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                 print('  removing response using inv for '+net+"."+sta+"."+tr.stats.channel)
                 tr.remove_response(output=rmresp_output,pre_filt=pre_filt,
                                           water_level=60,zero_mean=True,plot=False)
-
-                # Detrend, filter
-                tr.detrend('demean')
-                tr.detrend('linear')
             except Exception as e:
                 print(e)
                 tr = []
-    else:
-        tr.detrend('demean')
-        tr.detrend('linear')
-        tr.filter('lowpass', freq=0.49*samp_freq,
-                   corners=2, zerophase=True)
+    tr.detrend('demean')
+    tr.detrend('linear')
+    tr.taper(0.01)
     """
     e. Plot raw data after removing responses.
     """
-    if plot:
+    if debug:
         plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
                    outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
 
@@ -287,7 +279,7 @@ def set_filter(samp_freq, pfreqmin,pfreqmax=None):
 def download(rawdatadir, starttime, endtime, network, station,channel=None,source='IRIS',
             sacheader=False, getstainv=True, max_tries=10,
             savetofile=True,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
-            plot=False, rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
+            rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
 
     """
     qc: When True, does QC to clean up the trace.
@@ -333,7 +325,7 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
                     rmresp_out_tmp=rmresp_out
 
                 output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
-                                        samp_freq=samp_freq, plot=plot, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
+                                        samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
                                        pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
 
                 if getstainv == True or sacheader == True:
