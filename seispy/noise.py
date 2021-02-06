@@ -17,6 +17,7 @@ from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.filter import bandpass,lowpass
 from seispy import stacking as stack
+from seispy.types import CorrData
 from seispy import utils
 
 #####
@@ -752,6 +753,97 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 
+def extract_corrdata(sfile='',pair=None,comp='all',help=False):
+    '''
+    extract the 2D matrix of the cross-correlation functions and the metadata for a certain time-chunck.
+    PARAMETERS:
+    --------------------------
+    sfile: cross-correlation functions outputed by S1 of NoisePy workflow
+    pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.
+    comp: cross-correlation component or a list of components to extract.
+
+    RETURN:
+    --------------------------
+    corrdict: a dictionary that contains all extracted correlations, which each key as the station pair name.
+                for each station pair, the correlaitons are saved as a list of CorrData objects.
+    USAGE:
+    --------------------------
+    extract_corrdata('temp.h5',comp='ZZ')
+    '''
+    #check help or not at the very beginning
+    if help:
+        print('Help on key arguments for extract_corrdata():')
+        print('extract the 2D matrix of the cross-correlation functions and the metadata')
+        print('for a certain time-chunck.')
+        print('')
+        print('PARAMETERS:')
+        print('--------------------------')
+        print('sfile: cross-correlation functions outputed by SeisPy workflow')
+        print('pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.')
+        print('comp: cross-correlation component or a list of components to extract.')
+        print('')
+        print('RETURN:')
+        print('--------------------------')
+        print('corrdict: a dictionary that contains all extracted correlations, which each key')
+        print('as the station pair name. For each station pair, the correlaitons are saved as a ')
+        print('list of CorrData objects.')
+        print('')
+        print('USAGE:')
+        print('--------------------------')
+        print("extract_corrdata('temp.h5',comp='ZZ')')")
+
+        return dict()
+
+    # open data for read
+    if isinstance(pair,str): pair=[pair]
+    if isinstance(comp,str): comp=[comp]
+    corrdict=dict()
+
+    try:
+        ds = pyasdf.ASDFDataSet(sfile,mode='r')
+        # extract common variables
+        spairs_all = ds.auxiliary_data.list()
+        path_lists = ds.auxiliary_data[spairs_all[0]].list()
+        flag   = ds.auxiliary_data[spairs_all[0]][path_lists[0]].parameters['substack']
+        dt     = ds.auxiliary_data[spairs_all[0]][path_lists[0]].parameters['dt']
+        maxlag = ds.auxiliary_data[spairs_all[0]][path_lists[0]].parameters['maxlag']
+    except Exception:
+        print("exit! cannot open %s to read"%sfile);sys.exit()
+    if pair is None: pair=spairs_all
+    # only works for cross-correlation with substacks generated
+#         if not flag:
+#             raise ValueError('seems no substacks have been done! not suitable for this function')
+
+    for spair in pair:
+        if spair in spairs_all:
+            ttr = spair.split('_')
+            net1,sta1 = ttr[0].split('.')
+            net2,sta2 = ttr[1].split('.')
+            path_lists = ds.auxiliary_data[spair].list()
+            corrdict[spair]=[]
+            for ipath in path_lists:
+                chan1,chan2 = ipath.split('_')
+                cc_comp=chan1[-1]+chan2[-1]
+                if cc_comp in comp or comp=='all' or comp=='ALL':
+                    try:
+                        dist = ds.auxiliary_data[spair][ipath].parameters['dist']
+                        ngood= ds.auxiliary_data[spair][ipath].parameters['ngood']
+                        ttime= ds.auxiliary_data[spair][ipath].parameters['time']
+
+                        if flag:
+                            data = ds.auxiliary_data[spair][ipath].data[:,:]
+                        else:
+                            data = ds.auxiliary_data[spair][ipath].data[:]
+                    except Exception:
+                        print('continue! something wrong with %s %s'%(spair,ipath))
+                        continue
+
+                    corrdict[spair].append(CorrData(net=[net1,net2],sta=[sta1,sta2],loc=['',''],
+                                                    chan=[chan1,chan2],cc_comp=cc_comp,dt=dt,
+                                                    lag=maxlag,dist=dist,ngood=ngood,time=ttime,
+                                                    data=data,substack=flag))
+
+    return corrdict
 ########################################################
 ################ MONITORING FUNCTIONS ##################
 ########################################################

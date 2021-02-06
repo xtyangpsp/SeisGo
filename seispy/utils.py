@@ -1263,3 +1263,70 @@ def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
         source[0].data = np.float32(bandpass(source[0].data,pre_filt[0],pre_filt[-1],df=sps,corners=4,zerophase=True))
 
     return source
+
+#extract waveform (raw) from ASDF file.
+def extract_waveform(sfile,net,sta,comp=None):
+    '''
+    extract the downloaded waveform for station A
+    PARAMETERS:
+    -----------------------
+    sfile: containing all wavefrom data for a time-chunck in ASDF format
+    net,sta,comp: network, station name and component
+    USAGE:
+    -----------------------
+    extract_waveform('temp.h5','CI','BLC')
+    '''
+    # open pyasdf file to read
+    try:
+        ds = pyasdf.ASDFDataSet(sfile,mode='r')
+        sta_list = ds.waveforms.list()
+    except Exception:
+        print("exit! cannot open %s to read"%sfile);sys.exit()
+
+    # check whether station exists
+    tsta = net+'.'+sta
+    if tsta not in sta_list:
+        raise ValueError('no data for %s in %s'%(tsta,sfile))
+
+    if isinstance(comp, str): comp = [comp]
+
+    tcomp = ds.waveforms[tsta].get_waveform_tags()
+    ncomp = len(tcomp)
+
+    if ncomp == 1:
+        tr=[ds.waveforms[tsta][tcomp[0]]]
+        if comp is not None:
+            chan=tr[0].stats.channel
+            if chan not in comp:
+                raise ValueError('no data for comp %s for %s in %s'%(chan, tsta,sfile))
+    elif ncomp>1:
+        tr=[]
+        for ii in range(ncomp):
+            tr_temp=ds.waveforms[tsta][tcomp[ii]]
+            if comp is not None:
+                chan=tr_temp[0].stats.channel
+                if chan in comp:tr.append(tr_temp)
+    if len(tr)==0:
+        raise ValueError('no data for comp %s for %s in %s'%(c, tsta,sfile))
+
+    if len(tr)==1:tr=tr[0]
+
+    return tr
+
+
+def xcorr(x, y, maxlags=10):
+    Nx = len(x)
+    if Nx != len(y):
+        raise ValueError('x and y must be equal length')
+
+    c = np.correlate(x, y, mode=2)
+
+    if maxlags is None:
+        maxlags = Nx - 1
+
+    if maxlags >= Nx or maxlags < 1:
+        raise ValueError('maxlags must be None or strictly positive < %d' % Nx)
+
+    c = c[Nx - 1 - maxlags:Nx + maxlags]
+
+    return c

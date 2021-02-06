@@ -9,6 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
+from seispy import noise
 import pygmt as gmt
 
 #############################################################################
@@ -92,24 +93,21 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
 
 
 #############################################################################
-###############PLOTTING XCORR RESULTS AS THE OUTPUT OF NoisePy S1 STEP ##########################
+###############PLOTTING XCORR RESULTS AS THE OUTPUT OF SEISPY ##########################
 #############################################################################
-'''
-Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
-Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
-'''
-def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
+def plot_xcorr_substack(sfile,freqmin,freqmax,lag=None,comp='ZZ',
+                        save=True,figdir=None):
     '''
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
     PARAMETERS:
     --------------------------
-    sfile: cross-correlation functions outputed by S1 of NoisePy workflow
+    sfile: cross-correlation functions outputed by SeisPy workflow
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
     lag: time ranges for display
     USAGE:
     --------------------------
-    plot_substack_cc('temp.h5',0.1,1,100,True,'./')
+    plot_xcorr_substack('temp.h5',0.1,1,100,True,'./')
     Note: IMPORTANT!!!! this script only works for cross-correlation with sub-stacks being set to True in S1.
     '''
     # open data for read
@@ -133,88 +131,308 @@ def plot_substack_cc(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
 
     # lags for display
     if not lag:lag=maxlag
+    lag0=np.min([1.0*lag,maxlag])
     if lag>maxlag:raise ValueError('lag excceds maxlag!')
 
     # t is the time labels for plotting
-    t = np.arange(-int(lag),int(lag)+dt,step=int(2*int(lag)/4))
-    # windowing the data
-    indx1 = int((maxlag-lag)/dt)
-    indx2 = indx1+2*int(lag/dt)+1
+    if lag>=5:
+        tstep=int(int(lag)/5)
+        t1=np.arange(-int(lag),0,step=tstep)
+        t2=np.arange(0,int(lag+0.5*tstep),step=tstep)
+        t=np.concatenate((t1,t2))
+    else:
+        tstep=lag/5
+        t1=np.arange(-lag,0,step=tstep)
+        t2=np.arange(0,lag+0.5*tstep,step=tstep)
+        t=np.concatenate((t1,t2))
 
+    indx1 = int((maxlag-lag0)/dt)
+    indx2 = indx1+2*int(lag0/dt)+1
     for spair in spairs:
         ttr = spair.split('_')
         net1,sta1 = ttr[0].split('.')
         net2,sta2 = ttr[1].split('.')
+        path_lists = ds.auxiliary_data[spair].list()
         for ipath in path_lists:
             chan1,chan2 = ipath.split('_')
-            try:
-                dist = ds.auxiliary_data[spair][ipath].parameters['dist']
-                ngood= ds.auxiliary_data[spair][ipath].parameters['ngood']
-                ttime= ds.auxiliary_data[spair][ipath].parameters['time']
+            cc_comp=chan1[-1]+chan2[-1]
+            if cc_comp == comp or comp=='all' or comp=='ALL':
+                try:
+                    dist = ds.auxiliary_data[spair][ipath].parameters['dist']
+                    ngood= ds.auxiliary_data[spair][ipath].parameters['ngood']
+                    ttime= ds.auxiliary_data[spair][ipath].parameters['time']
+                except Exception:
+                    print('continue! something wrong with %s %s'%(spair,ipath))
+                    continue
+
+                # cc matrix
                 timestamp = np.empty(ttime.size,dtype='datetime64[s]')
-            except Exception:
-                print('continue! something wrong with %s %s'%(spair,ipath))
-                continue
+                data = ds.auxiliary_data[spair][ipath].data[:,indx1:indx2]
+                # print(data.shape)
+                nwin = data.shape[0]
+                amax = np.zeros(nwin,dtype=np.float32)
+                if nwin==0 or len(ngood)==1: print('continue! no enough substacks!');continue
 
-            # cc matrix
-            data = ds.auxiliary_data[spair][ipath].data[:,indx1:indx2]
-            nwin = data.shape[0]
-            amax = np.zeros(nwin,dtype=np.float32)
-            if nwin==0 or len(ngood)==1: print('continue! no enough substacks!');continue
+                tmarks = []
+                data_normalizd=data
 
-            tmarks = []
-            # load cc for each station-pair
-            for ii in range(nwin):
-                data[ii] = bandpass(data[ii],freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-                amax[ii] = max(data[ii])
-                data[ii] /= amax[ii]
-                timestamp[ii] = obspy.UTCDateTime(ttime[ii])
-                tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%H:%M:%S'))
+                # load cc for each station-pair
+                for ii in range(nwin):
+                    data[ii] = bandpass(data[ii],freqmin,freqmax,1/dt,corners=4, zerophase=True)
+                    data[ii] = data[ii]-np.mean(data[ii])
+                    amax[ii] = np.max(np.abs(data[ii]))
+                    data_normalizd[ii] = data[ii]/amax[ii]
+                    timestamp[ii] = obspy.UTCDateTime(ttime[ii])
+                    tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%Y-%m-%dT%H:%M:%S'))
 
-            # plotting
-            if nwin>10:
-                tick_inc = int(nwin/5)
-            else:
-                tick_inc = 2
-            fig = plt.figure(figsize=(10,6))
-            ax = fig.add_subplot(211)
-            ax.matshow(data,cmap='seismic',extent=[-lag,lag,nwin,0],aspect='auto')
-            ax.set_title('%s.%s.%s  %s.%s.%s  dist:%5.2fkm' % (net1,sta1,chan1,net2,sta2,chan2,dist))
-            ax.set_xlabel('time [s]')
-            ax.set_xticks(t)
-            ax.set_yticks(np.arange(0,nwin,step=tick_inc))
-            ax.set_yticklabels(timestamp[0:-1:tick_inc])
-            ax.xaxis.set_ticks_position('bottom')
-            ax1 = fig.add_subplot(413)
-            ax1.set_title('stacked and filtered at %4.2f-%4.2f Hz'%(freqmin,freqmax))
-            ax1.plot(np.arange(-lag,lag+dt,dt),np.mean(data,axis=0),'k-',linewidth=1)
-            ax1.set_xticks(t)
-            ax2 = fig.add_subplot(414)
-            ax2.plot(amax/min(amax),'r-')
-            ax2.plot(ngood,'b-')
-            ax2.set_xlabel('waveform number')
-            ax2.set_xticks(np.arange(0,nwin,step=tick_inc))
-            ax2.set_xticklabels(tmarks[0:nwin:tick_inc])
-            #for tick in ax[2].get_xticklabels():
-            #    tick.set_rotation(30)
-            ax2.legend(['relative amp','ngood'],loc='upper right')
-            fig.tight_layout()
+                dstack_mean=np.mean(data,axis=0)
+                dstack_robust=stack.robust_stack(data)[0]
 
-            # save figure or just show
-            if save:
-                if figdir==None:figdir = sfile.split('.')[0]
-                if not os.path.ifigdir(figdir):os.mkdir(figdir)
-                outfname = figdir+'/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}.pdf'.format(net1,sta1,chan1,net2,sta2,chan2)
-                fig.savefig(outfname, format='pdf', dpi=400)
-                plt.close()
-            else:
-                fig.show()
+                # plotting
+                if nwin>10:
+                    tick_inc = int(nwin/5)
+                else:
+                    tick_inc = 2
+
+                fig = plt.figure(figsize=(10,6))
+                ax = fig.add_subplot(5,1,(1,3))
+                ax.matshow(data_normalizd,cmap='seismic',extent=[-lag0,lag0,nwin,0],aspect='auto')
+                ax.plot((0,0),(nwin,0),'k-')
+                ax.set_title('%s.%s.%s  %s.%s.%s  dist:%5.2fkm' % (net1,sta1,chan1,net2,sta2,chan2,dist))
+                ax.set_xlabel('time [s]')
+                ax.set_xticks(t)
+                ax.set_yticks(np.arange(0,nwin,step=tick_inc))
+#                 ax.set_yticklabels(np.arange(0,nwin,step=tick_inc))
+                ax.set_yticklabels(tmarks[0:nwin:tick_inc])
+                ax.set_xlim([-lag,lag])
+                ax.xaxis.set_ticks_position('bottom')
+
+                ax1 = fig.add_subplot(5,1,(4,5))
+                ax1.set_title('stack at %4.2f-%4.2f Hz'%(freqmin,freqmax))
+                tstack=np.arange(-lag0,lag0+0.5*dt,dt)
+                if len(tstack)>len(dstack_mean):tstack=tstack[:-1]
+                ax1.plot(tstack,dstack_mean,'b-',linewidth=1,label='mean')
+                ax1.plot(tstack,dstack_robust,'r-',linewidth=1,label='robust')
+                ax1.set_xlabel('time [s]')
+                ax1.set_xticks(t)
+                ax1.set_xlim([-lag,lag])
+                ylim=ax1.get_ylim()
+                ax1.plot((0,0),ylim,'k-')
+
+                ax1.set_ylim(ylim)
+                ax1.legend(loc='upper right')
+                ax1.grid()
+#                 ax2 = fig.add_subplot(414)
+#                 ax2.plot(amax/min(amax),'r-')
+#                 ax2.plot(ngood,'b-')
+#                 ax2.set_xlabel('waveform number')
+#                 ax2.set_xticks(np.arange(0,nwin,step=tick_inc))
+#                 ax2.set_xticklabels(tmarks[0:nwin:tick_inc])
+#                 #for tick in ax[2].get_xticklabels():
+#                 #    tick.set_rotation(30)
+#                 ax2.legend(['relative amp','ngood'],loc='upper right')
+                fig.tight_layout()
+
+                # save figure or just show
+                if save:
+                    if figdir==None:figdir = sfile.split('.')[0]
+                    if not os.path.isdir(figdir):os.mkdir(figdir)
+                    outfname = figdir+\
+                    '/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}_{6:s}-{7:s}Hz.png'.format(net1,sta1,\
+                                                                      chan1,net2,\
+                                                                      sta2,chan2,
+                                                                     str(freqmin),str(freqmax))
+                    fig.savefig(outfname, format='png', dpi=400)
+                    print('saved to: '+outfname)
+                    plt.close()
+                else:
+                    fig.show()
+
+def plot_corrfile(sfile,freqmin,freqmax,lag=None,comp='ZZ',
+                        save=True,figdir=None):
+    '''
+    display the 2D matrix of the cross-correlation functions for a certain time-chunck.
+    PARAMETERS:
+    --------------------------
+    sfile: cross-correlation functions outputed by SeisPy workflow
+    freqmin: min frequency to be filtered
+    freqmax: max frequency to be filtered
+    lag: time ranges for display
+    USAGE:
+    --------------------------
+    plot_corrfile('temp.h5',0.1,1,100,True,'./')
+    '''
+    # open data for read
+    if save:
+        if figdir==None:print('no path selected! save figures in the default path')
+
+    corrdict=noise.extract_corrdata(sfile,comp=comp)
+    clist=list(corrdict.keys())
+    for c in clist:
+        corr=corrdict[c]
+        for i in range(len(corr)):
+            plot_corrdata(corr[i],freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir)
+
+
+def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8)):
+    '''
+    display the 2D matrix of the cross-correlation functions for a certain time-chunck.
+    PARAMETERS:
+    --------------------------
+    corr: : class:`~seispy.types.CorrData`
+            CorrData object containing the correlation functions and the metadata.
+    freqmin: min frequency to be filtered
+    freqmax: max frequency to be filtered
+    lag: time ranges for display
+
+    USAGE:
+    --------------------------
+    plot_corrdata(corr,0.1,1,100,save=True,figdir='./')
+    '''
+    # open data for read
+    if save:
+        if figdir==None:print('no path selected! save figures in the default path')
+
+    netstachan1 = corr.net[0]+'.'+corr.sta[0]+'.'+corr.loc[0]+'.'+corr.chan[0]
+    netstachan2 = corr.net[1]+'.'+corr.sta[1]+'.'+corr.loc[1]+'.'+corr.chan[1]
+
+    dt,maxlag,dist,ngood,ttime,substack = [corr.dt,corr.lag,corr.dist,corr.ngood,corr.time,corr.substack]
+
+   # lags for display
+    if not lag:lag=maxlag
+    if lag>maxlag:raise ValueError('lag excceds maxlag!')
+    lag0=np.min([1.0*lag,maxlag])
+
+    # t is the time labels for plotting
+    if lag>=5:
+        tstep=int(int(lag)/5)
+        t1=np.arange(-int(lag),0,step=tstep);t2=np.arange(0,int(lag+0.5*tstep),step=tstep)
+        t=np.concatenate((t1,t2))
+    else:
+        tstep=lag/5
+        t1=np.arange(-lag,0,step=tstep);t2=np.arange(0,lag+0.5*tstep,step=tstep)
+        t=np.concatenate((t1,t2))
+
+    indx1 = int((maxlag-lag0)/dt);indx2 = indx1+2*int(lag0/dt)+1
+
+    # cc matrix
+    if substack:
+        data = corr.data[:,indx1:indx2]
+        timestamp = np.empty(ttime.size,dtype='datetime64[s]')
+        # print(data.shape)
+        nwin = data.shape[0]
+        amax = np.zeros(nwin,dtype=np.float32)
+        if nwin==0 or len(ngood)==1:
+            print('continue! no enough trace to plot!')
+            return
+
+        tmarks = []
+        data_normalizd=data
+
+        # load cc for each station-pair
+        for ii in range(nwin):
+            if freqmin is not None and freqmax is not None:
+                data[ii] = bandpass(data[ii],freqmin,freqmax,1/dt,corners=4, zerophase=True)
+            data[ii] = data[ii]-np.mean(data[ii])
+            amax[ii] = np.max(np.abs(data[ii]))
+            data_normalizd[ii] = data[ii]/amax[ii]
+            timestamp[ii] = obspy.UTCDateTime(ttime[ii])
+            tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%Y-%m-%dT%H:%M:%S'))
+
+        dstack_mean=np.mean(data,axis=0)
+#         dstack_robust=stack.robust_stack(data)[0]
+
+        # plotting
+        if nwin>10:
+            tick_inc = int(nwin/5)
+        else:
+            tick_inc = 2
+
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(6,1,(1,4))
+        ax.matshow(data_normalizd,cmap='seismic',extent=[-lag0,lag0,nwin,0],aspect='auto')
+        ax.plot((0,0),(nwin,0),'k-')
+        if freqmin is not None and freqmax is not None:
+            ax.set_title('%s-%s : dist : %5.2f km : %4.2f-%4.2f Hz' % (netstachan1,netstachan2,
+                                                                       dist,freqmin,freqmax))
+        else:
+            ax.set_title('%s-%s : dist : %5.2f km : unfiltered' % (netstachan1,netstachan2,dist))
+        ax.set_xlabel('time [s]')
+        ax.set_xticks(t)
+        ax.set_yticks(np.arange(0,nwin,step=tick_inc))
+        ax.set_yticklabels(tmarks[0:nwin:tick_inc])
+        ax.set_xlim([-lag,lag])
+        ax.xaxis.set_ticks_position('bottom')
+
+        ax1 = fig.add_subplot(6,1,(5,6))
+        if freqmin is not None and freqmax is not None:
+            ax1.set_title('stack at %4.2f-%4.2f Hz'%(freqmin,freqmax))
+        else:
+            ax1.set_title('stack: unfiltered')
+        tstack=np.arange(-lag0,lag0+0.5*dt,dt)
+        if len(tstack)>len(dstack_mean):tstack=tstack[:-1]
+        ax1.plot(tstack,dstack_mean,'b-',linewidth=1,label='mean')
+#         ax1.plot(tstack,dstack_robust,'r-',linewidth=1,label='robust')
+        ax1.set_xlabel('time [s]')
+        ax1.set_xticks(t)
+        ax1.set_xlim([-lag,lag])
+        ylim=ax1.get_ylim()
+        ax1.plot((0,0),ylim,'k-')
+
+        ax1.set_ylim(ylim)
+        ax1.legend(loc='upper right')
+        ax1.grid()
+
+        fig.tight_layout()
+    else: #only one trace available
+        data = corr.data[indx1:indx2]
+
+        # load cc for each station-pair
+        if freqmin is not None and freqmax is not None:
+            data = bandpass(data,freqmin,freqmax,1/dt,corners=4, zerophase=True)
+        data = data-np.mean(data)
+        amax = np.max(np.abs(data))
+        data /= amax
+        timestamp = obspy.UTCDateTime(ttime)
+        tmarks=obspy.UTCDateTime(ttime).strftime('%Y-%m-%dT%H:%M:%S')
+
+        tx=np.arange(-lag0,lag0+0.5*dt,dt)
+        if len(tx)>len(data):tx=tx[:-1]
+        plt.figure(figsize=figsize)
+        ax=plt.gca()
+        plt.plot(tx,data,'k-',linewidth=1)
+        if freqmin is not None and freqmax is not None:
+            plt.title('%s-%s : dist : %5.2f km : %4.2f-%4.2f Hz' % (netstachan1,netstachan2,
+                                                                       dist,freqmin,freqmax))
+        else:
+            plt.title('%s-%s : dist : %5.2f km : unfiltered' % (netstachan1,netstachan2,dist))
+        plt.xlabel('time [s]')
+        plt.xticks(t)
+        ylim=ax.get_ylim()
+        plt.plot((0,0),ylim,'k-')
+
+        plt.ylim(ylim)
+        plt.xlim([-lag,lag])
+        ax.grid()
+
+    # save figure or just show
+    if save:
+        if figdir==None:figdir = sfile.split('.')[0]
+        if not os.path.isdir(figdir):os.mkdir(figdir)
+        outfname = figdir+\
+        '/{0:s}_{1:s}_{2:s}-{3:s}Hz.png'.format(netstachan1,netstachan2,
+                                                         str(freqmin),str(freqmax))
+        plt.savefig(outfname, format='png', dpi=300)
+        print('saved to: '+outfname)
+        plt.close()
+    else:
+        plt.show()
 
 '''
 Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
 Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
 '''
-def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
+def plot_xcorr_substack_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
     '''
     display the amplitude spectrum of the cross-correlation functions for a time-chunck.
     PARAMETERS:
@@ -225,7 +443,7 @@ def plot_substack_cc_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./')
     lag: time ranges for display
     USAGE:
     -----------------------
-    plot_substack_cc('temp.h5',0.1,1,200,True,'./')
+    plot_xcorr_substack_spect('temp.h5',0.1,1,200,True,'./')
     Note: IMPORTANT!!!! this script only works for the cross-correlation with sub-stacks in S1.
     '''
     # open data for read
