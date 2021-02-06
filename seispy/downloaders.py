@@ -141,7 +141,6 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
         if pre_filt is None:
             raise(Exception("Error getdata() - "
                             + " pre_filt is not specified (needed when removing response)"))
-
     """
     a. Downloading
     """
@@ -275,23 +274,54 @@ def set_filter(samp_freq, pfreqmin,pfreqmax=None):
     pre_filt = [f1, f2, f3, f4]
     return pre_filt
 
-
-def download(rawdatadir, starttime, endtime, network, station,channel=None,source='IRIS',
-            sacheader=False, getstainv=True, max_tries=10,
-            savetofile=True,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
-            rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
-
+def download(starttime, endtime, stationinfo=None, network=None, station=None,channel=None,
+                source='IRIS',rawdatadir=None,sacheader=False, getstainv=True, max_tries=10,
+                savetofile=False,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
+                rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
     """
+    starttime, endtime: timing duration for the download.
+    stationinfo:
+            This could be a CSV file name, a Pandas DataFrame, or a dictionary. All data should
+            include network, station, (optional) channel, (optional) location. Note, if stationinfo is NOT None,
+            the station information in stationinfo will overwrite the network,station, and channel,
+            if specified individually.
+    network,station,channel: those will be ignored if stationinfo is NOT None.
     qc: When True, does QC to clean up the trace.
 
     =============RETURNS============
     trlist: Obspy Stream containing all traces. Note that when savetofile is True, the return will be an empty Stream.
     """
-    if not os.path.isdir(rawdatadir):os.makedirs(rawdatadir)
+    ######################read in station information first.
+    if stationinfo is not None:
+        if isinstance(stationinfo,str): #assume stationinfo is a CSV file containing network,station, channel columns
+            if not os.path.isfile(stationinfo):raise IOError('file %s not exist! double check!' % stationinfo)
+            # read station info from list
+            locs = pd.read_csv(stationinfo)
+        elif isinstance(stationinfo,pd.DataFrame) or isinstance(stationinfo,dict):
+            locs = stationinfo
+
+        network  = list(locs['network'])
+        station  = list(locs['station'])
+        try:
+            channel = list(locs['channel'])
+        except Exception as e:
+            channel = ['*']*len(station)
+        # location info: useful for some occasion
+        try:
+            location = list(locs['location'])
+        except Exception as e:
+            location = ['*']*len(station)
+    elif None in [network,station,channel]:
+        raise IOError('Must specify network, station, and channel if stationinfo is None!')
+    ##########################################
+    if rawdatadir is not None:
+        savetofile=True
+        if not os.path.isdir(rawdatadir):os.makedirs(rawdatadir)
 
     # if user passes a string instead of a list, make a list of one string
+    # if station is None: station = ['*']*len(network)
     if isinstance(station, str): station = [station]
-    if channel is None: channel = ['*']*len(station)
+    # if channel is None: channel = ['*']*len(station)
     if isinstance(channel, str): channel = [channel]
     if isinstance(network, str): network = [network]
 
@@ -302,7 +332,8 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
     # for idt in range(len(dtlist) - 1):
     sdatetime = obspy.UTCDateTime(starttime)
     edatetime = obspy.UTCDateTime(endtime)
-    fname = os.path.join(rawdatadir, str(sdatetime).replace(':','-') + 'T' + str(edatetime).replace(':','-') + '.h5')
+    if savetofile:
+        fname = os.path.join(rawdatadir, str(sdatetime).replace(':','-') + 'T' + str(edatetime).replace(':','-') + '.h5')
 
     """
     Start downloading.
@@ -315,96 +346,97 @@ def download(rawdatadir, starttime, endtime, network, station,channel=None,sourc
         ichan=channel[i]
 
         for nt in range(max_tries):
-            print(ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
+            print(inet+'.'+ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
+
+            t0 = time.time()
+
+            rmresp_out_tmp=rmresp_out
+            if pressure_chan is not None and ichan in pressure_chan:
+                rmresp_out_tmp='VEL'
             try:
-                t0 = time.time()
-
-                if ichan in pressure_chan:
-                    rmresp_out_tmp='VEL'
-                else:
-                    rmresp_out_tmp=rmresp_out
-
                 output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
                                         samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
                                        pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
-
-                if getstainv == True or sacheader == True:
-                    sta_inv = output[1]
-                    tr = output[0]
-                else:
-                    tr = output
-                    sta_inv = None
-
-                ta = time.time() - t0
-                print('  downloaded ' + inet+"." + ista + "." + ichan + " in " + str(ta) + " seconds.")
-                tag = get_tracetag(tr)
-                chan = tr.stats.channel
-
-                """
-                Add cleanup
-                """
-                if qc:
-                    if chan[-1].lower() == 'h': tag_type= "trP"; hasPressure=True
-                    elif chan[-1].lower() == '1' or chan[-1].lower() == 'e':tag_type="tr1"
-                    elif chan[-1].lower() == '2' or chan[-1].lower() == 'n':tag_type="tr2"
-                    elif chan[-1].lower() == 'z':tag_type="trZ"
-                    else: print('  No seismic channels found. Drop the station: '+ista); break
-
-                    #sanity check.
-                    badtrace=False
-                    if not isinstance(tr, Trace):
-                        print("  "+str(tr)+" is not a Trace object. "+ista)
-                        badtrace=True
-                        break
-                    elif np.sum(np.isnan(tr.data))>0:
-                        print('  NaN found in trace: '+str(tr)+". "+ista)
-                        badtrace=True
-                        break
-                    elif np.count_nonzero(tr.data) < 1:
-                        print('  All zeros in trace: '+str(tr)+". "+ista)
-                        badtrace=True
-                        break
-
-
-                    in_dir = in_directory(fname, ista, inet, tag)
-                    if badtrace:
-                        if savetofile:
-                            """
-                            Save to ASDF file.
-                            """
-                            if in_dir == True:
-                                print(inet + '.' + ista + '.' + chan + '  exists. Continue to next!')
-                                break
-                            else:
-                                print("  Encountered bad trace for " + ista + ". Save as is without processing!")
-                                save2asdf(fname,tr,tag,sta_inv=sta_inv)
-                                break
-                        else:
-                            trlist.append(tr)
-                    else:
-                        if savetofile:
-                            """
-                            Save to ASDF file.
-                            """
-                            if in_dir == True:
-                                print(inet + '.' + ista + "." + chan + '  exists. Continue to next!')
-                                break
-                            else:
-                                print(" Saving data for", inet + '.' + ista  + '.' + chan )
-                                save2asdf(fname,[tr],[tag],sta_inv=sta_inv)
-                                break
-                        else:
-                            trlist.append(tr)
-                else:  #not QC
-                    if savetofile:
-                        print(" Saving data for", inet + '.' + ista  + '.' + chan )
-                        save2asdf(fname,[tr],[tag],sta_inv=sta_inv)
-                        break
-                    else:
-                        trlist.append(tr)
             except Exception as e:
                 print(e, 'for', ista)
                 time.sleep(0.05)  # sleep for 50ms before next try.
                 continue
+            if getstainv == True or sacheader == True:
+                sta_inv = output[1]
+                tr = output[0]
+            else:
+                tr = output
+                sta_inv = None
+
+            ta = time.time() - t0
+            print('  downloaded ' + inet+"." + ista + "." + ichan + " in " + str(ta) + " seconds.")
+            tag = get_tracetag(tr)
+            chan = tr.stats.channel
+
+            """
+            Add cleanup
+            """
+            if qc:
+                if chan[-1].lower() == 'h': tag_type= "trP"; hasPressure=True
+                elif chan[-1].lower() == '1' or chan[-1].lower() == 'e':tag_type="tr1"
+                elif chan[-1].lower() == '2' or chan[-1].lower() == 'n':tag_type="tr2"
+                elif chan[-1].lower() == 'z':tag_type="trZ"
+                else: print('  No seismic channels found. Drop the station: '+ista); break
+
+                #sanity check.
+                badtrace=False
+                if not isinstance(tr, Trace):
+                    print("  "+str(tr)+" is not a Trace object. "+ista)
+                    badtrace=True
+                    break
+                elif np.sum(np.isnan(tr.data))>0:
+                    print('  NaN found in trace: '+str(tr)+". "+ista)
+                    badtrace=True
+                    break
+                elif np.count_nonzero(tr.data) < 1:
+                    print('  All zeros in trace: '+str(tr)+". "+ista)
+                    badtrace=True
+                    break
+
+                if badtrace:
+                    if savetofile:
+                        in_dir = in_directory(fname, ista, inet, tag)
+                        """
+                        Save to ASDF file.
+                        """
+                        if in_dir == True:
+                            print(inet + '.' + ista + '.' + chan + '  exists. Continue to next!')
+                            break
+                        else:
+                            print("  Encountered bad trace for " + ista + ". Save as is without processing!")
+                            save2asdf(fname,tr,tag,sta_inv=sta_inv)
+                            break
+                    else:
+                        trlist.append(tr)
+                        break
+                else:
+                    if savetofile:
+                        in_dir = in_directory(fname, ista, inet, tag)
+                        """
+                        Save to ASDF file.
+                        """
+                        if in_dir == True:
+                            print(inet + '.' + ista + "." + chan + '  exists. Continue to next!')
+                            break
+                        else:
+                            print(" Saving data for", inet + '.' + ista  + '.' + chan )
+                            save2asdf(fname,[tr],[tag],sta_inv=sta_inv)
+                            break
+                    else:
+                        trlist.append(tr)
+                        break
+            else:  #not QC
+                if savetofile:
+                    print(" Saving data for", inet + '.' + ista  + '.' + chan )
+                    save2asdf(fname,[tr],[tag],sta_inv=sta_inv)
+                    break
+                else:
+                    trlist.append(tr)
+                    break
 
     return trlist
