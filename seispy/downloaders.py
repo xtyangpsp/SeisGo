@@ -70,8 +70,9 @@ def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxse
                                     location.append(tsta[0].location_code)
                                 else:
                                     location.append('*')
-                                if ichan not in pressure_chan:
-                                    chanhistory[netsta].append(chan_this)
+                                if pressure_chan != None:
+                                    if ichan not in pressure_chan:
+                                        chanhistory[netsta].append(chan_this)
                             elif len(chanhistory[netsta]) < maxseischan or chan_this in pressure_chan:
                                 sta.append(tsta.code)
                                 net.append(K.code)
@@ -84,9 +85,9 @@ def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxse
                                     location.append(tsta[0].location_code)
                                 else:
                                     location.append('*')
-
-                                if ichan not in pressure_chan:
-                                    chanhistory[netsta].append(chan_this)
+                                if pressure_chan != None:
+                                    if ichan not in pressure_chan:
+                                        chanhistory[netsta].append(chan_this)
 
     # output station list
     dict = {'network': net, 'station': sta, 'channel': chan, 'latitude': lat, 'longitude': lon, 'elevation': elev}
@@ -277,7 +278,7 @@ def set_filter(samp_freq, pfreqmin,pfreqmax=None):
 def download(starttime, endtime, stationinfo=None, network=None, station=None,channel=None,
                 source='IRIS',rawdatadir=None,sacheader=False, getstainv=True, max_tries=10,
                 savetofile=False,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
-                rmresp=True, rmresp_out='DISP',respdir=None,qc=True):
+                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None):
     """
     starttime, endtime: timing duration for the download.
     stationinfo:
@@ -287,7 +288,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
             if specified individually.
     network,station,channel: those will be ignored if stationinfo is NOT None.
     qc: When True, does QC to clean up the trace.
-
+    event: ObsPy Event object for earthquake data
     =============RETURNS============
     trlist: Obspy Stream containing all traces. Note that when savetofile is True, the return will be an empty Stream.
     """
@@ -318,6 +319,10 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
         savetofile=True
         if not os.path.isdir(rawdatadir):os.makedirs(rawdatadir)
 
+    if event is None:
+        type="continuous"
+    else:
+        type="earthquake"
     # if user passes a string instead of a list, make a list of one string
     # if station is None: station = ['*']*len(network)
     if isinstance(station, str): station = [station]
@@ -333,7 +338,11 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     sdatetime = obspy.UTCDateTime(starttime)
     edatetime = obspy.UTCDateTime(endtime)
     if savetofile:
-        fname = os.path.join(rawdatadir, str(sdatetime).replace(':','-') + 'T' + str(edatetime).replace(':','-') + '.h5')
+        if type == "continuous":
+            fname = os.path.join(rawdatadir,
+                                 str(sdatetime).replace(':', '-') + 'T' + str(edatetime).replace(':', '-') + '.h5')
+        elif type == 'earthquake':
+            fname = os.path.join(rawdatadir, str(eq_source.origins[0].time) + "_M" + str(eq_source.magnitudes[0].mag) + '.h5')
 
     """
     Start downloading.

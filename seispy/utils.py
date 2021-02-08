@@ -863,7 +863,7 @@ def nextpow2(x):
     """
     return int(np.ceil(np.log2(np.abs(x))))
 #save trace to files.
-def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None):
+def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None):
     """
     A wrapper to save obspy stream to asdf file.
 
@@ -889,6 +889,8 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None):
 
     if not os.path.isfile(fname):
         ds=pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='w')
+        if event is not None:
+            ds.add_quakeml(event)
     else:
         ds=pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='a')
 
