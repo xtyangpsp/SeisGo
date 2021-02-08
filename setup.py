@@ -8,8 +8,8 @@ from numpy.distutils.core import setup
 
 setup(
     name='seispy',
-    version='0.2',
-    description='Python tools for seismic data processing',
+    version='0.3',
+    description='Python tools for seismic data analysis',
     author='Xiaotao Yang',
     author_email='stcyang@gmail.com',
     maintainer='Xiaotao Yang',
@@ -19,6 +19,6 @@ setup(
         'Development Status :: Beta',
         'License :: MIT License',
         'Programming Language :: Python :: >=3.6'],
-    install_requires=['numpy', 'scipy', 'pandas','obspy','pyasdf'],
+    install_requires=['numpy', 'scipy', 'pandas','obspy','pyasdf','numba'],
     python_requires='>=3.6',
     packages=['seispy']) #scripts=scripts
