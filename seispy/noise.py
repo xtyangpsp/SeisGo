@@ -24,6 +24,16 @@ from seispy import utils
 ########################################################
 ################ CROSS-CORRELATE FUNCTIONS ##################
 ########################################################
+def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
+    """
+    Estimates the memory usage with given correlation parameters, assuming float 32.
+    """
+    nseg_chunk = int(np.floor((3600*inc_hours-cc_len)/cc_step))+1
+    npts_chunk = int(nseg_chunk*cc_len*sps)
+    memory_size = nsta*npts_chunk*4/1024/1024/1024**ncomp
+
+    return memory_size
+
 def cut_trace_make_statis(fc_para,source):
     '''
     this function cuts continous noise data into user-defined segments, estimate the statistics of
@@ -47,7 +57,7 @@ def cut_trace_make_statis(fc_para,source):
     step      = fc_para['step']
 
     # useful parameters for trace sliding
-    nseg = int(np.floor((inc_hours/24*86400-cc_len)/step))
+    nseg = int(np.floor((inc_hours*3600-cc_len)/step))
     sps  = int(source[0].stats.sampling_rate)
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
     # copy data into array
@@ -55,6 +65,7 @@ def cut_trace_make_statis(fc_para,source):
 
     # if the data is shorter than the tim chunck, return zero values
     if data.size < sps*inc_hours*3600:
+        print('data is smaller than time chunck. return empty data.')
         return source_params,dataS_t,dataS
 
     # statistic to detect segments that may be associated with earthquakes
