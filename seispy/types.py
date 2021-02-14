@@ -134,7 +134,11 @@ class CorrData(object):
         """
         Save CorrData object to sac file.
         """
-        if not os.path.isdir(outdir):os.makedirs(outdir)
+        try:
+            if not os.path.isdir(outdir):os.makedirs(outdir)
+        except Exception as e:
+            print(e)
+            
         slon,rlon=self.lon
         slat,rlat=self.lat
         sele,rele=self.ele
