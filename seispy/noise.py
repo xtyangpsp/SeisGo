@@ -1,9 +1,7 @@
-import os
-import glob
+import os,sys,glob,time
 import copy
 import obspy
 import scipy
-import time
 import pycwt
 import pyasdf
 import datetime
@@ -764,14 +762,14 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 
-def extract_corrdata(sfile='',pair=None,comp='all',help=False):
+def extract_corrdata(sfile,pair=None,comp=['all']):
     '''
     extract the 2D matrix of the cross-correlation functions and the metadata for a certain time-chunck.
     PARAMETERS:
     --------------------------
-    sfile: cross-correlation functions outputed by S1 of NoisePy workflow
+    sfile: cross-correlation functions outputed by SeisPy cross-correlation workflow
     pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.
-    comp: cross-correlation component or a list of components to extract.
+    comp: cross-correlation component or a list of components to extract, default is all components.
 
     RETURN:
     --------------------------
@@ -782,28 +780,6 @@ def extract_corrdata(sfile='',pair=None,comp='all',help=False):
     extract_corrdata('temp.h5',comp='ZZ')
     '''
     #check help or not at the very beginning
-    if help:
-        print('Help on key arguments for extract_corrdata():')
-        print('extract the 2D matrix of the cross-correlation functions and the metadata')
-        print('for a certain time-chunck.')
-        print('')
-        print('PARAMETERS:')
-        print('--------------------------')
-        print('sfile: cross-correlation functions outputed by SeisPy workflow')
-        print('pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.')
-        print('comp: cross-correlation component or a list of components to extract.')
-        print('')
-        print('RETURN:')
-        print('--------------------------')
-        print('corrdict: a dictionary that contains all extracted correlations, which each key')
-        print('as the station pair name. For each station pair, the correlaitons are saved as a ')
-        print('list of CorrData objects.')
-        print('')
-        print('USAGE:')
-        print('--------------------------')
-        print("extract_corrdata('temp.h5',comp='ZZ')')")
-
-        return dict()
 
     # open data for read
     if isinstance(pair,str): pair=[pair]
@@ -811,7 +787,7 @@ def extract_corrdata(sfile='',pair=None,comp='all',help=False):
     corrdict=dict()
 
     try:
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
+        ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
         # extract common variables
         spairs_all = ds.auxiliary_data.list()
         path_lists = ds.auxiliary_data[spairs_all[0]].list()
@@ -821,25 +797,37 @@ def extract_corrdata(sfile='',pair=None,comp='all',help=False):
     except Exception:
         print("exit! cannot open %s to read"%sfile);sys.exit()
     if pair is None: pair=spairs_all
-    # only works for cross-correlation with substacks generated
-#         if not flag:
-#             raise ValueError('seems no substacks have been done! not suitable for this function')
 
     for spair in pair:
         if spair in spairs_all:
             ttr = spair.split('_')
-            net1,sta1 = ttr[0].split('.')
-            net2,sta2 = ttr[1].split('.')
+            snet,ssta = ttr[0].split('.')
+            rnet,rsta = ttr[1].split('.')
             path_lists = ds.auxiliary_data[spair].list()
-            corrdict[spair]=[]
+            corrdict[spair]=dict()
             for ipath in path_lists:
-                chan1,chan2 = ipath.split('_')
-                cc_comp=chan1[-1]+chan2[-1]
-                if cc_comp in comp or comp=='all' or comp=='ALL':
+                schan,rchan = ipath.split('_')
+                cc_comp=schan[-1]+rchan[-1]
+                if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
                     try:
+                        az = ds.auxiliary_data[spair][ipath].parameters['azi']
+                        baz = ds.auxiliary_data[spair][ipath].parameters['baz']
+                        cc_method = ds.auxiliary_data[spair][ipath].parameters['cc_method']
                         dist = ds.auxiliary_data[spair][ipath].parameters['dist']
                         ngood= ds.auxiliary_data[spair][ipath].parameters['ngood']
                         ttime= ds.auxiliary_data[spair][ipath].parameters['time']
+                        slat  = ds.auxiliary_data[spair][ipath].parameters['latS']
+                        slon  = ds.auxiliary_data[spair][ipath].parameters['lonS']
+                        rlat  = ds.auxiliary_data[spair][ipath].parameters['latR']
+                        rlon  = ds.auxiliary_data[spair][ipath].parameters['lonR']
+                        if "eleS" in  list(ds.auxiliary_data[spair][ipath].parameters.keys()):
+                            sele = ds.auxiliary_data[spair][ipath].parameters['eleS']
+                        else:
+                            sele = 0.0
+                        if "eleR" in  list(ds.auxiliary_data[spair][ipath].parameters.keys()):
+                            rele = ds.auxiliary_data[spair][ipath].parameters['eleR']
+                        else:
+                            rele = 0.0
 
                         if flag:
                             data = ds.auxiliary_data[spair][ipath].data[:,:]
@@ -849,12 +837,54 @@ def extract_corrdata(sfile='',pair=None,comp='all',help=False):
                         print('continue! something wrong with %s %s'%(spair,ipath))
                         continue
 
-                    corrdict[spair].append(CorrData(net=[net1,net2],sta=[sta1,sta2],loc=['',''],
-                                                    chan=[chan1,chan2],cc_comp=cc_comp,dt=dt,
-                                                    lag=maxlag,dist=dist,ngood=ngood,time=ttime,
-                                                    data=data,substack=flag))
+                    corrdict[spair][cc_comp]=CorrData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
+                                                    chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
+                                                    ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
+                                                    dist=dist,az=az,baz=baz,ngood=ngood,time=ttime,
+                                                    data=data,substack=flag,misc={"cc_method":cc_method})
 
     return corrdict
+
+def save_corrfile_to_sac(cfile,rootdir='.',pair=None,comp=['all'],v=True):
+    """
+    Save correlation files in ASDF to sac files.
+
+    === PARAMETERS ===
+    cfile: correlation file from SeisPy workflow. It could be a list of files.
+    rootdir: folder to save the converted sac files. this is the root folder, not
+            the folder for individual sources/receivers, which will be created
+            by this function. Default is the current directory.
+    pair: net1.sta1_net2.sta2 pair to extract, default is to extract all pairs.
+    comp: cross-correlation component or a list of components to extract, default is 'all'.
+    v: verbose or not, default is True.
+    """
+    if isinstance(cfile,str):cfile=[cfile]
+    if isinstance(pair,str): pair=[pair]
+
+    nfile=len(cfile)
+
+    for cf in cfile:
+        if v: print('working on file: '+cf.split('/')[-1])
+
+        corrdict=extract_corrdata(cf)
+        pairs_all=list(corrdict.keys())
+        if pair is None:
+            extract_pair=pairs_all
+        else:
+            extract_pair=pair
+
+        for p in extract_pair:
+            if p in pairs_all:
+                netsta1,netsta2=p.split('_')
+                outdir=os.path.join(rootdir,netsta1,netsta2)
+
+                comp_all=list(corrdict[p].keys())
+                for c in comp_all:
+                    if c in comp or comp == ['all'] or comp ==['ALL']:
+                        corrdict[p][c].to_sac(outdir=outdir)
+            else:
+                print('Pair %s not found. Skip.'%(p))
+                continue
 ########################################################
 ################ MONITORING FUNCTIONS ##################
 ########################################################
