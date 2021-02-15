@@ -1,5 +1,9 @@
 #define key classes
+import os
+import obspy
 import numpy as np
+import matplotlib.pyplot as plt
+from obspy.io.sac.sactrace import SACTrace
 ######
 class Station(object):
     """
@@ -23,21 +27,85 @@ class Station(object):
         self.lat = lat
         self.ele = ele
 
+    def __str__(self):
+        """
+        Display key content of the object.
+        """
+        print("network      :   "+str(self.net))
+        print("station      :   "+str(self.sta))
+        print("location     :   "+str(self.loc))
+        print("channel      :   "+str(self.chan))
+        print("longitude   :   "+str(self.lon))
+        print("latitude    :   "+str(self.lat))
+        print("elevation   :   "+str(self.ele))
+
+        print("")
+
+        return "<Station object>"
+
 class CorrData(object):
-    def __init__(self,net=None,sta=None,loc=None,chan=None,cc_comp=None,lag=None,dt=None,\
-                    dist=None,ngood=None,time=None,data=None,substack:bool=False):
+    """
+    Object to store cross-correlation data.
+    ======= Attributes ======
+    net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],lon=[None,None],
+    lat=[None,None],ele=[None,None],cc_comp=None,
+    lag=None,dt=None,dist=None,ngood=None,time=None,data=None,substack:bool=False
+    misc=dict().
+
+    misc is a dictionary that stores additional parameters.
+
+    ======= Methods ======
+    append(): Merges to objects.
+    to_sac(): convert and save to sac file, using obspy SACTrace object.
+    plot(): simple plotting function to display the cross-correlation data.
+    """
+    def __init__(self,net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],\
+                    lon=[None,None],lat=[None,None],ele=[None,None],cc_comp=None,lag=None,\
+                    dt=None,dist=None,az=None,baz=None,ngood=None,time=None,data=None,\
+                    substack:bool=False,misc=dict()):
         self.net=net
         self.sta=sta
         self.loc=loc
         self.chan=chan
+        self.lon=lon
+        self.lat=lat
+        self.ele=ele
         self.cc_comp=cc_comp
         self.lag=lag
         self.dt=dt
         self.dist=dist
+        self.az=az
+        self.baz=baz
         self.ngood=ngood
         self.time=time
         self.data=data
         self.substack=substack
+        self.misc=misc
+
+    def __str__(self):
+        """
+        Display key content of the object.
+        """
+        print("network      :   "+str(self.net))
+        print("station      :   "+str(self.sta))
+        print("location     :   "+str(self.loc))
+        print("channel      :   "+str(self.chan))
+        print("longitudes   :   "+str(self.lon))
+        print("latitudes    :   "+str(self.lat))
+        print("elevations   :   "+str(self.ele))
+        print("cc_comp      :   "+self.cc_comp)
+        print("maxlag       :   "+str(self.lag))
+        print("delta        :   "+str(self.dt))
+        print("dist (km)    :   "+str(self.dist))
+        print("ngood        :   "+str(self.ngood))
+        print("time         :   "+str(obspy.UTCDateTime(self.time)))
+        print("substack     :   "+str(self.substack))
+        print("data         :   "+str(self.data.shape))
+        print(str(self.data))
+        print("")
+
+        return "<CorrData object>"
+
     def append(self,c):
         """
         Append will merge new object. The idea is to merge multiple sets of CorrData at
@@ -62,30 +130,74 @@ class CorrData(object):
 
         self.substack=True
 
+    def to_sac(self,outdir='.',file=None,v=True):
+        """
+        Save CorrData object to sac file.
+        """
+        try:
+            if not os.path.isdir(outdir):os.makedirs(outdir)
+        except Exception as e:
+            print(e)
+            
+        slon,rlon=self.lon
+        slat,rlat=self.lat
+        sele,rele=self.ele
+
+        if not self.substack:
+            corrtime=obspy.UTCDateTime(self.time)
+            nzyear=corrtime.year
+            nzjday=corrtime.julday
+            nzhour=corrtime.hour
+            nzmin=corrtime.minute
+            nzsec=corrtime.second
+            nzmsec=corrtime.microsecond
+            if file is None:
+                file=str(corrtime).replace(':', '-')+'_'+self.cc_comp+'.sac'
+            sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
+                           b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
+                           evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data)
+
+            sacfile  = os.path.join(outdir,file)
+            sac.write(sacfile,byteorder='big')
+            if v: print('saved sac to: '+sacfile)
+        else:
+            nwin=self.data.shape[0]
+            for i in range(nwin):
+                corrtime=obspy.UTCDateTime(self.time[i])
+                nzyear=corrtime.year
+                nzjday=corrtime.julday
+                nzhour=corrtime.hour
+                nzmin=corrtime.minute
+                nzsec=corrtime.second
+                nzmsec=corrtime.microsecond
+                if file is None:
+                    file=str(corrtime).replace(':', '-')+'_'+self.cc_comp+'.sac'
+                sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
+                               b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
+                               evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data[i,:])
+
+                sacfile  = os.path.join(outdir,file)
+                sac.write(sacfile,byteorder='big')
+                if v: print('saved sac to: '+sacfile)
+
     def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8)):
         """
         Plotting method for CorrData. It is the same as seispy.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
         PARAMETERS:
         --------------------------
-        corr: : class:`~seispy.types.CorrData`
-                CorrData object containing the correlation functions and the metadata.
         freqmin: min frequency to be filtered
         freqmax: max frequency to be filtered
         lag: time ranges for display
-
-        USAGE:
-        --------------------------
-        plot_corrdata(corr,0.1,1,100,save=True,figdir='./')
         """
         # open data for read
         if save:
             if figdir==None:print('no path selected! save figures in the default path')
 
-        netstachan1 = corr.net[0]+'.'+corr.sta[0]+'.'+corr.loc[0]+'.'+corr.chan[0]
-        netstachan2 = corr.net[1]+'.'+corr.sta[1]+'.'+corr.loc[1]+'.'+corr.chan[1]
+        netstachan1 = self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.'+self.chan[0]
+        netstachan2 = self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.'+self.chan[1]
 
-        dt,maxlag,dist,ngood,ttime,substack = [corr.dt,corr.lag,corr.dist,corr.ngood,corr.time,corr.substack]
+        dt,maxlag,dist,ngood,ttime,substack = [self.dt,self.lag,self.dist,self.ngood,self.time,self.substack]
 
        # lags for display
         if not lag:lag=maxlag
@@ -106,7 +218,7 @@ class CorrData(object):
 
         # cc matrix
         if substack:
-            data = corr.data[:,indx1:indx2]
+            data = self.data[:,indx1:indx2]
             timestamp = np.empty(ttime.size,dtype='datetime64[s]')
             # print(data.shape)
             nwin = data.shape[0]
@@ -174,7 +286,7 @@ class CorrData(object):
 
             fig.tight_layout()
         else: #only one trace available
-            data = corr.data[indx1:indx2]
+            data = self.data[indx1:indx2]
 
             # load cc for each station-pair
             if freqmin is not None and freqmax is not None:

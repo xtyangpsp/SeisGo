@@ -916,7 +916,7 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
 
         ds.add_auxiliary_data(data,data_type,data_path,parameters=parameters,
                             provenance_id=provenance_id)
-
+    
 def get_cc(s1,s_ref):
     # returns the correlation coefficient between waveforms in s1 against reference
     # waveform s_ref.
