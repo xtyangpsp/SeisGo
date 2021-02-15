@@ -10,7 +10,6 @@ from seispy import utils
 from seispy.utils import get_tracetag, save2asdf
 import numpy as np
 
-
 def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan,source='IRIS',
                 lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
     """
