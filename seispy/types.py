@@ -45,7 +45,10 @@ class Station(object):
 
 class CorrData(object):
     """
-    Object to store cross-correlation data.
+    Object to store cross-correlation data. The idea of having a CorrData data type
+    was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
+    The CorrData class in SeisPy differrs from that in SeisNoise by adding the internal methods
+    for merging, plotting, and saving.
     ======= Attributes ======
     net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],lon=[None,None],
     lat=[None,None],ele=[None,None],cc_comp=None,
@@ -138,7 +141,7 @@ class CorrData(object):
             if not os.path.isdir(outdir):os.makedirs(outdir)
         except Exception as e:
             print(e)
-            
+
         slon,rlon=self.lon
         slat,rlat=self.lat
         sele,rele=self.ele

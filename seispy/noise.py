@@ -453,8 +453,12 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
     '''
     latS = coor['latS']
     lonS = coor['lonS']
+    eles = 0.0
+    if 'eleS' in list(corr.keys()):eleS=corr['eleS']
     latR = coor['latR']
     lonR = coor['lonR']
+    eleR = 0.0
+    if 'eleR' in list(corr.keys()):eleS=corr['eleR']
     dt        = cc_para['dt']
     maxlag    = cc_para['maxlag']
     substack  = cc_para['substack']
@@ -468,8 +472,10 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
         'baz':np.float32(baz),
         'lonS':np.float32(lonS),
         'latS':np.float32(latS),
+        'eleS':np.float32(eleS),
         'lonR':np.float32(lonR),
         'latR':np.float32(latR),
+        'eleR':np.float32(eleR),
         'ngood':ncorr,
         'cc_method':cc_method,
         'time':tcorr,
