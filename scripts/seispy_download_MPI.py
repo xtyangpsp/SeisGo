@@ -25,11 +25,10 @@ from seispy import downloaders
 tt0=time.time()
 
 # paths and filenames
-rootpath = "data" # roothpath for the project
+rootpath = "data_decatur" # roothpath for the project
 direc  = os.path.join(rootpath,'Raw')                   # where to store the downloaded data
 #if not os.path.isdir(direc): os.mkdir(direc)
 down_list  = os.path.join(direc,'station.txt')
-
 # CSV file for station location info
 
 # download parameters
@@ -38,7 +37,7 @@ max_tries = 10                                                  #maximum number 
 use_down_list = False                                                # download stations from a pre-compiled list or not
 flag      = True                                               # print progress when running the script; recommend to use it at the begining
 samp_freq = 50                                                  # targeted sampling rate at X samples per seconds
-rmresp   = 'inv'                                               # select 'no' to not remove response and use 'inv','spectrum','RESP', or 'polozeros' to remove response
+rmresp   = True
 rmresp_out = 'DISP'
 pressure_chan = [None]				#Added by Xiaotao Yang. This is needed when downloading some special channels, e.g., pressure data. VEL output for these channels.
 respdir   = os.path.join(rootpath,'resp')                       # directory where resp files are located (required if rm_resp is neither 'no' nor 'inv')
@@ -48,28 +47,22 @@ freqmax   = 25
 
 # targeted region/station information: only needed when use_down_list is False
 lamin,lamax,lomin,lomax= 39,40,-89,-88                # regional box: min lat, min lon, max lat, max lon (-114.0)
-chan_list = ["HH*"]
+chan_list = ["HHZ"]
 net_list  = ["GS"] #["7D","X9","TA","XT","UW"]                                              # network list
-sta_list  = ["*"]                                               # station (using a station list is way either compared to specifying stations one by one)
+sta_list  = ["DEC05","DEC06","DEC07","DEC10"]                                               # station (using a station list is way either compared to specifying stations one by one)
 start_date = "2014_01_01_0_0_0"                               # start date of download
-end_date   = "2014_01_02_0_0_0"                               # end date of download
-inc_hours  = 6                                                 # length of data for each request (in hour)
-maxseischan = 3                                                  # the maximum number of seismic channels, excluding pressure channels for OBS stations.
+end_date   = "2014_01_11_0_0_0"                               # end date of download
+inc_hours  = 24                                                 # length of data for each request (in hour)
+maxseischan = 1                                                  # the maximum number of seismic channels, excluding pressure channels for OBS stations.
 ncomp      = maxseischan #len(chan_list)
 
 # get rough estimate of memory needs to ensure it now below up in noise cross-correlations
-cc_len    = 200                                                # basic unit of data length for fft (s)
-step      = 100                                                 # overlapping between each cc_len (s)
-MAX_MEM   = 4.0                                                 # maximum memory allowed per core in GB
+cc_len    = 3600                                                # basic unit of data length for fft (s)
+step      = 1800                                                 # overlapping between each cc_len (s)
+MAX_MEM   = 8.0                                                 # maximum memory allowed per core in GB
 
-nseg_chunk = int(np.floor((inc_hours/24*86400-cc_len)/step))+1
-npts_chunk = int(nseg_chunk*cc_len*samp_freq)
 ##################################################
 # we expect no parameters need to be changed below
-
-if flag:
-    print('station.list selected [%s] for data from %s to %s with %sh interval'%(use_down_list,start_date,end_date,inc_hours))
-
 # assemble parameters used for pre-processing waveforms in downloading
 prepro_para = {'rmresp':rmresp,'rmresp_out':rmresp_out,'respdir':respdir,'freqmin':freqmin,'freqmax':freqmax,\
                 'samp_freq':samp_freq}
@@ -81,13 +74,15 @@ downlist_kwargs = {"source":source, 'net_list':net_list, "sta_list":sta_list, "c
 ########################################################
 #################DOWNLOAD SECTION#######################
 ########################################################
-
 #--------MPI---------
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
 if rank==0:
+    if flag:
+        print('station.list selected [%s] for data from %s to %s with %sh interval'%(use_down_list,start_date,end_date,inc_hours))
+
     if not os.path.isdir(direc):os.makedirs(direc)
     if use_down_list:
         stalist=pd.read_csv(down_list)
@@ -95,7 +90,7 @@ if rank==0:
         stalist=downloaders.get_sta_list(**downlist_kwargs) # saves station list to "down_list" file
                                               # here, file name is "station.txt"
     # rough estimation on memory needs (assume float32 dtype)
-    memory_size = len(stalist.station)*npts_chunk*4/1024**ncomp
+    memory_size=noise.cc_memory(inc_hours,samp_freq,len(stalist.station),ncomp,cc_len,step)
     if memory_size > MAX_MEM:
         raise ValueError('Require %5.3fG memory but only %5.3fG provided)! Reduce inc_hours to avoid this issue!' % (memory_size,MAX_MEM))
 
@@ -121,24 +116,8 @@ for ick in range(rank,splits,size):
     s1= all_chunk[ick]
     s2=all_chunk[ick+1]
 
-    #read in station list.
-    if not os.path.isfile(down_list):raise IOError('file %s not exist! double check!' % down_list)
-
-    # read station info from list
-    locs = pd.read_csv(down_list)
-    chan = list(locs.iloc[:]['channel'])
-    net  = list(locs.iloc[:]['network'])
-    sta  = list(locs.iloc[:]['station'])
-
-    # location info: useful for some occasion
-    try:
-        location = list(locs.iloc[:]['location'])
-    except Exception as e:
-        location = ['*']*len(sta)
-
     download_kwargs = {"source":source,"rawdatadir": direc, "starttime": s1, "endtime": s2, \
-              "network": net, "station": sta,"channel": chan,"getstainv": True, \
-              'qc':True,"max_tries":max_tries,"pressure_chan":pressure_chan,**prepro_para}
+              "stationinfo": stalist,**prepro_para}
 
     # Download for ick
     downloaders.download(**download_kwargs)

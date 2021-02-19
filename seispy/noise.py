@@ -15,7 +15,7 @@ from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.filter import bandpass,lowpass
 from seispy import stacking as stack
-from seispy.types import CorrData
+from seispy.types import CorrData, FFTData
 from seispy import utils
 
 #####
@@ -32,71 +32,79 @@ def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
 
     return memory_size
 
-def cut_trace_make_statis(fc_para,source):
-    '''
-    this function cuts continous noise data into user-defined segments, estimate the statistics of
-    each segment and keep timestamp of each segment for later use. (used in S1)
-    PARAMETERS:
-    ----------------------
-    fft_para: A dictionary containing all fft and cc parameters.
-    source: obspy stream object
-    RETURNS:
-    ----------------------
-    trace_stdS: standard deviation of the noise amplitude of each segment
-    dataS_t:    timestamps of each segment
-    dataS:      2D matrix of the segmented data
-    '''
-    # define return variables first
-    source_params=[];dataS_t=[];dataS=[]
+#assemble FFT with given asdf file name
+def assemble_fft(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
+                    time_norm='no',freq_norm='no',smooth=20,exclude_chan=[None],v=True):
+    #only deal with ASDF format for now.
 
-    # load parameter from dic
-    inc_hours = fc_para['inc_hours']
-    cc_len    = fc_para['cc_len']
-    step      = fc_para['step']
+    # retrive station information
+    ds=pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
+    sta_list = ds.waveforms.list()
+    nsta=ncomp*len(sta_list)
+    print('found %d station-components in total'%nsta)
 
-    # useful parameters for trace sliding
-    nseg = int(np.floor((inc_hours*3600-cc_len)/step))
-    sps  = int(source[0].stats.sampling_rate)
-    starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
-    # copy data into array
-    data = source[0].data
+    if nsta==0:
+        print('continue! no data in %s'%sfile);
+        return
 
-    # if the data is shorter than the tim chunck, return zero values
-    if data.size < sps*inc_hours*3600:
-        print('data is smaller than time chunck. return empty data.')
-        return source_params,dataS_t,dataS
+    all_tags = ds.waveforms[sta_list[0]].get_waveform_tags()
+    stemp=ds.waveforms[sta_list[0]][all_tags[0]]
+    samp_freq=stemp[0].stats.sampling_rate
 
-    # statistic to detect segments that may be associated with earthquakes
-    all_madS = utils.mad(data)	            # median absolute deviation over all noise window
-    all_stdS = np.std(data)	        # standard deviation over all noise window
-    if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
-        print("continue! madS or stdS equals to 0 for %s" % source)
-        return source_params,dataS_t,dataS
+    nnfft = int(next_fast_len(int(cc_len_secs*samp_freq)))
+    nseg_chunk = int(np.floor((inc_hours*3600-cc_len_secs)/cc_step_secs))
+    # open array to store fft data/info in memory
+    fft_array = np.zeros((nsta,nseg_chunk,nnfft//2),dtype=np.complex64)
+    fft_std   = np.zeros((nsta,nseg_chunk),dtype=np.float32)
+    fft_time  = np.zeros((nsta,nseg_chunk),dtype=np.float64)
 
-    # initialize variables
-    npts = cc_len*sps
-    #trace_madS = np.zeros(nseg,dtype=np.float32)
-    trace_stdS = np.zeros(nseg,dtype=np.float32)
-    dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
-    dataS_t  = np.zeros(nseg,dtype=np.float)
+    # station information (for every channel)
+    station=[];network=[];channel=[];clon=[];clat=[];location=[];elevation=[]
 
-    indx1 = 0
-    for iseg in range(nseg):
-        indx2 = indx1+npts
-        dataS[iseg] = data[indx1:indx2]
-        #trace_madS[iseg] = (np.max(np.abs(dataS[iseg]))/all_madS)
-        trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
-        dataS_t[iseg]    = starttime+step*iseg
-        indx1 = indx1+step*sps
+    # loop through all stations
+    print('working on file: '+sfile.split('/')[-1])
 
-    # 2D array processing
-    dataS = utils.demean(dataS)
-    dataS = utils.detrend(dataS)
-    dataS = utils.taper(dataS)
+    fftdata_all=[]
+    for ista in sta_list:
+        # get station and inventory
+        try:
+            inv1 = ds.waveforms[ista]['StationXML']
+        except Exception as e:
+            print('abort! no stationxml for %s in file %s'%(ista,sfile))
+            continue
 
-    return trace_stdS,dataS_t,dataS
+        sta,net,lon,lat,elv,loc = utils.sta_info_from_inv(inv1)
 
-def noise_processing(fft_para,dataS):
+        # get days information: works better than just list the tags
+        all_tags = ds.waveforms[ista].get_waveform_tags()
+        if len(all_tags)==0:continue
+
+        #----loop through each stream----
+        for itag in all_tags:
+            if v:print("FFT for station %s and trace %s" % (sta,itag))
+
+            # read waveform data
+            source = ds.waveforms[ista][itag]
+            if len(source)==0:continue
+
+            # channel info
+            comp = source[0].stats.channel
+            if comp[-1] =='U': comp.replace('U','Z')
+
+            #exclude some channels in the exclude_chan list.
+            if comp in exclude_chan:
+                print(comp+" is in the exclude_chan list. Skip it!")
+                continue
+
+            fftdata=FFTData(source,inc_hours,cc_len_secs,cc_step_secs,stainv=inv1,
+                            time_norm=time_norm,freq_norm=freq_norm,
+                            smooth=smooth,freqmin=freqmin,freqmax=freqmax)
+            if fftdata.Nfft>0:
+                fftdata_all.append(fftdata)
+    ####
+    return fftdata_all
+
+def noise_processing(dataS,time_norm='no',freq_norm='no',smooth_N=20):
     '''
     this function performs time domain and frequency domain normalization if needed. in real case, we prefer use include
     the normalization in the cross-correaltion steps by selecting coherency or decon (Prieto et al, 2008, 2009; Denolle et al, 2013)
@@ -107,10 +115,6 @@ def noise_processing(fft_para,dataS):
     # OUTPUT VARIABLES:
     source_white: 2D matrix of data spectra
     '''
-    # load parameters first
-    time_norm   = fft_para['time_norm']
-    freq_norm   = fft_para['freq_norm']
-    smooth_N    = fft_para['smooth_N']
     N = dataS.shape[0]
 
     #------to normalize in time or not------
@@ -136,7 +140,7 @@ def noise_processing(fft_para,dataS):
     return source_white
 
 
-def smooth_source_spect(cc_para,fft1):
+def smooth_source_spect(fft1,cc_method,sn):
     '''
     this function smoothes amplitude spectrum of the 2D spectral matrix. (used in S1)
     PARAMETERS:
@@ -148,41 +152,43 @@ def smooth_source_spect(cc_para,fft1):
     ---------------------
     sfft1: complex numpy array with normalized spectrum
     '''
-    cc_method = cc_para['cc_method']
-    smoothspect_N = cc_para['smoothspect_N']
+    smoothspect_N = sn #cc_para['smoothspect_N']
 
+    N=fft1.shape[0]
+    Nfft2=fft1.shape[1]
+    fft1=fft1.reshape(fft1.size)
     if cc_method == 'deconv':
 
         #-----normalize single-station cc to z component-----
         temp = utils.moving_ave(np.abs(fft1),smoothspect_N)
         try:
-            sfft1 = np.conj(fft1)/temp**2
+            sfft1 = fft1/temp**2
         except Exception:
             raise ValueError('smoothed spectrum has zero values')
 
     elif cc_method == 'coherency':
         temp = utils.moving_ave(np.abs(fft1),smoothspect_N)
         try:
-            sfft1 = np.conj(fft1)/temp
+            sfft1 = fft1/temp
         except Exception:
             raise ValueError('smoothed spectrum has zero values')
 
     elif cc_method == 'xcorr':
-        sfft1 = np.conj(fft1)
+        sfft1 = fft1
 
     else:
         raise ValueError('no correction correlation method is selected at L59')
 
-    return sfft1
+    return sfft1.reshape(N,Nfft2)
 
-def correlate(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
+def correlate_bkp(fft1,fft2,D,Nfft,dataS_t):
     '''
     this function does the cross-correlation in freq domain and has the option to keep sub-stacks of
     the cross-correlation if needed. it takes advantage of the linear relationship of ifft, so that
     stacking is performed in spectrum domain first to reduce the total number of ifft. (used in S1)
     PARAMETERS:
     ---------------------
-    fft1_smoothed_abs: smoothed power spectral density of the FFT for the source station
+    fft1: FFT for the source station
     fft2: raw FFT spectrum of the receiver station
     D: dictionary containing following parameters:
         maxlag:  maximum lags to keep in the cross correlation
@@ -208,6 +214,7 @@ def correlate(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
     substack_len  = D['substack_len']
     smoothspect_N = D['smoothspect_N']
 
+    fft1_smoothed_abs=np.conj(fft1)
     nwin  = fft1_smoothed_abs.shape[0]
     Nfft2 = fft1_smoothed_abs.shape[1]
 
@@ -298,6 +305,220 @@ def correlate(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
     elif s_corr.ndim==2:
         s_corr = s_corr[:,ind]
     return s_corr,t_corr,n_corr
+
+#
+def do_correlation(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr',
+                    acorr_only=False,xcorr_only=True,substack=False,substack_len=None,
+                    smoothspect_N=20,maxstd=10,freqmin=None,freqmax=None,time_norm='no',
+                    freq_norm='no',smooth_N=20,exclude_chan=[None],outdir='.',v=True):
+    """
+    Wrapper for computing correlation functions. It includes two key steps: 1) compute and assemble
+    the FFT of all data in the sfile, into a list of FFTData objects; 2) loop through the FFTData object
+    list and do correlation (auto or xcorr) for each source-receiver pair.
+
+    ====RETURNS====
+    ndata: the number of station-component pairs in the sfile, that have been processed.
+    """
+    if acorr_only and xcorr_only:
+        raise ValueError('acorr_only and xcorr_only CAN NOT all be True.')
+
+    tname = sfile.split('/')[-1]
+    tmpfile = os.path.join(outdir,tname.split('.')[0]+'.tmp')
+
+    #file to store CC results.
+    outfile=os.path.join(outdir,tname)
+    # check whether time chunk been processed or not
+    if os.path.isfile(tmpfile):
+        ftemp = open(tmpfile,'r')
+        alines = ftemp.readlines()
+        if len(alines) and alines[-1] == 'done':
+            return 0
+        else:
+            ftemp.close()
+            os.remove(tmpfile)
+            os.remove(outfile)
+
+    ftmp = open(tmpfile,'w')
+
+    ##############compute FFT#############
+    fftdata=assemble_fft(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,freqmin=freqmin,freqmax=freqmax,
+                    time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
+    ndata=len(fftdata)
+
+    #############PERFORM CROSS-CORRELATION##################
+    if v: print(tname)
+    for iiS in range(ndata):
+        # get index right for auto/cross correlation
+        istart=iiS;iend=ndata
+        if acorr_only:iend=np.minimum(iiS+ncomp,ndata)
+        if xcorr_only:istart=np.minimum(iiS+ncomp,ndata)
+        #-----------now loop III for each receiver B----------
+        for iiR in range(istart,iend):
+            if v:print('receiver: %s %s' % (fftdata[iiR].net,fftdata[iiR].sta))
+            corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
+                                smoothspect_N=smoothspect_N,substack_len=substack_len,
+                                maxstd=maxstd)
+
+            corrdata.to_asdf(file=outfile)
+
+    # create a stamp to show time chunk being done
+    ftmp.write('done')
+    ftmp.close()
+
+    return ndata
+
+def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
+                substack_len=None,smoothspect_N=20,maxstd=10):
+    '''
+    this function does the cross-correlation in freq domain and has the option to keep sub-stacks of
+    the cross-correlation if needed. it takes advantage of the linear relationship of ifft, so that
+    stacking is performed in spectrum domain first to reduce the total number of ifft. (used in S1)
+    PARAMETERS:
+    ---------------------
+    fft1: FFT for the source station
+    fft2: raw FFT spectrum of the receiver station
+    D: dictionary containing following parameters:
+        maxlag:  maximum lags to keep in the cross correlation
+        dt:      sampling rate (in s)
+        nwin:    number of segments in the 2D matrix
+        method:  cross-correlation methods selected by the user
+        freqmin: minimum frequency (Hz)
+        freqmax: maximum frequency (Hz)
+    Nfft:    number of frequency points for ifft
+    dataS_t: matrix of datetime object.
+    RETURNS:
+    ---------------------
+    s_corr: 1D or 2D matrix of the averaged or sub-stacks of cross-correlation functions in time domain
+    t_corr: timestamp for each sub-stack or averaged function
+    n_corr: number of included segments for each sub-stack or averaged function
+    '''
+    corrdata=CorrData()
+
+    #---------- check the existence of earthquakes by std of the data.----------
+    source_std = fftdata1.std
+    sou_ind = np.where((source_std<maxstd)&(source_std>0)&(np.isnan(source_std)==0))[0]
+    if not len(sou_ind): return corrdata
+
+    receiver_std = fftdata2.std
+    rec_ind = np.where((receiver_std<maxstd)&(receiver_std>0)&(np.isnan(receiver_std)==0))[0]
+    bb=np.intersect1d(sou_ind,rec_ind)
+    if len(bb)==0:return corrdata
+
+    #----load paramters----
+    dt      = fftdata1.dt
+    cc_len  = fftdata1.cc_len_secs
+    if substack_len is None: substack_len=cc_len
+
+    Nfft = fftdata1.Nfft
+    Nfft2 = Nfft//2
+
+    fft1=fftdata1.data[bb,:Nfft2]
+    fft1=np.conj(fft1) #get the conjugate of fft1
+    nwin  = fft1.shape[0]
+    fft2=fftdata2.data[bb,:Nfft2]
+
+    timestamp=fftdata1.time[bb]
+
+    if method != "xcorr":
+        fft1 = smooth_source_spect(fft1,method,smoothspect_N)
+    #------convert all 2D arrays into 1D to speed up--------
+    corr = np.zeros(nwin*Nfft2,dtype=np.complex64)
+    corr = fft1.reshape(fft1.size,)*fft2.reshape(fft2.size,)
+
+    if method == "coherency":
+        temp = utils.moving_ave(np.abs(fft2.reshape(fft2.size,)),smoothspect_N)
+        corr /= temp
+    corr  = corr.reshape(nwin,Nfft2)
+
+    if substack:
+        if substack_len == cc_len:
+            # choose to keep all fft data for a day
+            s_corr = np.zeros(shape=(nwin,Nfft),dtype=np.float32)   # stacked correlation
+            ampmax = np.zeros(nwin,dtype=np.float32)
+            n_corr = np.zeros(nwin,dtype=np.int16)                  # number of correlations for each substack
+            t_corr = timestamp                                        # timestamp
+            crap   = np.zeros(Nfft,dtype=np.complex64)
+            for i in range(nwin):
+                n_corr[i]= 1
+                crap[:Nfft2] = corr[i,:]
+                crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
+                crap[-(Nfft2)+1:] = np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
+                crap[0]=complex(0,0)
+                s_corr[i,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
+
+            # remove abnormal data
+            ampmax = np.max(s_corr,axis=1)
+            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+            s_corr = s_corr[tindx,:]
+            t_corr = t_corr[tindx]
+            n_corr = n_corr[tindx]
+
+        else:
+            # get time information
+            Ttotal = timestamp[-1]-timestamp[0]             # total duration of what we have now
+            tstart = timestamp[0]
+
+            nstack = int(np.round(Ttotal/substack_len))
+            ampmax = np.zeros(nstack,dtype=np.float32)
+            s_corr = np.zeros(shape=(nstack,Nfft),dtype=np.float32)
+            n_corr = np.zeros(nstack,dtype=np.int)
+            t_corr = np.zeros(nstack,dtype=np.float)
+            crap   = np.zeros(Nfft,dtype=np.complex64)
+
+            for istack in range(nstack):
+                # find the indexes of all of the windows that start or end within
+                itime = np.where( (timestamp >= tstart) & (timestamp < tstart+substack_len) )[0]
+                if len(itime)==0:tstart+=substack_len;continue
+
+                crap[:Nfft2] = np.mean(corr[itime,:],axis=0)   # linear average of the correlation
+                crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
+                crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
+                crap[0]=complex(0,0)
+                s_corr[istack,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
+                n_corr[istack] = len(itime)               # number of windows stacks
+                t_corr[istack] = tstart                   # save the time stamps
+                tstart += substack_len
+                #print('correlation done and stacked at time %s' % str(t_corr[istack]))
+
+            # remove abnormal data
+            ampmax = np.max(s_corr,axis=1)
+            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+            s_corr = s_corr[tindx,:]
+            t_corr = t_corr[tindx]
+            n_corr = n_corr[tindx]
+
+    else:
+        # average daily cross correlation functions
+        ampmax = np.max(corr,axis=1)
+        tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+        n_corr = nwin
+        s_corr = np.zeros(Nfft,dtype=np.float32)
+        t_corr = timestamp[0]
+        crap   = np.zeros(Nfft,dtype=np.complex64)
+        crap[:Nfft2] = np.mean(corr[tindx],axis=0)
+        crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2],axis=0)
+        crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
+        s_corr = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
+
+    # trim the CCFs in [-maxlag maxlag]
+    t = np.arange(-Nfft2+1, Nfft2)*dt
+    ind = np.where(np.abs(t) <= maxlag)[0]
+    if s_corr.ndim==1:
+        s_corr = s_corr[ind]
+    elif s_corr.ndim==2:
+        s_corr = s_corr[:,ind]
+
+    ### call CorrData to build the object
+    cc_comp= fftdata1.chan[-1]+fftdata2.chan[-1]
+    dist,azi,baz = obspy.geodetics.base.gps2dist_azimuth(fftdata1.lat,fftdata1.lon,fftdata2.lat,fftdata2.lon)
+
+    corrdata=CorrData(net=[fftdata1.net,fftdata2.net],sta=[fftdata1.sta,fftdata2.sta],\
+                    loc=[fftdata1.loc,fftdata2.loc],chan=[fftdata1.chan,fftdata2.chan],\
+                    lon=[fftdata1.lon,fftdata2.lon],lat=[fftdata1.lat,fftdata2.lat],\
+                    ele=[fftdata1.ele,fftdata2.ele],cc_comp=cc_comp,lag=maxlag,\
+                    dt=fftdata1.dt,dist=dist,az=azi,baz=baz,ngood=n_corr,time=t_corr,data=s_corr,\
+                    substack=substack,misc={"cc_method":method})
+    return corrdata
 
 def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
     '''
@@ -454,11 +675,11 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
     latS = coor['latS']
     lonS = coor['lonS']
     eles = 0.0
-    if 'eleS' in list(corr.keys()):eleS=corr['eleS']
+    if 'eleS' in list(coor.keys()):eleS=coor['eleS']
     latR = coor['latR']
     lonR = coor['lonR']
     eleR = 0.0
-    if 'eleR' in list(corr.keys()):eleS=corr['eleR']
+    if 'eleR' in list(coor.keys()):eleS=coor['eleR']
     dt        = cc_para['dt']
     maxlag    = cc_para['maxlag']
     substack  = cc_para['substack']

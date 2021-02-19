@@ -1,9 +1,14 @@
 #define key classes
 import os
 import obspy
+import pyasdf
+from obspy.core import Trace
 import numpy as np
 import matplotlib.pyplot as plt
 from obspy.io.sac.sactrace import SACTrace
+from obspy.signal.filter import bandpass
+from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
+from seispy import utils
 ######
 class Station(object):
     """
@@ -42,6 +47,156 @@ class Station(object):
         print("")
 
         return "<Station object>"
+
+class FFTData(object):
+    """
+    Object to FFT data. The idea of having a FFTData data type
+    was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
+    """
+    def __init__(self,trace:obspy.core.Trace,inc_hours,cc_len_secs,cc_step_secs,stainv=None,
+                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
+                     data=None,misc=dict()):
+        """
+        Initialize the object. Will do whitening if specicied in freq_norm.
+        """
+        if stainv is not None:
+            self.sta,self.net,self.lon,self.lat,self.ele,self.loc = utils.sta_info_from_inv(stainv)
+        else:
+            self.net=trace[0].stats.network
+            self.sta=trace[0].stats.station
+            self.lon=0.0
+            self.lat=0.0
+            self.ele=0.0
+            self.loc=''
+
+        self.chan=trace[0].stats.channel
+        self.dt = 1/trace[0].stats.sampling_rate
+        self.sps  = int(trace[0].stats.sampling_rate)
+        self.freqmin=freqmin
+        self.freqmax=freqmax
+        self.time_norm=time_norm
+        self.freq_norm=freq_norm
+        self.smooth=smooth
+        self.inc_hours=inc_hours
+        self.cc_len_secs=cc_len_secs
+        self.cc_step_secs=cc_step_secs
+        self.misc=misc
+
+        fft_white=[]
+        # cut daily-long data into smaller segments (dataS always in 2D)
+        trace_stdS,dataS_t,dataS = utils.slicing_trace(trace,inc_hours,cc_len_secs,cc_step_secs)        # optimized version:3-4 times faster
+
+        self.std=trace_stdS
+        self.time=dataS_t
+        Nfft=0
+        if len(dataS)>0:
+            #------to normalize in time or not------
+            if time_norm != 'no':
+                if time_norm == 'one_bit': 	# sign normalization
+                    white = np.sign(dataS)
+                elif time_norm == 'rma': # running mean: normalization over smoothed absolute average
+                    white = np.zeros(shape=dataS.shape,dtype=dataS.dtype)
+                    for kkk in range(N):
+                        white[kkk,:] = dataS[kkk,:]/utils.moving_ave(np.abs(dataS[kkk,:]),smooth)
+
+            else:	# don't normalize
+                white = dataS
+
+            #-----to whiten or not------
+            Nfft = int(next_fast_len(int(dataS.shape[1])))
+            if white.ndim == 1:
+                axis = 0
+            elif white.ndim == 2:
+                axis = 1
+            fft_white = fft(white, Nfft, axis=axis) # return FFT
+
+        ##
+        self.data=fft_white
+        self.Nfft=Nfft
+
+        if len(dataS)>0 and freq_norm != 'no' and freqmin is not None:
+            print('Initializing FFTData with whitening ...')
+            self.whiten()  # whiten and return FFT
+
+    ##### method for whitening
+    def whiten(self):
+        """
+        Whiten FFTData
+        """
+        freq_norm=self.freq_norm
+        if self.freqmin is None:
+            raise ValueError('freqmin has to be specified as an attribute in FFTData!')
+
+        if self.freqmax is None:
+            self.freqmax=0.499*self.sps
+            print('freqmax not specified, use default as 0.499*samp_freq.')
+
+        if self.data.ndim == 1:
+            axis = 0
+        elif self.data.ndim == 2:
+            axis = 1
+
+        Nfft = int(self.Nfft)
+
+        Napod = 100
+        freqVec = fftfreq(Nfft, d=self.dt)[:Nfft // 2]
+        J = np.where((freqVec >= self.freqmin) & (freqVec <= self.freqmax))[0]
+        low = J[0] - Napod
+        if low <= 0:
+            low = 1
+
+        left = J[0]
+        right = J[-1]
+        high = J[-1] + Napod
+        if high > Nfft/2:
+            high = int(Nfft//2)
+
+        FFTRawSign = self.data
+        # Left tapering:
+        if axis == 1:
+            FFTRawSign[:,0:low] *= 0
+            FFTRawSign[:,low:left] = np.cos(
+                np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
+                1j * np.angle(FFTRawSign[:,low:left]))
+            # Pass band:
+            if freq_norm == 'phase_only':
+                FFTRawSign[:,left:right] = np.exp(1j * np.angle(FFTRawSign[:,left:right]))
+            elif freq_norm == 'rma':
+                for ii in range(self.data.shape[0]):
+                    tave = moving_ave(np.abs(FFTRawSign[ii,left:right]),self.smooth_N)
+                    FFTRawSign[ii,left:right] = FFTRawSign[ii,left:right]/tave
+            # Right tapering:
+            FFTRawSign[:,right:high] = np.cos(
+                np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
+                1j * np.angle(FFTRawSign[:,right:high]))
+            FFTRawSign[:,high:Nfft//2] *= 0
+
+            # Hermitian symmetry (because the input is real)
+            FFTRawSign[:,-(Nfft//2)+1:] = np.flip(np.conj(FFTRawSign[:,1:(Nfft//2)]),axis=axis)
+        else:
+            FFTRawSign[0:low] *= 0
+            FFTRawSign[low:left] = np.cos(
+                np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
+                1j * np.angle(FFTRawSign[low:left]))
+            # Pass band:
+            if freq_norm == 'phase_only':
+                FFTRawSign[left:right] = np.exp(1j * np.angle(FFTRawSign[left:right]))
+            elif freq_norm == 'rma':
+                tave = moving_ave(np.abs(FFTRawSign[left:right]),self.smooth_N)
+                FFTRawSign[left:right] = FFTRawSign[left:right]/tave
+            # Right tapering:
+            FFTRawSign[right:high] = np.cos(
+                np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
+                1j * np.angle(FFTRawSign[right:high]))
+            FFTRawSign[high:Nfft//2] *= 0
+
+            # Hermitian symmetry (because the input is real)
+            FFTRawSign[-(Nfft//2)+1:] = FFTRawSign[1:(Nfft//2)].conjugate()[::-1]
+
+
+        ##re-assign back to self.data.
+        self.data=FFTRawSign
+
 
 class CorrData(object):
     """
@@ -132,6 +287,48 @@ class CorrData(object):
         self.data=np.concatenate((self.data,c.data),axis=0)
 
         self.substack=True
+
+    def to_asdf(self,file,v=True):
+        """
+        Save CorrData object too asdf file.
+        """
+        cc_comp = self.cc_comp
+        # source-receiver pair
+        netsta_pair = self.net[0]+'.'+self.sta[0]+'_'+\
+                        self.net[1]+'.'+self.sta[1]
+        chan_pair = self.chan[0]+'_'+self.chan[1]
+
+        #save to asdf
+        lonS,lonR = self.lon
+        latS,latR = self.lat
+        eleS,eleR = self.ele
+
+        if "cc_method" in list(self.misc.keys()):
+            cc_method = self.misc['cc_method']
+        else:
+            cc_method = ''
+
+        parameters = {'dt':self.dt,
+            'maxlag':np.float32(self.lag),
+            'dist':np.float32(self.dist/1000),
+            'azi':np.float32(self.az),
+            'baz':np.float32(self.baz),
+            'lonS':np.float32(lonS),
+            'latS':np.float32(latS),
+            'eleS':np.float32(eleS),
+            'lonR':np.float32(lonR),
+            'latR':np.float32(latR),
+            'eleR':np.float32(eleR),
+            'ngood':self.ngood,
+            'cc_method':cc_method,
+            'time':self.time,
+            'substack':self.substack,
+            'comp':self.cc_comp}
+
+        with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
+            ccf_ds.add_auxiliary_data(data=self.data, data_type=netsta_pair, path=chan_pair, parameters=parameters)
+        if v: print('CorrData saved to: '+file)
+
 
     def to_sac(self,outdir='.',file=None,v=True):
         """
