@@ -48,9 +48,6 @@ def assemble_fft(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,freqmin=None,fre
         print('no data in %s'%sfile);
         return fftdata_all
 
-    # station information (for every channel)
-    station=[];network=[];channel=[];clon=[];clat=[];location=[];elevation=[]
-
     # loop through all stations
     print('working on file: '+sfile.split('/')[-1])
 
