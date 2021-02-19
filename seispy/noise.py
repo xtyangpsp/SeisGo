@@ -43,20 +43,10 @@ def assemble_fft(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,freqmin=None,fre
     nsta=ncomp*len(sta_list)
     print('found %d station-components in total'%nsta)
 
+    fftdata_all=[]
     if nsta==0:
-        print('continue! no data in %s'%sfile);
-        return
-
-    all_tags = ds.waveforms[sta_list[0]].get_waveform_tags()
-    stemp=ds.waveforms[sta_list[0]][all_tags[0]]
-    samp_freq=stemp[0].stats.sampling_rate
-
-    nnfft = int(next_fast_len(int(cc_len_secs*samp_freq)))
-    nseg_chunk = int(np.floor((inc_hours*3600-cc_len_secs)/cc_step_secs))
-    # open array to store fft data/info in memory
-    fft_array = np.zeros((nsta,nseg_chunk,nnfft//2),dtype=np.complex64)
-    fft_std   = np.zeros((nsta,nseg_chunk),dtype=np.float32)
-    fft_time  = np.zeros((nsta,nseg_chunk),dtype=np.float64)
+        print('no data in %s'%sfile);
+        return fftdata_all
 
     # station information (for every channel)
     station=[];network=[];channel=[];clon=[];clat=[];location=[];elevation=[]
@@ -64,7 +54,7 @@ def assemble_fft(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,freqmin=None,fre
     # loop through all stations
     print('working on file: '+sfile.split('/')[-1])
 
-    fftdata_all=[]
+
     for ista in sta_list:
         # get station and inventory
         try:
@@ -73,15 +63,13 @@ def assemble_fft(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,freqmin=None,fre
             print('abort! no stationxml for %s in file %s'%(ista,sfile))
             continue
 
-        sta,net,lon,lat,elv,loc = utils.sta_info_from_inv(inv1)
-
         # get days information: works better than just list the tags
         all_tags = ds.waveforms[ista].get_waveform_tags()
         if len(all_tags)==0:continue
 
         #----loop through each stream----
         for itag in all_tags:
-            if v:print("FFT for station %s and trace %s" % (sta,itag))
+            if v:print("FFT for station %s and trace %s" % (ista,itag))
 
             # read waveform data
             source = ds.waveforms[ista][itag]
