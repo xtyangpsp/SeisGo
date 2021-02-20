@@ -163,6 +163,10 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     tr=client.get_waveforms(network=net,station=sta,
                     channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
 #     trP[0].detrend()
+    print('number of segments downloaded: '+str(len(tr)))
+    if len(tr.get_gaps())>0:
+        print('merging segments with gaps')
+        tr.merge(fill_value=0)
     tr=tr[0]
     tr.stats['sac']=sac
 
