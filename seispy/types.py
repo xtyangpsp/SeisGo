@@ -2,7 +2,7 @@
 import os
 import obspy
 import pyasdf
-from obspy.core import Trace
+from obspy.core import Trace,Stream
 import numpy as np
 import matplotlib.pyplot as plt
 from obspy.io.sac.sactrace import SACTrace
@@ -53,12 +53,15 @@ class FFTData(object):
     Object to FFT data. The idea of having a FFTData data type
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
     """
-    def __init__(self,trace:obspy.core.Trace,inc_hours,cc_len_secs,cc_step_secs,stainv=None,
-                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
-                     data=None,misc=dict()):
+    def __init__(self,trace,cc_len_secs,cc_step_secs,stainv=None,
+                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,misc=dict()):
         """
         Initialize the object. Will do whitening if specicied in freq_norm.
+
+        trace: obspy.core.Trace or Stream object.
         """
+        if isinstance(trace,Trace):trace=Stream([trace])
+
         if stainv is not None:
             self.sta,self.net,self.lon,self.lat,self.ele,self.loc = utils.sta_info_from_inv(stainv)
         else:
@@ -77,7 +80,6 @@ class FFTData(object):
         self.time_norm=time_norm
         self.freq_norm=freq_norm
         self.smooth=smooth
-        self.inc_hours=inc_hours
         self.cc_len_secs=cc_len_secs
         self.cc_step_secs=cc_step_secs
         self.misc=misc

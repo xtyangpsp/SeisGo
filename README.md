@@ -24,6 +24,44 @@ This module contains functions to get and processing Ocean Bottom Seismometer (O
 
 This module contains functions used in ambient noise processing, including cross-correlations and monitoring. The key functions were converted from `NoisePy` (https://github.com/mdenolle/NoisePy) with heavy modifications. Inspired by `SeisNoise.jl` (https://github.com/tclements/SeisNoise.jl), I modified the cross-correlation workflow with FFTData and CorrData (defined in `types` module) objects. The original NoisePy script for cross-correlations have been disassembled and wrapped in functions, primarily in this module. Examples are in `notebooks/seispy_download_xcorr_demo.ipynb`.
 
+```Python
+from seispy import downloaders
+from seispy.noise import compute_fft,correlate
+
+# download parameters
+source='IRIS'                                 # client/data center. see https://docs.obspy.org/packages/obspy.clients.fdsn.html for a list
+samp_freq = 10                                                  # targeted sampling rate at X samples per seconds
+
+chan_list = ["BHZ","BHZ"]
+net_list  = ["TA","TA"] #                                             # network list
+sta_list  = ["O45A","SFIN"]                                               # station (using a station list is way either compared to specifying stations one by one)
+start_date = "2012_01_01_0_0_0"                               # start date of download
+end_date   = "2012_01_02_1_0_0"                               # end date of download
+
+# Download
+print('downloading ...')
+trall,stainv_all=downloaders.download(source=source,starttime=start_date,endtime=end_date,\
+                                  network=net_list,station=sta_list,channel=chan_list,samp_freq=samp_freq)
+
+print('cross-correlation ...')
+cc_len    = 1800                                                            # basic unit of data length for fft (sec)
+cc_step      = 900                                                             # overlapping between each cc_len (sec)
+maxlag         = 100                                                        # lags of cross-correlation to save (sec)
+
+#get FFT
+fftdata1=compute_fft(trall[0],cc_len,cc_step,stainv=stainv_all[0])
+fftdata2=compute_fft(trall[1],cc_len,cc_step,stainv=stainv_all[1])
+
+#do correlation
+corrdata=correlate(fftdata1,fftdata2,maxlag,substack=True)
+
+#plot correlation results
+corrdata.plot(freqmin=0.1,freqmax=1,lag=100)
+```
+
+You should get the following figure:
+![plot1](/figs/noise_xcorr_example.png)
+
 5. `plotting`
 
 This module contains major plotting functions for raw waveforms, cross-correlation results, and station maps.

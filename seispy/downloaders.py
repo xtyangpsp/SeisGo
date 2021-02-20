@@ -10,7 +10,7 @@ from seispy import utils
 from seispy.utils import get_tracetag, save2asdf
 import numpy as np
 
-def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan,source='IRIS',
+def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan=3,source='IRIS',
                 lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
     """
     Function to get station list with given parameters. It is a wrapper of the obspy function "get_stations()".
@@ -352,6 +352,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     Start downloading.
     """
     trlist=[]
+    sta_inv_list=[]
     #loop through all stations.
     for i in range(len(station)):
         inet=network[i]
@@ -426,6 +427,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                             break
                     else:
                         trlist.append(tr)
+                        sta_inv_list.append(sta_inv)
                         break
                 else:
                     if savetofile:
@@ -442,6 +444,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                             break
                     else:
                         trlist.append(tr)
+                        sta_inv_list.append(sta_inv)
                         break
             else:  #not QC
                 if savetofile:
@@ -450,6 +453,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                     break
                 else:
                     trlist.append(tr)
+                    sta_inv_list.append(sta_inv)
                     break
 
-    return trlist
+    return trlist,sta_inv_list
