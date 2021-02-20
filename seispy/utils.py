@@ -495,7 +495,27 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
     plt.show()
     plt.close()
 
-def slicing_trace(source,exp_len_hours,slice_len_secs,slice_step_secs):
+def check_overlap(t1,t2):
+    """
+    check the common
+    t1,t2: list or numpy arrays.
+    """
+    ind1=[]
+    ind2=[]
+    if isinstance(t1,list):t1=np.array(t1)
+    if isinstance(t2,list):t2=np.array(t2)
+
+    for i in range(len(t1)):
+        f1=t1[i]
+        ind_temp=np.where(t2==f1)
+
+        if len(ind_temp[0])>0:
+            ind1.append(i)
+            ind2.append(ind_temp[0][0])
+
+    return ind1,ind2
+
+def slicing_trace(source,slice_len_secs,slice_step_secs):
     '''
     this function cuts continous noise data into user-defined segments, estimate the statistics of
     each segment and keep timestamp of each segment for later use.
@@ -518,16 +538,19 @@ def slicing_trace(source,exp_len_hours,slice_len_secs,slice_step_secs):
     source_params=[];dataS_t=[];dataS=[]
 
     # useful parameters for trace sliding
-    nseg = int(np.floor((exp_len_hours*3600-slice_len_secs)/slice_step_secs))
+    # nseg = int(np.floor((exp_len_hours*3600-slice_len_secs)/slice_step_secs))
     sps  = int(source[0].stats.sampling_rate)
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
+    endtime = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
+    nseg = int(np.floor((endtime-starttime-slice_len_secs)/slice_step_secs))
+    print('slicing trace into ['+str(nseg)+'] segments.')
     # copy data into array
     data = source[0].data
 
     # if the data is shorter than the tim chunck, return zero values
-    if data.size < sps*exp_len_hours*3600:
-        print('data is smaller than expected length of the chunck. return empty data.')
-        return source_params,dataS_t,dataS
+    # if data.size < sps*exp_len_hours*3600:
+    #     print('data is smaller than expected length of the chunck. return empty data.')
+    #     return source_params,dataS_t,dataS
 
     # statistic to detect segments that may be associated with earthquakes
     all_madS = mad(data)	            # median absolute deviation over all noise window

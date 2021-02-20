@@ -8,7 +8,7 @@ from numpy.distutils.core import setup
 
 setup(
     name='seispy',
-    version='0.3',
+    version='0.4',
     description='Python tools for seismic data analysis',
     author='Xiaotao Yang',
     author_email='stcyang@gmail.com',

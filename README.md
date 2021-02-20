@@ -18,11 +18,15 @@ This module contains functions used to downloading earthquake waveforms and eart
 
 3. `obsmaster`
 
-This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from **OBStools** (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
+This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from `OBStools` (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
 4. `noise`
 
-This module contains functions used in ambient noise processing, including cross-correlations and plotting functions.
+This module contains functions used in ambient noise processing, including cross-correlations and monitoring. The key functions were converted from `NoisePy` (https://github.com/mdenolle/NoisePy) with heavy modifications. Inspired by `SeisNoise.jl` (https://github.com/tclements/SeisNoise.jl), I modified the cross-correlation workflow with FFTData and CorrData (defined in `types` module) objects. The original NoisePy script for cross-correlations have been disassembled and wrapped in functions, primarily in this module. Examples are in `notebooks/seispy_download_xcorr_demo.ipynb`.
+
+5. `plotting`
+
+This module contains major plotting functions for raw waveforms, cross-correlation results, and station maps.
 
 ## Installation
 1. Create and activate the **conda** `seispy` environment

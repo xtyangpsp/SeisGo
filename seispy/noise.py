@@ -321,7 +321,7 @@ def do_correlation(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,maxlag,cc_meth
         else:
             ftemp.close()
             os.remove(tmpfile)
-            os.remove(outfile)
+            if os.path.isfile(outfile): os.remove(outfile)
 
     ftmp = open(tmpfile,'w')
 
@@ -344,7 +344,7 @@ def do_correlation(sfile,ncomp,inc_hours,cc_len_secs,cc_step_secs,maxlag,cc_meth
                                 smoothspect_N=smoothspect_N,substack_len=substack_len,
                                 maxstd=maxstd)
 
-            corrdata.to_asdf(file=outfile)
+            if corrdata.data is not None: corrdata.to_asdf(file=outfile)
 
     # create a stamp to show time chunk being done
     ftmp.write('done')
@@ -357,37 +357,39 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     '''
     this function does the cross-correlation in freq domain and has the option to keep sub-stacks of
     the cross-correlation if needed. it takes advantage of the linear relationship of ifft, so that
-    stacking is performed in spectrum domain first to reduce the total number of ifft. (used in S1)
+    stacking is performed in spectrum domain first to reduce the total number of ifft.
+
     PARAMETERS:
     ---------------------
-    fft1: FFT for the source station
-    fft2: raw FFT spectrum of the receiver station
-    D: dictionary containing following parameters:
-        maxlag:  maximum lags to keep in the cross correlation
-        dt:      sampling rate (in s)
-        nwin:    number of segments in the 2D matrix
-        method:  cross-correlation methods selected by the user
-        freqmin: minimum frequency (Hz)
-        freqmax: maximum frequency (Hz)
-    Nfft:    number of frequency points for ifft
-    dataS_t: matrix of datetime object.
+    fftdata1: FFTData for the source station
+    fftdata2: FFTData of the receiver station
+    maxlag:  maximum lags to keep in the cross correlation
+    method:  cross-correlation methods selected by the user
     RETURNS:
     ---------------------
-    s_corr: 1D or 2D matrix of the averaged or sub-stacks of cross-correlation functions in time domain
-    t_corr: timestamp for each sub-stack or averaged function
-    n_corr: number of included segments for each sub-stack or averaged function
+    corrdata: CorrData object of cross-correlation functions in time domain
     '''
     corrdata=CorrData()
 
+    #check overlapping timestamps before any other processing
+    #this step is required when there are gaps in the data.
+    ind1,ind2=utils.check_overlap(fftdata1.time,fftdata2.time)
+    if not len(ind1):
+        print('no overlapped timestamps in the data.')
+        return corrdata
+
     #---------- check the existence of earthquakes by std of the data.----------
-    source_std = fftdata1.std
+    source_std = fftdata1.std[ind1]
     sou_ind = np.where((source_std<maxstd)&(source_std>0)&(np.isnan(source_std)==0))[0]
     if not len(sou_ind): return corrdata
 
-    receiver_std = fftdata2.std
+    receiver_std = fftdata2.std[ind2]
     rec_ind = np.where((receiver_std<maxstd)&(receiver_std>0)&(np.isnan(receiver_std)==0))[0]
     bb=np.intersect1d(sou_ind,rec_ind)
     if len(bb)==0:return corrdata
+
+    bb_data1=[ind1[i] for i in bb]
+    bb_data2=[ind2[i] for i in bb]
 
     #----load paramters----
     dt      = fftdata1.dt
@@ -397,12 +399,12 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     Nfft = fftdata1.Nfft
     Nfft2 = Nfft//2
 
-    fft1=fftdata1.data[bb,:Nfft2]
+    fft1=fftdata1.data[bb_data1,:Nfft2]
     fft1=np.conj(fft1) #get the conjugate of fft1
     nwin  = fft1.shape[0]
-    fft2=fftdata2.data[bb,:Nfft2]
+    fft2=fftdata2.data[bb_data1,:Nfft2]
 
-    timestamp=fftdata1.time[bb]
+    timestamp=fftdata1.time[bb_data1]
 
     if method != "xcorr":
         fft1 = smooth_source_spect(fft1,method,smoothspect_N)

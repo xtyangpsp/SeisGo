@@ -84,7 +84,7 @@ class FFTData(object):
 
         fft_white=[]
         # cut daily-long data into smaller segments (dataS always in 2D)
-        trace_stdS,dataS_t,dataS = utils.slicing_trace(trace,inc_hours,cc_len_secs,cc_step_secs)        # optimized version:3-4 times faster
+        trace_stdS,dataS_t,dataS = utils.slicing_trace(trace,cc_len_secs,cc_step_secs)        # optimized version:3-4 times faster
 
         self.std=trace_stdS
         self.time=dataS_t
