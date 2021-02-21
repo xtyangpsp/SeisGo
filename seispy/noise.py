@@ -43,15 +43,15 @@ def compute_fft(trace,cc_len_secs,cc_step_secs,stainv=None,
                     stainv=stainv,freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,freq_norm=freq_norm,
                     smooth=smooth,misc=misc)
 #assemble FFT with given asdf file name
-def assemble_fft(sfile,ncomp,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
+def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,exclude_chan=[None],v=True):
     #only deal with ASDF format for now.
 
     # retrive station information
     ds=pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
     sta_list = ds.waveforms.list()
-    nsta=ncomp*len(sta_list)
-    print('found %d station-components in total'%nsta)
+    nsta=len(sta_list)
+    print('found %d stations in total'%nsta)
 
     fftdata_all=[]
     if nsta==0:
@@ -60,7 +60,6 @@ def assemble_fft(sfile,ncomp,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
 
     # loop through all stations
     print('working on file: '+sfile.split('/')[-1])
-
 
     for ista in sta_list:
         # get station and inventory
@@ -174,7 +173,7 @@ def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr'
     ftmp = open(tmpfile,'w')
 
     ##############compute FFT#############
-    fftdata=assemble_fft(sfile,ncomp,cc_len_secs,cc_step_secs,freqmin=freqmin,freqmax=freqmax,
+    fftdata=assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=freqmin,freqmax=freqmax,
                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
     ndata=len(fftdata)
 

@@ -93,7 +93,7 @@ for ick in range(rank,splits,size):
     sfile=tdir[ick]
     t10=time.time()
     #call the correlation wrapper.
-    noise.do_correlation(sfile,ncomp,inc_hours,cc_len,step,maxlag,cc_method=cc_method,
+    noise.do_correlation(sfile,ncomp,cc_len,step,maxlag,cc_method=cc_method,
                          acorr_only=acorr_only,xcorr_only=xcorr_only,substack=substack,
                          smoothspect_N=smoothspect_N,substack_len=substack_len,
                          maxstd=max_over_std,freqmin=freqmin,freqmax=freqmax,
