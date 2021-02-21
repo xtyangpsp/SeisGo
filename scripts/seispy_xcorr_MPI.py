@@ -28,7 +28,6 @@ locations = os.path.join(rootpath,'station.txt')                            # st
 freq_norm   = 'phase_only'                                                  # 'no' for no whitening, or 'rma' for running-mean average, 'phase' for sign-bit normalization in freq domain
 time_norm   = 'no'                                                          # 'no' for no normalization, or 'rma', 'one_bit' for normalization in time domain
 cc_method   = 'xcorr'                                                       # 'xcorr' for pure cross correlation, 'deconv' for deconvolution; FOR "COHERENCY" PLEASE set freq_norm to "rma" and time_norm to "no"
-flag        = True                                                         # print intermediate variables and computing time for debugging purpose
 acorr_only  = False                                                         # only perform auto-correlation
 xcorr_only  = True                                                          # only perform cross-correlation or not
 ncomp       = 1                                                             # 1 or 3 component data (needed to decide whether do rotation)
@@ -54,7 +53,6 @@ dfile = os.path.join(DATADIR,'download_info.txt')
 down_info = eval(open(dfile).read())
 freqmin   = down_info['freqmin']
 freqmax   = down_info['freqmax']
-inc_hours  = down_info['inc_hours']
 ##################################################
 # we expect no parameters need to be changed below
 #--------MPI---------
@@ -64,7 +62,7 @@ size = comm.Get_size()
 
 if rank == 0:
     # make a dictionary to store all variables: also for later cc
-    fc_para={'inc_hours':inc_hours,'cc_len':cc_len,'step':step,'ncomp':ncomp,
+    fc_para={'cc_len':cc_len,'step':step,'ncomp':ncomp,
             'freqmin':freqmin,'freqmax':freqmax,'freq_norm':freq_norm,'time_norm':time_norm,
             'cc_method':cc_method,'smooth_N':smooth_N,'substack':substack,'substack_len':substack_len,
             'smoothspect_N':smoothspect_N,'maxlag':maxlag,'max_over_std':max_over_std,
@@ -83,7 +81,9 @@ if rank == 0:
     splits  = nchunk
 
     if nchunk==0: raise IOError('Abort! no available seismic files for FFT')
-    else:splits,tdir = [None for _ in range(2)]
+
+else:
+    splits,tdir = [None for _ in range(2)]
 
 # broadcast the variables
 splits = comm.bcast(splits,root=0)
