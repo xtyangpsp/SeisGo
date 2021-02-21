@@ -10,7 +10,7 @@ from seispy import utils
 from seispy.utils import get_tracetag, save2asdf
 import numpy as np
 
-def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan=3,source='IRIS',
+def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,maxseischan=3,source='IRIS',
                 lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
     """
     Function to get station list with given parameters. It is a wrapper of the obspy function "get_stations()".
@@ -140,8 +140,9 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     #check arguments
     if rmresp:
         if pre_filt is None:
-            raise(Exception("Error getdata() - "
-                            + " pre_filt is not specified (needed when removing response)"))
+            pre_filt = set_filter(samp_freq, 0.001)
+            print("getdata(): pre_filt is not specified. Use 0.001-0.5*samp_freq as "+\
+                    "the filter range when removing response.")
     """
     a. Downloading
     """

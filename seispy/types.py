@@ -215,7 +215,7 @@ class CorrData(object):
     misc is a dictionary that stores additional parameters.
 
     ======= Methods ======
-    append(): Merges to objects.
+    merge(): Merge with another object.
     to_sac(): convert and save to sac file, using obspy SACTrace object.
     plot(): simple plotting function to display the cross-correlation data.
     """
@@ -266,11 +266,11 @@ class CorrData(object):
 
         return "<CorrData object>"
 
-    def append(self,c):
+    def merge(self,c):
         """
-        Append will merge new object. The idea is to merge multiple sets of CorrData at
-        different time chunks. Therefore, this function will merge the following attributes only:
-        <ngood>,<time>,<data>
+        Merge with another object for the same station pair. The idea is to merge multiple sets
+        of CorrData at different time chunks. Therefore, this function will merge the following
+        attributes only: <ngood>,<time>,<data>
 
         **Note: substack will be set to True after merging, regardless the value in the original object.**
         """

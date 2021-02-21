@@ -1383,7 +1383,7 @@ def extract_waveform(sfile,net,sta,comp=None):
     ncomp = len(tcomp)
 
     if ncomp == 1:
-        tr=[ds.waveforms[tsta][tcomp[0]]]
+        tr=ds.waveforms[tsta][tcomp[0]]
         if comp is not None:
             chan=tr[0].stats.channel
             if chan not in comp:
@@ -1394,7 +1394,7 @@ def extract_waveform(sfile,net,sta,comp=None):
             tr_temp=ds.waveforms[tsta][tcomp[ii]]
             if comp is not None:
                 chan=tr_temp[0].stats.channel
-                if chan in comp:tr.append(tr_temp)
+                if chan in comp:tr.append(tr_temp[0])
     if len(tr)==0:
         raise ValueError('no data for comp %s for %s in %s'%(c, tsta,sfile))
 
