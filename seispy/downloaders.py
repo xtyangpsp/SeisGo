@@ -56,7 +56,6 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
                         netsta = K.code + '.' + tsta.code
                         for c in tsta.get_contents()['channels']:
                             chan_this=c.split('.')[-1]
-                            print(K.code + '.' + tsta.code + '.' + chan_this)
                             if netsta not in ckeys:
                                 chanhistory[netsta] = []
                                 sta.append(tsta.code)
