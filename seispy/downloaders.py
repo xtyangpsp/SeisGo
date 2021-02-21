@@ -373,7 +373,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                                        pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
             except Exception as e:
                 print(e, 'for', ista)
-                time.sleep(0.05)  # sleep for 50ms before next try.
+                time.sleep(1)  # sleep for 1 second before next try.
                 continue
             if getstainv == True or sacheader == True:
                 sta_inv = output[1]
