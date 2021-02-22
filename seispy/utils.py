@@ -542,6 +542,10 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     sps  = int(source[0].stats.sampling_rate)
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
     endtime = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
+    duration=endtime-starttime
+    if duration < slice_len_secs:
+        print("return empty! data duration is < slice length." % source)
+        return source_params,dataS_t,dataS
     nseg = int(np.floor((endtime-starttime-slice_len_secs)/slice_step_secs))
     print('slicing trace into ['+str(nseg)+'] segments.')
     # copy data into array
@@ -556,7 +560,7 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     all_madS = mad(data)	            # median absolute deviation over all noise window
     all_stdS = np.std(data)	        # standard deviation over all noise window
     if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
-        print("continue! madS or stdS equals to 0 for %s" % source)
+        print("return empty! madS or stdS equals to 0 for %s" % source)
         return source_params,dataS_t,dataS
 
     # initialize variables
