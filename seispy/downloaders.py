@@ -164,42 +164,40 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                     channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
 #     trP[0].detrend()
     print('number of segments downloaded: '+str(len(tr)))
-    if len(tr.get_gaps())>0:
-        print('merging segments with gaps')
-        tr.merge(fill_value=0)
-    tr=tr[0]
-    tr.stats['sac']=sac
+
+    tr[0].stats['sac']=sac
 
     print("station "+net+"."+sta+" --> seismic channel: "+chan)
 
     if debug:
-        year = tr.stats.starttime.year
-        julday = tr.stats.starttime.julday
-        hour = tr.stats.starttime.hour
-        mnt = tr.stats.starttime.minute
-        sec = tr.stats.starttime.second
+        year = tr[0].stats.starttime.year
+        julday = tr[0].stats.starttime.julday
+        hour = tr[0].stats.starttime.hour
+        mnt = tr[0].stats.starttime.minute
+        sec = tr[0].stats.starttime.second
         tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
-        trlabels=[net+"."+sta+"."+tr.stats.channel]
+        trlabels=[net+"."+sta+"."+tr[0].stats.channel]
     """
     b. Resampling
     """
     if samp_freq is not None:
-        sps=int(tr.stats.sampling_rate)
-        delta = tr.stats.delta
+        sps=int(tr[0].stats.sampling_rate)
+        delta = tr[0].stats.delta
         #assume pressure and vertical channels have the same sampling rat
         # make downsampling if needed
         if sps > samp_freq:
             print("  downsamping from "+str(sps)+" to "+str(samp_freq))
-            if np.sum(np.isnan(tr.data))>0:
-                raise(Exception('NaN found in trace'))
-            else:
-                tr.interpolate(samp_freq,method='weighted_average_slopes')
-                # when starttimes are between sampling points
-                fric = tr.stats.starttime.microsecond%(delta*1E6)
-                if fric>1E-4:
-                    tr.data = utils.segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
-                    #--reset the time to remove the discrepancy---
-                    tr.stats.starttime-=(fric*1E-6)
+            for r in tr:
+                if np.sum(np.isnan(r.data))>0:
+                    raise(Exception('NaN found in trace'))
+                else:
+                    r.interpolate(samp_freq,method='weighted_average_slopes')
+                    # when starttimes are between sampling points
+                    fric = r.stats.starttime.microsecond%(delta*1E6)
+                    if fric>1E-4:
+                        r.data = utils.segment_interpolate(np.float32(r.data),float(fric/(delta*1E6)))
+                        #--reset the time to remove the discrepancy---
+                        r.stats.starttime-=(fric*1E-6)
                 # print('new sampling rate:'+str(tr.stats.sampling_rate))
 
     """
@@ -213,19 +211,26 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     d. Remove responses
     """
     if rmresp:
-        if np.sum(np.isnan(tr.data))>0:
-            raise(Exception('NaN found in trace'))
-        else:
-            try:
-                print('  removing response using inv for '+net+"."+sta+"."+tr.stats.channel)
-                tr.remove_response(output=rmresp_output,pre_filt=pre_filt,
-                                          water_level=60,zero_mean=True,plot=False)
-            except Exception as e:
-                print(e)
-                tr = []
-    tr.detrend('demean')
-    tr.detrend('linear')
-    tr.taper(0.01)
+        for r in tr:
+            if np.sum(np.isnan(r.data))>0:
+                raise(Exception('NaN found in trace'))
+            else:
+                try:
+                    print('  removing response using inv for '+net+"."+sta+"."+r.stats.channel)
+                    r.remove_response(output=rmresp_output,pre_filt=pre_filt,
+                                              water_level=60,zero_mean=True,plot=False)
+                except Exception as e:
+                    print(e)
+                    r = []
+    for r in tr:
+        r.detrend('demean')
+        r.detrend('linear')
+        r.taper(0.005)
+
+    if len(tr.get_gaps())>0:
+        print('merging segments with gaps')
+        tr.merge(fill_value=0)
+    tr=tr[0]
     """
     e. Plot raw data after removing responses.
     """
