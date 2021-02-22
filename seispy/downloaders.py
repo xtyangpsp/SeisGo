@@ -10,8 +10,12 @@ from seispy import utils
 from seispy.utils import get_tracetag, save2asdf
 import numpy as np
 
+<<<<<<< HEAD
 
 def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan,source='IRIS',
+=======
+def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,maxseischan=3,source='IRIS',
+>>>>>>> 54ba571222c603c5efd1de678cb0a1af77ff514a
                 lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
     """
     Function to get station list with given parameters. It is a wrapper of the obspy function "get_stations()".
@@ -57,7 +61,6 @@ def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxse
                         netsta = K.code + '.' + tsta.code
                         for c in tsta.get_contents()['channels']:
                             chan_this=c.split('.')[-1]
-                            print(K.code + '.' + tsta.code + '.' + chan_this)
                             if netsta not in ckeys:
                                 chanhistory[netsta] = []
                                 sta.append(tsta.code)
@@ -141,8 +144,9 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     #check arguments
     if rmresp:
         if pre_filt is None:
-            raise(Exception("Error getdata() - "
-                            + " pre_filt is not specified (needed when removing response)"))
+            pre_filt = set_filter(samp_freq, 0.001)
+            print("getdata(): pre_filt is not specified. Use 0.001-0.5*samp_freq as "+\
+                    "the filter range when removing response.")
     """
     a. Downloading
     """
@@ -164,39 +168,41 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     tr=client.get_waveforms(network=net,station=sta,
                     channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
 #     trP[0].detrend()
-    tr=tr[0]
-    tr.stats['sac']=sac
+    print('number of segments downloaded: '+str(len(tr)))
+
+    tr[0].stats['sac']=sac
 
     print("station "+net+"."+sta+" --> seismic channel: "+chan)
 
     if debug:
-        year = tr.stats.starttime.year
-        julday = tr.stats.starttime.julday
-        hour = tr.stats.starttime.hour
-        mnt = tr.stats.starttime.minute
-        sec = tr.stats.starttime.second
+        year = tr[0].stats.starttime.year
+        julday = tr[0].stats.starttime.julday
+        hour = tr[0].stats.starttime.hour
+        mnt = tr[0].stats.starttime.minute
+        sec = tr[0].stats.starttime.second
         tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
-        trlabels=[net+"."+sta+"."+tr.stats.channel]
+        trlabels=[net+"."+sta+"."+tr[0].stats.channel]
     """
     b. Resampling
     """
     if samp_freq is not None:
-        sps=int(tr.stats.sampling_rate)
-        delta = tr.stats.delta
+        sps=int(tr[0].stats.sampling_rate)
+        delta = tr[0].stats.delta
         #assume pressure and vertical channels have the same sampling rat
         # make downsampling if needed
         if sps > samp_freq:
             print("  downsamping from "+str(sps)+" to "+str(samp_freq))
-            if np.sum(np.isnan(tr.data))>0:
-                raise(Exception('NaN found in trace'))
-            else:
-                tr.interpolate(samp_freq,method='weighted_average_slopes')
-                # when starttimes are between sampling points
-                fric = tr.stats.starttime.microsecond%(delta*1E6)
-                if fric>1E-4:
-                    tr.data = utils.segment_interpolate(np.float32(tr.data),float(fric/(delta*1E6)))
-                    #--reset the time to remove the discrepancy---
-                    tr.stats.starttime-=(fric*1E-6)
+            for r in tr:
+                if np.sum(np.isnan(r.data))>0:
+                    raise(Exception('NaN found in trace'))
+                else:
+                    r.interpolate(samp_freq,method='weighted_average_slopes')
+                    # when starttimes are between sampling points
+                    fric = r.stats.starttime.microsecond%(delta*1E6)
+                    if fric>1E-4:
+                        r.data = utils.segment_interpolate(np.float32(r.data),float(fric/(delta*1E6)))
+                        #--reset the time to remove the discrepancy---
+                        r.stats.starttime-=(fric*1E-6)
                 # print('new sampling rate:'+str(tr.stats.sampling_rate))
 
     """
@@ -210,19 +216,26 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     d. Remove responses
     """
     if rmresp:
-        if np.sum(np.isnan(tr.data))>0:
-            raise(Exception('NaN found in trace'))
-        else:
-            try:
-                print('  removing response using inv for '+net+"."+sta+"."+tr.stats.channel)
-                tr.remove_response(output=rmresp_output,pre_filt=pre_filt,
-                                          water_level=60,zero_mean=True,plot=False)
-            except Exception as e:
-                print(e)
-                tr = []
-    tr.detrend('demean')
-    tr.detrend('linear')
-    tr.taper(0.01)
+        for r in tr:
+            if np.sum(np.isnan(r.data))>0:
+                raise(Exception('NaN found in trace'))
+            else:
+                try:
+                    print('  removing response using inv for '+net+"."+sta+"."+r.stats.channel)
+                    r.remove_response(output=rmresp_output,pre_filt=pre_filt,
+                                              water_level=60,zero_mean=True,plot=False)
+                except Exception as e:
+                    print(e)
+                    r = []
+    for r in tr:
+        r.detrend('demean')
+        r.detrend('linear')
+        r.taper(0.005)
+
+    if len(tr.get_gaps())>0:
+        print('merging segments with gaps')
+        tr.merge(fill_value=0)
+    tr=tr[0]
     """
     e. Plot raw data after removing responses.
     """
@@ -349,6 +362,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     Start downloading.
     """
     trlist=[]
+    sta_inv_list=[]
     #loop through all stations.
     for i in range(len(station)):
         inet=network[i]
@@ -369,7 +383,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                                        pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
             except Exception as e:
                 print(e, 'for', ista)
-                time.sleep(0.05)  # sleep for 50ms before next try.
+                time.sleep(1)  # sleep for 1 second before next try.
                 continue
             if getstainv == True or sacheader == True:
                 sta_inv = output[1]
@@ -423,6 +437,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                             break
                     else:
                         trlist.append(tr)
+                        sta_inv_list.append(sta_inv)
                         break
                 else:
                     if savetofile:
@@ -439,6 +454,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                             break
                     else:
                         trlist.append(tr)
+                        sta_inv_list.append(sta_inv)
                         break
             else:  #not QC
                 if savetofile:
@@ -447,6 +463,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                     break
                 else:
                     trlist.append(tr)
+                    sta_inv_list.append(sta_inv)
                     break
 
-    return trlist
+    return trlist,sta_inv_list

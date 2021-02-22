@@ -495,6 +495,97 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
     plt.show()
     plt.close()
 
+def check_overlap(t1,t2):
+    """
+    check the common
+    t1,t2: list or numpy arrays.
+    """
+    ind1=[]
+    ind2=[]
+    if isinstance(t1,list):t1=np.array(t1)
+    if isinstance(t2,list):t2=np.array(t2)
+
+    for i in range(len(t1)):
+        f1=t1[i]
+        ind_temp=np.where(t2==f1)
+
+        if len(ind_temp[0])>0:
+            ind1.append(i)
+            ind2.append(ind_temp[0][0])
+
+    return ind1,ind2
+
+def slicing_trace(source,slice_len_secs,slice_step_secs):
+    '''
+    this function cuts continous noise data into user-defined segments, estimate the statistics of
+    each segment and keep timestamp of each segment for later use.
+    PARAMETERS:
+    ----------------------
+    source: obspy stream object
+    exp_len_hours: expected length of the data (source) in hours
+    slice_len_secs: length of the slicing segments in seconds
+    slice_step_secs: step of slicing in seconds.
+
+    RETURNS:
+    ----------------------
+    trace_stdS: standard deviation of the noise amplitude of each segment
+    dataS_t:    timestamps of each segment
+    dataS:      2D matrix of the segmented data
+
+    ##TODO: deal with gaps, regardless of expected length.
+    '''
+    # define return variables first
+    source_params=[];dataS_t=[];dataS=[]
+
+    # useful parameters for trace sliding
+    # nseg = int(np.floor((exp_len_hours*3600-slice_len_secs)/slice_step_secs))
+    sps  = int(source[0].stats.sampling_rate)
+    starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
+    endtime = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
+    duration=endtime-starttime
+    if duration < slice_len_secs:
+        print("return empty! data duration is < slice length." % source)
+        return source_params,dataS_t,dataS
+    nseg = int(np.floor((endtime-starttime-slice_len_secs)/slice_step_secs))
+    print('slicing trace into ['+str(nseg)+'] segments.')
+    # copy data into array
+    data = source[0].data
+
+    # if the data is shorter than the tim chunck, return zero values
+    # if data.size < sps*exp_len_hours*3600:
+    #     print('data is smaller than expected length of the chunck. return empty data.')
+    #     return source_params,dataS_t,dataS
+
+    # statistic to detect segments that may be associated with earthquakes
+    all_madS = mad(data)	            # median absolute deviation over all noise window
+    all_stdS = np.std(data)	        # standard deviation over all noise window
+    if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
+        print("return empty! madS or stdS equals to 0 for %s" % source)
+        return source_params,dataS_t,dataS
+
+    # initialize variables
+    npts = slice_len_secs*sps
+    #trace_madS = np.zeros(nseg,dtype=np.float32)
+    trace_stdS = np.zeros(nseg,dtype=np.float32)
+    dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
+    dataS_t  = np.zeros(nseg,dtype=np.float)
+
+    indx1 = 0
+    for iseg in range(nseg):
+        indx2 = indx1+npts
+        dataS[iseg] = data[indx1:indx2]
+        #trace_madS[iseg] = (np.max(np.abs(dataS[iseg]))/all_madS)
+        trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
+        dataS_t[iseg]    = starttime+slice_step_secs*iseg
+        indx1 = indx1+slice_step_secs*sps
+
+    # 2D array processing
+    dataS = demean(dataS)
+    dataS = detrend(dataS)
+    dataS = taper(dataS)
+
+    return trace_stdS,dataS_t,dataS
+
 # modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
 # Modified by Xiaotao to return window starting indices and the option of forcing to slide through full length.
 def sliding_window(a, ws, ss=None, wind=None, getindex=False,full_length=False,verbose=False):
@@ -1296,7 +1387,7 @@ def extract_waveform(sfile,net,sta,comp=None):
     ncomp = len(tcomp)
 
     if ncomp == 1:
-        tr=[ds.waveforms[tsta][tcomp[0]]]
+        tr=ds.waveforms[tsta][tcomp[0]]
         if comp is not None:
             chan=tr[0].stats.channel
             if chan not in comp:
@@ -1307,7 +1398,7 @@ def extract_waveform(sfile,net,sta,comp=None):
             tr_temp=ds.waveforms[tsta][tcomp[ii]]
             if comp is not None:
                 chan=tr_temp[0].stats.channel
-                if chan in comp:tr.append(tr_temp)
+                if chan in comp:tr.append(tr_temp[0])
     if len(tr)==0:
         raise ValueError('no data for comp %s for %s in %s'%(c, tsta,sfile))
 

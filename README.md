@@ -8,21 +8,15 @@ This package is currently heavily dependent on **obspy** (www.obspy.org) to hand
 
 ## Available modules
 This package is under active development. The currently available modules are listed here.
-1. `utils`
+1.  `utils`: This module contains frequently used utility functions not readily available in `obspy`.
 
-This module contains frequently used utility functions not readily available in `obspy`.
+2. `downloaders`: This module contains functions used to downloading earthquake waveforms and earthquake catalogs.
 
-2. `downloaders`
+3. `obsmaster`: This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from `OBStools` (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
-This module contains functions used to downloading earthquake waveforms and earthquake catalogs.
+4. `noise`: This module contains functions used in ambient noise processing, including cross-correlations and monitoring. The key functions were converted from `NoisePy` (https://github.com/mdenolle/NoisePy) with heavy modifications. Inspired by `SeisNoise.jl` (https://github.com/tclements/SeisNoise.jl), We modified the cross-correlation workflow with FFTData and CorrData (defined in `types` module) objects. The original NoisePy script for cross-correlations have been disassembled and wrapped in functions, primarily in this module.
 
-3. `obsmaster`
-
-This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from **OBStools** (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
-
-4. `noise`
-
-This module contains functions used in ambient noise processing, including cross-correlations and plotting functions.
+5. `plotting`: This module contains major plotting functions for raw waveforms, cross-correlation results, and station maps.
 
 ## Installation
 1. Create and activate the **conda** `seispy` environment
@@ -105,11 +99,108 @@ $ python
 
 5. **scripts**: This directory contains example scripts for data processing using `seispy`. Users are welcome to modify from the provided example scripts to work on their own data.
 
-## Tutorials
-To-be-added.
+## Tutorials on key functionalities
+1. Download continuous waveforms for large-scale job (see item 3 for small jobs processing in memory). Example script using MPI is here: `scripts/seispy_download_MPI.py`. The following lines show an example of the structure without MPI (so that you can easily test run it in Jupyter Notebook).
+
+```Python
+import os,glob
+from seispy.utils import split_datetimestr,extract_waveform,plot_trace
+from seispy import downloaders
+
+rootpath = "data_test" # roothpath for the project
+DATADIR  = os.path.join(rootpath,'Raw')          # where to store the downloaded data
+down_list  = os.path.join(DATADIR,'station.txt') # CSV file for station location info
+
+# download parameters
+source='IRIS'                       # client/data center. see https://docs.obspy.org/packages/obspy.clients.fdsn.html for a list
+samp_freq = 10                      # targeted sampling rate at X samples per seconds
+rmresp   = True
+rmresp_out = 'DISP'
+
+# targeted region/station information: only needed when use_down_list is False
+lamin,lamax,lomin,lomax= 39,41,-88,-86           # regional box: min lat, min lon, max lat, max lon (-114.0)
+chan_list = ["BHZ"]
+net_list  = ["TA"] #                              # network list
+sta_list  = ["O45A","SFIN"]                       # station (using a station list is way either compared to specifying stations one by one)
+start_date = "2012_01_01_0_0_0"                   # start date of download
+end_date   = "2012_01_02_1_0_0"                   # end date of download
+inc_hours  = 12                                   # length of data for each request (in hour)
+maxseischan = 1                                   # the maximum number of seismic channels, excluding pressure channels for OBS stations.
+ncomp      = maxseischan #len(chan_list)
+
+downlist_kwargs = {"source":source, 'net_list':net_list, "sta_list":sta_list, "chan_list":chan_list, \
+                    "starttime":start_date, "endtime":end_date, "maxseischan":maxseischan, "lamin":lamin, "lamax":lamax, \
+                    "lomin":lomin, "lomax":lomax, "fname":down_list}
+
+stalist=downloaders.get_sta_list(**downlist_kwargs) #
+#this is a critical step for long duration downloading, as a demo here.
+all_chunk = split_datetimestr(start_date,end_date,inc_hours)
+
+#################DOWNLOAD SECTION#######################
+for ick in range(len(all_chunk)-1):
+    s1= all_chunk[ick];s2=all_chunk[ick+1]
+    print('time segment:'+s1+' to '+s2)
+    downloaders.download(source=source,rawdatadir=DATADIR,starttime=s1,endtime=s2,\
+                       stationinfo=stalist,samp_freq=samp_freq)
+
+print('downloading finished.')
+
+#extrace waveforms
+tr=extract_waveform(glob.glob(os.path.join(DATADIR,"*.h5"))[0],net_list[0],sta_list[0],comp=chan_list[0])
+plot_trace([tr],size=(10,4),ylabels=['displacement'],title=[net_list[0]+'.'+sta_list[0]+'.'+chan_list[0]])
+```
+
+You should see the following image showing the waveform for TA.O45A.
+![plot1](/figs/download_continuous_example.png)
+
+2. Download earthquake catalog and waveforms with given window length relative to phase arrivals
+TBA.
+
+3. Ambient noise cross-correlations
+* Minimum lines version for processing small data sets in memory. Another example is in `notebooks/seispy_download_xcorr_demo.ipynb`.
+
+```Python
+from seispy import downloaders
+from seispy.noise import compute_fft,correlate
+
+# download parameters
+source='IRIS'                                 # client/data center. see https://docs.obspy.org/packages/obspy.clients.fdsn.html for a list
+samp_freq = 10                                                  # targeted sampling rate at X samples per seconds
+
+chan_list = ["BHZ","BHZ"]
+net_list  = ["TA","TA"] #                                             # network list
+sta_list  = ["O45A","SFIN"]                                               # station (using a station list is way either compared to specifying stations one by one)
+start_date = "2012_01_01_0_0_0"                               # start date of download
+end_date   = "2012_01_02_1_0_0"                               # end date of download
+
+# Download
+print('downloading ...')
+trall,stainv_all=downloaders.download(source=source,starttime=start_date,endtime=end_date,\
+                                  network=net_list,station=sta_list,channel=chan_list,samp_freq=samp_freq)
+
+print('cross-correlation ...')
+cc_len    = 1800                                                            # basic unit of data length for fft (sec)
+cc_step      = 900                                                             # overlapping between each cc_len (sec)
+maxlag         = 100                                                        # lags of cross-correlation to save (sec)
+
+#get FFT
+fftdata1=compute_fft(trall[0],cc_len,cc_step,stainv=stainv_all[0])
+fftdata2=compute_fft(trall[1],cc_len,cc_step,stainv=stainv_all[1])
+
+#do correlation
+corrdata=correlate(fftdata1,fftdata2,maxlag,substack=True)
+
+#plot correlation results
+corrdata.plot(freqmin=0.1,freqmax=1,lag=100)
+```
+
+You should get the following figure:
+![plot1](/figs/noise_xcorr_example.png)
+
+* Run large-scale jobs through MPI. For processing of large datasets, the downloaded and xcorr data will be saved to disk. Example script here: `scripts/seispy_xcorr_MPI.py`
 
 ## Contribute
-Any bugs and ideas are welcome. Please contact me.
+Any bugs and ideas are welcome. Please file an issue through GitHub.
 
 
 ## References
