@@ -258,7 +258,10 @@ class CorrData(object):
         print("delta        :   "+str(self.dt))
         print("dist (km)    :   "+str(self.dist))
         print("ngood        :   "+str(self.ngood))
-        print("time         :   "+str(obspy.UTCDateTime(self.time)))
+        if self.substack:
+            print("time         :   "+str(obspy.UTCDateTime(self.time)[0])+" to "+obspy.UTCDateTime(self.time)[-1])
+        else:
+            print("time         :   "+str(obspy.UTCDateTime(self.time)))
         print("substack     :   "+str(self.substack))
         print("data         :   "+str(self.data.shape))
         print(str(self.data))
@@ -373,12 +376,14 @@ class CorrData(object):
                 nzsec=corrtime.second
                 nzmsec=corrtime.microsecond
                 if file is None:
-                    file=str(corrtime).replace(':', '-')+'_'+self.cc_comp+'.sac'
+                    ofile=str(corrtime).replace(':', '-')+'_'+self.cc_comp+'.sac'
+                    sacfile  = os.path.join(outdir,ofile)
+                else:
+                    sacfile  = os.path.join(outdir,file)
                 sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                                b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                                evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data[i,:])
 
-                sacfile  = os.path.join(outdir,file)
                 sac.write(sacfile,byteorder='big')
                 if v: print('saved sac to: '+sacfile)
 
