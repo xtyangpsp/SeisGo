@@ -10,12 +10,7 @@ from seispy import utils
 from seispy.utils import get_tracetag, save2asdf
 import numpy as np
 
-<<<<<<< HEAD
-
-def get_sta_list(fname, net_list, sta_list, chan_list, starttime, endtime, maxseischan,source='IRIS',
-=======
 def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,maxseischan=3,source='IRIS',
->>>>>>> 54ba571222c603c5efd1de678cb0a1af77ff514a
                 lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
     """
     Function to get station list with given parameters. It is a wrapper of the obspy function "get_stations()".
