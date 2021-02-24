@@ -3,6 +3,8 @@
 
 ### Author: Xiaotao Yang (stcyang@gmail.com)
 
+![plot1](/figs/seispy_logo.png)
+
 ## Introduction
 This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
 
