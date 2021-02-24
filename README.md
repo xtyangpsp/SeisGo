@@ -1,5 +1,5 @@
 # SeisPy
-*Python modules for seismic data analysis*
+*A Python package for seismic data analysis*
 
 ### Author: Xiaotao Yang (stcyang@gmail.com)
 
