@@ -270,8 +270,8 @@ def plot_corrfile(sfile,freqmin,freqmax,lag=None,comp='ZZ',
     clist=list(corrdict.keys())
     for c in clist:
         corr=corrdict[c]
-        for i in range(len(corr)):
-            plot_corrdata(corr[i],freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir)
+        if comp in list(corr.keys()):
+            corr[comp].plot(freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir)
 
 
 def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8)):
