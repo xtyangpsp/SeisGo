@@ -244,7 +244,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     fft1=fftdata1.data[bb_data1,:Nfft2]
     fft1=np.conj(fft1) #get the conjugate of fft1
     nwin  = fft1.shape[0]
-    fft2=fftdata2.data[bb_data1,:Nfft2]
+    fft2=fftdata2.data[bb_data2,:Nfft2]
 
     timestamp=fftdata1.time[bb_data1]
 

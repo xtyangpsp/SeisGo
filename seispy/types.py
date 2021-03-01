@@ -396,32 +396,41 @@ class CorrData(object):
         '''
         if isinstance(method,str):method=[method]
         # remove abnormal data
-        ampmax = np.max(self.data,axis=1)
-        tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-        nstacks=len(tindx)
-        dstack=[]
-        cc_time=[]
-        if nstacks >0:
-            # remove ones with bad amplitude
-            cc_array = self.data[tindx,:]
-            cc_time  = self.time[tindx]
+        if self.data.ndim==1:
+            cc_time  = [self.time]
 
             # do stacking
-            dstack = np.zeros((len(method),self.data.shape[1]),dtype=np.float32)
+            dstack = np.zeros((len(method),self.data.shape[0]),dtype=np.float32)
             for i in range(len(method)):
                 m =method[i]
-                if nstacks==1: dstack[i,:]=cc_array
-                else:
-                    if m == 'linear':
-                        dstack[i,:] = np.mean(cc_array,axis=0)
-                    elif m == 'pws':
-                        dstack[i,:] = stacking.pws(cc_array,1.0/self.dt)
-                    elif m == 'robust':
-                        dstack[i,:] = stacking.robust_stack(cc_array)[0]
-                    elif m == 'acf':
-                        dstack[i,:] = stacking.adaptive_filter(cc_array,1)
-                    elif m == 'nroot':
-                        dstack[i,:] = stacking.nroot_stack(cc_array,2)
+                dstack[i,:]=self.data[:]
+        else:
+            ampmax = np.max(self.data,axis=1)
+            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+            nstacks=len(tindx)
+            dstack=[]
+            cc_time=[]
+            if nstacks >0:
+                # remove ones with bad amplitude
+                cc_array = self.data[tindx,:]
+                cc_time  = self.time[tindx]
+
+                # do stacking
+                dstack = np.zeros((len(method),self.data.shape[1]),dtype=np.float32)
+                for i in range(len(method)):
+                    m =method[i]
+                    if nstacks==1: dstack[i,:]=cc_array
+                    else:
+                        if m == 'linear':
+                            dstack[i,:] = np.mean(cc_array,axis=0)
+                        elif m == 'pws':
+                            dstack[i,:] = stacking.pws(cc_array,1.0/self.dt)
+                        elif m == 'robust':
+                            dstack[i,:] = stacking.robust_stack(cc_array)[0]
+                        elif m == 'acf':
+                            dstack[i,:] = stacking.adaptive_filter(cc_array,1)
+                        elif m == 'nroot':
+                            dstack[i,:] = stacking.nroot_stack(cc_array,2)
 
         # good to return
         return dstack,cc_time
