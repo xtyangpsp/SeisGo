@@ -562,6 +562,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
         corrdict_all=dict() #all components for the single station pair
         txtract=np.zeros(len(ccfiles),dtype=np.float32)
         tmerge=np.zeros(len(ccfiles),dtype=np.float32)
+        tparameters=None
         for i,ifile in enumerate(ccfiles):
             # tt00=time.time()
             corrdict=extract_corrdata(ifile,pair=pair)
@@ -578,6 +579,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                 ### merge same component corrdata.
                 # tt11=time.time()
                 for c in comp_list:
+                    if tparameters is None:tparameters=corrdict[pair][c].misc
                     if c in list(corrdict_all.keys()):
                         corrdict_all[c].merge(corrdict[pair][c])
                     else:corrdict_all[c]=corrdict[pair][c]
@@ -606,7 +608,8 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
         t2=time.time()
         # loop through cross-component for stacking
         if isinstance(method,str):method=[method]
-        tparameters={'station_source':ssta,'station_receiver':rsta}
+        tparameters['station_source']=ssta
+        tparameters['station_receiver']=rsta
         if rotation: #need to order the components according to enz_system list.
             if corrdict_all[cc_comp[0]].substack:
                 npts_segmt  = corrdict_all[cc_comp[0]].data.shape[1]
@@ -1061,7 +1064,7 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                                                 chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
                                                 dist=dist,az=az,baz=baz,ngood=ngood,time=ttime,
-                                                data=data,substack=flag,misc={"cc_method":cc_method})
+                                                data=data,substack=flag,misc=para)
 
     return corrdict
 
