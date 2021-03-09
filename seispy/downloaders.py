@@ -23,8 +23,10 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     lon = [];
     lat = [];
     elev = []
-
-    client=Client(source)
+    if source == 'IRISPH5':
+        client=Client(service_mappings={'station':'http://service.iris.edu/ph5ws/station/1'})
+    else:
+        client=Client(source)
     # time tags
     starttime_UTC = obspy.UTCDateTime(starttime)
     endtime_UTC   = obspy.UTCDateTime(endtime)
@@ -133,7 +135,12 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     sacheader : bool
             Key sacheader information in a dictionary using the SAC header naming convention.
     """
-    client = Client(source)
+
+    if source == 'IRISPH5':
+        client=Client(service_mappings={'dataselect':'http://service.iris.edu/ph5ws/dataselect/1',
+                        'station':'http://service.iris.edu/ph5ws/station/1'})
+    else:
+        client=Client(source)
     tr = None
     sac=dict() #place holder to save some sac headers.
     #check arguments
