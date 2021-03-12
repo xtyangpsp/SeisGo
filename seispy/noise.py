@@ -195,7 +195,7 @@ def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr'
     return ndata
 
 def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
-                substack_len=None,smoothspect_N=20,maxstd=10):
+                substack_len=None,smoothspect_N=20,maxstd=10,terror=0.01):
     '''
     this function does the cross-correlation in freq domain and has the option to keep sub-stacks of
     the cross-correlation if needed. it takes advantage of the linear relationship of ifft, so that
@@ -207,6 +207,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     fftdata2: FFTData of the receiver station
     maxlag:  maximum lags to keep in the cross correlation
     method:  cross-correlation methods selected by the user
+    terror: 0-1 fraction of timing error in searching for overlapping. The timing error =
+                    terror*dt
     RETURNS:
     ---------------------
     corrdata: CorrData object of cross-correlation functions in time domain
@@ -215,7 +217,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
 
     #check overlapping timestamps before any other processing
     #this step is required when there are gaps in the data.
-    ind1,ind2=utils.check_overlap(fftdata1.time,fftdata2.time)
+    ind1,ind2=utils.check_overlap(fftdata1.time,fftdata2.time,error=terror*fftdata1.dt)
     if not len(ind1):
         print('no overlapped timestamps in the data.')
         return corrdata
@@ -345,8 +347,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                     loc=[fftdata1.loc,fftdata2.loc],chan=[fftdata1.chan,fftdata2.chan],\
                     lon=[fftdata1.lon,fftdata2.lon],lat=[fftdata1.lat,fftdata2.lat],\
                     ele=[fftdata1.ele,fftdata2.ele],cc_comp=cc_comp,lag=maxlag,\
-                    dt=fftdata1.dt,dist=dist,az=azi,baz=baz,ngood=n_corr,time=t_corr,data=s_corr,\
-                    substack=substack,misc={"cc_method":method})
+                    dt=fftdata1.dt,dist=dist/1000,az=azi,baz=baz,ngood=n_corr,time=t_corr,data=s_corr,\
+                    substack=substack,misc={"cc_method":method,"dist_unit":"km"})
     return corrdata
 
 def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
