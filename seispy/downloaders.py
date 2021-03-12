@@ -503,31 +503,31 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         chan=tr[0].stats.channel
         netstachan=net+"."+sta+"."+chan
         date_info = {'starttime':tr[0].stats.starttime,'endtime':tr[0].stats.endtime}
+        if rm_resp != 'no':
+            if rm_resp == 'spectrum':
+                print('remove response using spectrum')
+                specfile = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if len(specfile)==0:
+                    raise ValueError('no response sepctrum found for %s' % netstachan)
+                tr = utils.resp_spectrum(tr,specfile[0],fs,pre_filt)
 
-        if rm_resp == 'spectrum':
-            print('remove response using spectrum')
-            specfile = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
-            if len(specfile)==0:
-                raise ValueError('no response sepctrum found for %s' % netstachan)
-            tr = utils.resp_spectrum(tr,specfile[0],fs,pre_filt)
+            elif rm_resp == 'RESP':
+                print('remove response using RESP files')
+                resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
+                print(resp)
+                if len(resp)==0:
+                    raise ValueError('no RESP files found for %s' % netstachan)
+                seedresp = {'filename':resp[0],'date':date_info['starttime'],'units':rm_resp_out}
+                tr.simulate(paz_remove=None,pre_filt=pre_filt,seedresp=seedresp)
 
-        elif rm_resp == 'RESP':
-            print('remove response using RESP files')
-            resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
-            print(resp)
-            if len(resp)==0:
-                raise ValueError('no RESP files found for %s' % netstachan)
-            seedresp = {'filename':resp[0],'date':date_info['starttime'],'units':rm_resp_out}
-            tr.simulate(paz_remove=None,pre_filt=pre_filt,seedresp=seedresp)
-
-        elif rm_resp == 'polozeros':
-            print('remove response using polos and zeros')
-            paz_sts = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
-            if len(paz_sts)==0:
-                raise ValueError('no polozeros found for %s' % netstachan)
-            tr.simulate(paz_remove=paz_sts[0],pre_filt=pre_filt)
-        else:
-            raise ValueError('no such option for rm_resp! please double check!')
+            elif rm_resp == 'polozeros':
+                print('remove response using polos and zeros')
+                paz_sts = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if len(paz_sts)==0:
+                    raise ValueError('no polozeros found for %s' % netstachan)
+                tr.simulate(paz_remove=paz_sts[0],pre_filt=pre_filt)
+            else:
+                raise ValueError('no such option for rm_resp! please double check!')
 
         tr_all.append(tr[0])
 
