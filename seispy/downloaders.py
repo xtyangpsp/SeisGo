@@ -544,7 +544,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
                     # when starttimes are between sampling points
                     fric = tr[0].stats.starttime.microsecond%(delta*1E6)
                     if fric>1E-4:
-                        tr[0].data = utils.segment_interpolate(np.float32(r.data),float(fric/(delta*1E6)))
+                        tr[0].data = utils.segment_interpolate(np.float32(tr[0].data),float(fric/(delta*1E6)))
                         #--reset the time to remove the discrepancy---
                         tr[0].stats.starttime-=(fric*1E-6)
         tr[0].detrend('demean')
