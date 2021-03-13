@@ -629,7 +629,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                     comp = enz_system[icomp]
                     indx = np.where(cc_comp==comp)[0]
                     # jump if there are not enough data
-                    dstack,stamps_final=corrdict_all[cc_comp[indx[0]]].stack(method=m)
+                    dstack,stamps_final=stacking(corrdict_all[cc_comp[indx[0]]],method=m)
                     bigstack[icomp]=dstack
                     tparameters['time']  = stamps_final[0]
                     tparameters['ngood'] = len(stamps_final)
@@ -653,7 +653,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
             if flag:print('applying stacking ...')
             for ic in cc_comp:
                 # write stacked data into ASDF file
-                dstack,stamps_final=corrdict_all[ic].stack(method=method)
+                dstack,stamps_final=stacking(corrdict_all[ic],method=method)
                 tparameters['time']  = stamps_final[0]
                 tparameters['ngood'] = len(stamps_final)
                 for i in range(len(method)):
@@ -666,67 +666,60 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
         ftmp = open(toutfn,'w');ftmp.write('done');ftmp.close()
 
 ####
-def stacking(cc_array,cc_time,cc_ngood,stack_para):
+def stacking(corrdata,method='linear'):
     '''
-    this function stacks the cross correlation data according to the user-defined substack_len parameter
+    this function stacks the cross correlation data
 
     PARAMETERS:
     ----------------------
-    cc_array: 2D numpy float32 matrix containing all segmented cross-correlation data
-    cc_time:  1D numpy array of timestamps for each segment of cc_array
-    cc_ngood: 1D numpy int16 matrix showing the number of segments for each sub-stack and/or full stack
-    stack_para: a dict containing all stacking parameters
+    corrdata: CorrData object.
+    method: stacking method, could be: linear, robust, pws, acf, or nroot.
 
     RETURNS:
     ----------------------
-    cc_array, cc_ngood, cc_time: same to the input parameters but with abnormal cross-correaltions removed
-    allstacks1: 1D matrix of stacked cross-correlation functions over all the segments
-    nstacks:    number of overall segments for the final stacks
+    dstack: 1D matrix of stacked cross-correlation functions over all the segments
+    cc_time: timestamps of the traces for the stack
     '''
-    # load useful parameters from dict
-    samp_freq = stack_para['samp_freq']
-    smethod   = stack_para['stack_method']
-    start_date   = stack_para['start_date']
-    end_date     = stack_para['end_date']
-    npts = cc_array.shape[1]
-
+    if isinstance(method,str):method=[method]
     # remove abnormal data
-    ampmax = np.max(cc_array,axis=1)
-    tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-    if not len(tindx):
-        allstacks1=[];allstacks2=[];allstacks3=[];nstacks=0
-        cc_array=[];cc_ngood=[];cc_time=[]
-        return cc_array,cc_ngood,cc_time,allstacks1,allstacks2,allstacks3,nstacks
-    else:
-
-        # remove ones with bad amplitude
-        cc_array = cc_array[tindx,:]
-        cc_time  = cc_time[tindx]
-        cc_ngood = cc_ngood[tindx]
+    if corrdata.data.ndim==1:
+        cc_time  = [corrdata.time]
 
         # do stacking
-        allstacks1 = np.zeros(npts,dtype=np.float32)
-        allstacks2 = np.zeros(npts,dtype=np.float32)
-        allstacks3 = np.zeros(npts,dtype=np.float32)
+        dstack = np.zeros((len(method),corrdata.data.shape[0]),dtype=np.float32)
+        for i in range(len(method)):
+            m =method[i]
+            dstack[i,:]=corrdata.data[:]
+    else:
+        ampmax = np.max(corrdata.data,axis=1)
+        tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+        nstacks=len(tindx)
+        dstack=[]
+        cc_time=[]
+        if nstacks >0:
+            # remove ones with bad amplitude
+            cc_array = corrdata.data[tindx,:]
+            cc_time  = corrdata.time[tindx]
 
-        if smethod == 'linear':
-            allstacks1 = np.mean(cc_array,axis=0)
-        elif smethod == 'pws':
-            allstacks1 = stack.pws(cc_array,samp_freq)
-        elif smethod == 'robust':
-            allstacks1,w,nstep = stack.robust_stack(cc_array,0.001)
-        elif smethod == 'acf':
-            allstack1 = stack.adaptive_filter(cc_array,1)
-        elif smethod == 'nroot':
-            allstack1 = stack.nroot_stack(cc_array,2)
-        elif smethod == 'all':
-            allstacks1 = np.mean(cc_array,axis=0)
-            allstacks2 = stack.pws(cc_array,samp_freq)
-            allstacks3,w,nstep = stack.robust_stack(cc_array,0.001)
-        nstacks = np.sum(cc_ngood)
+            # do stacking
+            dstack = np.zeros((len(method),corrdata.data.shape[1]),dtype=np.float32)
+            for i in range(len(method)):
+                m =method[i]
+                if nstacks==1: dstack[i,:]=cc_array
+                else:
+                    if m == 'linear':
+                        dstack[i,:] = np.mean(cc_array,axis=0)
+                    elif m == 'pws':
+                        dstack[i,:] = stack.pws(cc_array,1.0/corrdata.dt)
+                    elif m == 'robust':
+                        dstack[i,:] = stack.robust_stack(cc_array)[0]
+                    elif m == 'acf':
+                        dstack[i,:] = stack.adaptive_filter(cc_array,1)
+                    elif m == 'nroot':
+                        dstack[i,:] = stack.nroot_stack(cc_array,2)
 
     # good to return
-    return cc_array,cc_ngood,cc_time,allstacks1,allstacks2,allstacks3,nstacks
+    return dstack,cc_time
 
 
 def stacking_rma(cc_array,cc_time,cc_ngood,stack_para):

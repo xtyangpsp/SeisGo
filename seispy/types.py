@@ -96,7 +96,8 @@ class FFTData(object):
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
     """
     def __init__(self,trace,cc_len_secs,cc_step_secs,stainv=None,
-                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,misc=dict()):
+                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
+                     smooth_spec=None,misc=dict()):
         """
         Initialize the object. Will do whitening if specicied in freq_norm.
 
@@ -124,6 +125,10 @@ class FFTData(object):
         self.time_norm=time_norm
         self.freq_norm=freq_norm
         self.smooth=smooth
+        if smooth_spec is None:
+            self.smooth_spec=self.smooth
+        else:
+            self.smooth_spec=smooth_spec
         self.cc_len_secs=cc_len_secs
         self.cc_step_secs=cc_step_secs
         self.misc=misc
@@ -166,11 +171,12 @@ class FFTData(object):
             self.whiten()  # whiten and return FFT
 
     ##### method for whitening
-    def whiten(self):
+    def whiten(self,freq_norm=None,smooth=None):
         """
         Whiten FFTData
         """
-        freq_norm=self.freq_norm
+        if freq_norm is None: freq_norm=self.freq_norm
+        if smooth is None: smooth=self.smooth_spec
         if self.freqmin is None:
             raise ValueError('freqmin has to be specified as an attribute in FFTData!')
 
@@ -210,7 +216,7 @@ class FFTData(object):
                 FFTRawSign[:,left:right] = np.exp(1j * np.angle(FFTRawSign[:,left:right]))
             elif freq_norm == 'rma':
                 for ii in range(self.data.shape[0]):
-                    tave = utils.moving_ave(np.abs(FFTRawSign[ii,left:right]),self.smooth)
+                    tave = utils.moving_ave(np.abs(FFTRawSign[ii,left:right]),smooth)
                     FFTRawSign[ii,left:right] = FFTRawSign[ii,left:right]/tave
             # Right tapering:
             FFTRawSign[:,right:high] = np.cos(
@@ -229,7 +235,7 @@ class FFTData(object):
             if freq_norm == 'phase_only':
                 FFTRawSign[left:right] = np.exp(1j * np.angle(FFTRawSign[left:right]))
             elif freq_norm == 'rma':
-                tave = utils.moving_ave(np.abs(FFTRawSign[left:right]),self.smooth)
+                tave = utils.moving_ave(np.abs(FFTRawSign[left:right]),smooth)
                 FFTRawSign[left:right] = FFTRawSign[left:right]/tave
             # Right tapering:
             FFTRawSign[right:high] = np.cos(
@@ -411,57 +417,43 @@ class CorrData(object):
 
     def stack(self,method='linear'):
         '''
-        this function stacks the cross correlation data
+        this function stacks the cross correlation data. This method will overwrite the
+        data attribute with the stacked trace. Substack will be turned to False.
 
         PARAMETERS:
         ----------------------
         method: stacking method, could be: linear, robust, pws, acf, or nroot.
-
-        RETURNS:
-        ----------------------
-        dstack: 1D matrix of stacked cross-correlation functions over all the segments
-        cc_time: timestamps of the traces for the stack
         '''
-        if isinstance(method,str):method=[method]
+        if isinstance(method,list):method=method[0]
         # remove abnormal data
-        if self.data.ndim==1:
-            cc_time  = [self.time]
-
-            # do stacking
-            dstack = np.zeros((len(method),self.data.shape[0]),dtype=np.float32)
-            for i in range(len(method)):
-                m =method[i]
-                dstack[i,:]=self.data[:]
-        else:
+        if self.substack:
             ampmax = np.max(self.data,axis=1)
             tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
             nstacks=len(tindx)
-            dstack=[]
-            cc_time=[]
             if nstacks >0:
+                self.substack=False
                 # remove ones with bad amplitude
                 cc_array = self.data[tindx,:]
-                cc_time  = self.time[tindx]
+                self.time  = self.time[tindx[0]]
+                self.ngood = nstacks
 
                 # do stacking
-                dstack = np.zeros((len(method),self.data.shape[1]),dtype=np.float32)
-                for i in range(len(method)):
-                    m =method[i]
-                    if nstacks==1: dstack[i,:]=cc_array
-                    else:
-                        if m == 'linear':
-                            dstack[i,:] = np.mean(cc_array,axis=0)
-                        elif m == 'pws':
-                            dstack[i,:] = stacking.pws(cc_array,1.0/self.dt)
-                        elif m == 'robust':
-                            dstack[i,:] = stacking.robust_stack(cc_array)[0]
-                        elif m == 'acf':
-                            dstack[i,:] = stacking.adaptive_filter(cc_array,1)
-                        elif m == 'nroot':
-                            dstack[i,:] = stacking.nroot_stack(cc_array,2)
-
-        # good to return
-        return dstack,cc_time
+                dstack = np.zeros((self.data.shape[1]),dtype=np.float32)
+                if nstacks==1: dstack=cc_array
+                else:
+                    if method == 'linear':
+                        dstack = np.mean(cc_array,axis=0)
+                    elif method == 'pws':
+                        dstack = stacking.pws(cc_array,1.0/self.dt)
+                    elif method == 'robust':
+                        dstack = stacking.robust_stack(cc_array)[0]
+                    elif method == 'acf':
+                        dstack = stacking.adaptive_filter(cc_array,1)
+                    elif method == 'nroot':
+                        dstack = stacking.nroot_stack(cc_array,2)
+                #overwrite the data attribute.
+                self.data=dstack
+            print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
 
     def to_asdf(self,file,v=True):
         """
