@@ -471,7 +471,8 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
 
     return trlist,sta_inv_list
 
-def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',stainv=True):
+def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
+                stainv=True,samp_freq=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
 
@@ -529,6 +530,26 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
             else:
                 raise ValueError('no such option for rm_resp! please double check!')
 
+        if samp_freq is not None:
+            sps=int(tr[0].stats.sampling_rate)
+            delta = tr[0].stats.delta
+            #assume pressure and vertical channels have the same sampling rat
+            # make downsampling if needed
+            if sps > samp_freq:
+                print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+                if np.sum(np.isnan(tr[0].data))>0:
+                    raise(Exception('NaN found in trace'))
+                else:
+                    tr[0].interpolate(samp_freq,method='weighted_average_slopes')
+                    # when starttimes are between sampling points
+                    fric = tr[0].stats.starttime.microsecond%(delta*1E6)
+                    if fric>1E-4:
+                        tr[0].data = utils.segment_interpolate(np.float32(r.data),float(fric/(delta*1E6)))
+                        #--reset the time to remove the discrepancy---
+                        tr[0].stats.starttime-=(fric*1E-6)
+        tr[0].detrend('demean')
+        tr[0].detrend('linear')
+        tr[0].taper(0.005)
         tr_all.append(tr[0])
 
         if stainv:

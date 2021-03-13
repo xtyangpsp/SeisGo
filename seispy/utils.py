@@ -579,14 +579,11 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     trace_stdS: standard deviation of the noise amplitude of each segment
     dataS_t:    timestamps of each segment
     dataS:      2D matrix of the segmented data
-
-    ##TODO: deal with gaps, regardless of expected length.
     '''
     # define return variables first
     source_params=[];dataS_t=[];dataS=[]
 
     # useful parameters for trace sliding
-    # nseg = int(np.floor((exp_len_hours*3600-slice_len_secs)/slice_step_secs))
     sps  = int(source[0].stats.sampling_rate)
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
     endtime = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
@@ -599,11 +596,6 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     # copy data into array
     data = source[0].data
 
-    # if the data is shorter than the tim chunck, return zero values
-    # if data.size < sps*exp_len_hours*3600:
-    #     print('data is smaller than expected length of the chunck. return empty data.')
-    #     return source_params,dataS_t,dataS
-
     # statistic to detect segments that may be associated with earthquakes
     all_madS = mad(data)	            # median absolute deviation over all noise window
     all_stdS = np.std(data)	        # standard deviation over all noise window
@@ -613,7 +605,6 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
 
     # initialize variables
     npts = slice_len_secs*sps
-    #trace_madS = np.zeros(nseg,dtype=np.float32)
     trace_stdS = np.zeros(nseg,dtype=np.float32)
     dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
     dataS_t  = np.zeros(nseg,dtype=np.float)
@@ -622,7 +613,6 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     for iseg in range(nseg):
         indx2 = indx1+npts
         dataS[iseg] = data[indx1:indx2]
-        #trace_madS[iseg] = (np.max(np.abs(dataS[iseg]))/all_madS)
         trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
         dataS_t[iseg]    = starttime+slice_step_secs*iseg
         indx1 = indx1+slice_step_secs*sps
