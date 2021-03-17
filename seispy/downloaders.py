@@ -94,6 +94,9 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     dict = {'network': net, 'station': sta, 'channel': chan, 'latitude': lat, 'longitude': lon, 'elevation': elev}
     locs = pd.DataFrame(dict)
     if fname is not None:
+        fsplit=fname.split('/')[:-1]
+        fdir=os.path.join(*fsplit)
+        if not os.path.isdir(fdir):os.makedirs(fdir)
         locs.to_csv(fname, index=False)
 
     return locs
