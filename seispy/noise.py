@@ -29,14 +29,14 @@ def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
 
 def compute_fft(trace,cc_len_secs,cc_step_secs,stainv=None,
                  freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
-                 smooth=20,misc=dict()):
+                 smooth=20,smooth_spec=None,misc=dict()):
     """
     Call FFTData to build the object. This is an alternative of directly call FFTData().
     The motivation of this function is to provide an user interface to build FFTData object.
     """
     return FFTData(trace=trace,cc_len_secs=cc_len_secs,cc_step_secs=cc_step_secs,
                     stainv=stainv,freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,freq_norm=freq_norm,
-                    smooth=smooth,misc=misc)
+                    smooth=smooth,smooth_spec=smooth_spec,misc=misc)
 #assemble FFT with given asdf file name
 def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,exclude_chan=[None],v=True):
