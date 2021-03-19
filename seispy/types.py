@@ -519,7 +519,7 @@ class CorrData(object):
             nzsec=corrtime.second
             nzmsec=corrtime.microsecond
             if file is None:
-                file=str(corrtime).replace(':', '.')+'.'+self.id+'.'+self.cc_comp+'.sac'
+                file=str(corrtime).replace(':', '-')+'_'+self.id+'.'+self.cc_comp+'.sac'
             sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                            b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                            evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data)
@@ -538,7 +538,7 @@ class CorrData(object):
                 nzsec=corrtime.second
                 nzmsec=corrtime.microsecond
                 if file is None:
-                    ofile=file=str(corrtime).replace(':', '.')+'.'+self.id+'.'+self.cc_comp+'.sac'
+                    ofile=str(corrtime).replace(':', '-')+'_'+self.id+'.'+self.cc_comp+'.sac'
                     sacfile  = os.path.join(outdir,ofile)
                 else:
                     sacfile  = os.path.join(outdir,file)
