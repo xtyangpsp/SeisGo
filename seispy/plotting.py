@@ -270,8 +270,8 @@ def plot_corrfile(sfile,freqmin,freqmax,lag=None,comp='ZZ',
     clist=list(corrdict.keys())
     for c in clist:
         corr=corrdict[c]
-        for i in range(len(corr)):
-            plot_corrdata(corr[i],freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir)
+        if comp in list(corr.keys()):
+            corr[comp].plot(freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir)
 
 
 def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8)):
@@ -752,14 +752,15 @@ def plot_substack_all_spect(sfile,freqmin,freqmax,comp,lag=None,save=False,figdi
 Modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
 Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
 '''
-def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False,figdir=None):
+def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save=False,\
+                                figsize=None,format='png',figdir=None):
     '''
     display the moveout (2D matrix) of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
     ---------------------
     sfile: cross-correlation functions outputed by S2
     sta: station name as the virtual source.
-    dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
+    dtype: datatype either 'Allstack_pws' or 'Allstack_linear'
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
     comp:   cross component
@@ -774,12 +775,37 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
     # open data for read
     if save:
         if figdir==None:print('no path selected! save figures in the default path')
+    if not isinstance(freq[0],list):freq=[freq]
+    freq=np.array(freq)
+    figlabels=['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)','(i)']
+    if freq.shape[0]>9:
+        raise ValueError('freq includes more than 9 (maximum allowed for now) elements!')
+    elif freq.shape[0]==9:
+        subplot=[3,3]
+        figsize0=[14,7.5]
+    elif freq.shape[0] >=7 and freq.shape[0] <=8:
+        subplot=[2,4]
+        figsize0=[18,10]
+    elif freq.shape[0] >=5 and freq.shape[0] <=6:
+        subplot=[2,3]
+        figsize0=[14,7.5]
+    elif freq.shape[0] ==4:
+        subplot=[2,2]
+        figsize0=[10,6]
+    else:
+        subplot=[1,freq.shape[0]]
+        if freq.shape[0]==3:
+            figsize0=[13,3]
+        elif freq.shape[0]==2:
+            figsize0=[8,3]
+        else:
+            figsize0=[4,3]
+    if figsize is None:figsize=figsize0
 
     path  = comp
-    freqmin=freq[0]
-    freqmax=freq[1]
+
     receiver = sta+'.h5'
-    stack_method = dtype.split('0')[-1]
+    stack_method = dtype.split('_')[-1]
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mpi=False,mode='r')
@@ -797,7 +823,8 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
 
     # cc matrix
     nwin = len(sfiles)
-    data = np.zeros(shape=(nwin,indx2-indx1),dtype=np.float32)
+
+    data0 = np.zeros(shape=(nwin,indx2-indx1),dtype=np.float32)
     dist = np.zeros(nwin,dtype=np.float32)
     ngood= np.zeros(nwin,dtype=np.int16)
 
@@ -816,48 +843,59 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
         except Exception:
             print("continue! cannot read %s "%sfile);continue
 
-        data[ii] = bandpass(tdata,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
+        data0[ii] = tdata
 
-    # average cc
     ntrace = int(np.round(np.max(dist)+0.51)/dist_inc)
-    ndata  = np.zeros(shape=(ntrace,indx2-indx1),dtype=np.float32)
-    ndist  = np.zeros(ntrace,dtype=np.float32)
-    for td in range(0,ntrace-1):
-        tindx = np.where((dist>=td*dist_inc)&(dist<(td+1)*dist_inc))[0]
-        if len(tindx):
-            ndata[td] = np.mean(data[tindx],axis=0)
-            ndist[td] = (td+0.5)*dist_inc
 
-    # normalize waveforms
-    indx  = np.where(ndist>0)[0]
-    ndata = ndata[indx]
-    ndist = ndist[indx]
-    for ii in range(ndata.shape[0]):
-        # print(ii,np.max(np.abs(ndata[ii])))
-        ndata[ii] /= np.max(np.abs(ndata[ii]))
+    fig=plt.figure(figsize=figsize)
 
-    # plotting figures
-    fig,ax = plt.subplots()
-    ax.matshow(ndata,cmap='seismic',extent=[-lag,lag,ndist[-1],ndist[0]],aspect='auto')
-    ax.set_title('%s allstack %s @%5.3f-%5.2f Hz'%(sta,stack_method,freqmin,freqmax))
-    ax.set_xlabel('time [s]')
-    ax.set_ylabel('distance [km]')
-    ax.set_xticks(t)
-    ax.xaxis.set_ticks_position('bottom')
-    #ax.text(np.ones(len(ndist))*(lag-5),dist[ndist],ngood[ndist],fontsize=8)
+    for f in range(len(freq)):
+        freqmin=freq[f][0]
+        freqmax=freq[f][1]
+        data = np.zeros(shape=(nwin,indx2-indx1),dtype=np.float32)
+        for i2 in range(data0.shape[0]):
+            data[i2]=bandpass(data0[i2],freqmin,freqmax,1/dt,corners=4, zerophase=True)
 
+        # average cc
+        ndata  = np.zeros(shape=(ntrace,indx2-indx1),dtype=np.float32)
+        ndist  = np.zeros(ntrace,dtype=np.float32)
+        for td in range(ndata.shape[0]):
+            tindx = np.where((dist>=td*dist_inc)&(dist<(td+1)*dist_inc))[0]
+            if len(tindx):
+                ndata[td] = np.mean(data[tindx],axis=0)
+                ndist[td] = (td+0.5)*dist_inc
+
+        # normalize waveforms
+        indx  = np.where(ndist>0)[0]
+        ndata = ndata[indx]
+        ndist = ndist[indx]
+        for ii in range(ndata.shape[0]):
+            # print(ii,np.max(np.abs(ndata[ii])))
+            ndata[ii] /= np.max(np.abs(ndata[ii]))
+
+        # plotting figures
+        ax=fig.add_subplot(subplot[0],subplot[1],f+1)
+        ax.matshow(ndata,cmap='seismic',extent=[-lag,lag,ndist[-1],ndist[0]],aspect='auto')
+        ax.set_title('%s %s stack %s %5.3f-%5.2f Hz'%(figlabels[f],sta,stack_method,freqmin,freqmax))
+        ax.set_xlabel('time [s]')
+        ax.set_ylabel('distance [km]')
+        ax.set_xticks(t)
+        ax.xaxis.set_ticks_position('bottom')
+        #ax.text(np.ones(len(ndist))*(lag-5),dist[ndist],ngood[ndist],fontsize=8)
+
+    plt.tight_layout()
     # save figure or show
     if save:
-        outfname = figdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(dist_inc)+'kmbin_'+comp+'.png'
-        fig.savefig(outfname, format='png', dpi=300)
+        outfname = figdir+'/moveout_'+sta+'_heatmap_'+str(stack_method)+'_'+str(dist_inc)+'kmbin_'+comp+'.'+format
+        plt.savefig(outfname, format=format, dpi=300)
         plt.close()
     else:
-        fig.show()
+        plt.show()
 
 
 #test functions
-def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],
-                              scale=1.0,lag=None,ylim=None,save=False,figdir=None,minsnr=None):
+def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=None,\
+                            ylim=None,save=False,figsize=None,figdir=None,format='png',minsnr=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -878,6 +916,32 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','
     ----------------------
     plot_xcorr_moveout_wiggle('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
     '''
+    if not isinstance(freq[0],list):freq=[freq]
+    freq=np.array(freq)
+    figlabels=['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)','(i)']
+    if freq.shape[0]>9:
+        raise ValueError('freq includes more than 9 (maximum allowed for now) elements!')
+    elif freq.shape[0]==9:
+        subplot=[3,3]
+        figsize0=[14,7.5]
+    elif freq.shape[0] >=7 and freq.shape[0] <=8:
+        subplot=[2,4]
+        figsize0=[18,10]
+    elif freq.shape[0] >=5 and freq.shape[0] <=6:
+        subplot=[2,3]
+        figsize0=[14,7.5]
+    elif freq.shape[0] ==4:
+        subplot=[2,2]
+        figsize0=[10,6]
+    else:
+        subplot=[1,freq.shape[0]]
+        if freq.shape[0]==3:
+            figsize0=[13,3]
+        elif freq.shape[0]==2:
+            figsize0=[8,3]
+        else:
+            figsize0=[4,3]
+    if figsize is None:figsize=figsize0
     #
     qc=False
     if minsnr is not None:
@@ -887,130 +951,112 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','
     if save:
         if figdir==None:print('no path selected! save figures in the default path')
 
-    freqmin=freq[0]
-    freqmax=freq[1]
     receiver = sta+'.h5'
     stack_method = dtype.split('_')[-1]
-    typeofcomp=str(type(ccomp)).split("'")[1]
-    ccomptemp=[]
-    if typeofcomp=='str':
-        ccomptemp.append(ccomp)
-        ccomp=ccomptemp
-    # print(ccomp)
-
-    #determine subplot parameters if not specified.
-    if len(ccomp)>9:
-        raise ValueError('ccomp includes more than 9 (maximum allowed) elements!')
-    elif len(ccomp)==9:
-        subplot=[3,3]
-        figsize=[14,10.5]
-    elif len(ccomp) >=7 and len(ccomp) <=8:
-        subplot=[2,4]
-        figsize=[18,7.5]
-    elif len(ccomp) >=5 and len(ccomp) <=6:
-        subplot=[2,3]
-        figsize=[14,7.5]
-    elif len(ccomp) ==4:
-        subplot=[2,2]
-        figsize=[10,7.5]
-    else:
-        subplot=[1,len(ccomp)]
-        if len(ccomp)==3:
-            figsize=[13,3]
-        elif len(ccomp)==2:
-            figsize=[8,3]
-        else:
-            figsize=[4,3]
+    if isinstance(ccomp,str):ccomp=[ccomp]
 
     # extract common variables
     try:
         ds    = pyasdf.ASDFDataSet(sfiles[0],mpi=False,mode='r')
-        dt    = ds.auxiliary_data[dtype][ccomp[0]].parameters['dt']
-        maxlag= ds.auxiliary_data[dtype][ccomp[0]].parameters['maxlag']
+        complist=ds.auxiliary_data[dtype].list()
+        dt    = ds.auxiliary_data[dtype][complist[0]].parameters['dt']
+        maxlag= ds.auxiliary_data[dtype][complist[0]].parameters['maxlag']
     except Exception:
         print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
-
+    if ccomp is None:ccomp=complist
     # lags for display
     if lag is None:lag=maxlag
     if lag>maxlag:raise ValueError('lag excceds maxlag!')
-    tt = np.arange(-int(lag),int(lag)+dt,dt)
+    tt = np.arange(-lag,lag+dt,dt)
     indx0= int(maxlag/dt) #zero time index
     indx1 = int((maxlag-lag)/dt)
     indx2 = indx1+2*int(lag/dt)+1
 
     # load cc and parameter matrix
-    plt.figure(figsize=figsize)
     for ic in range(len(ccomp)):
         comp = ccomp[ic]
-#         tmp  = '33'+str(ic+1)
-        plt.subplot(subplot[0],subplot[1],ic+1)
-        mdist=0
+
+        data0 = np.zeros(shape=(len(sfiles),indx2-indx1),dtype=np.float32)
+        dist = np.zeros(len(sfiles),dtype=np.float32)
+        snrneg = np.zeros(len(sfiles),dtype=np.float32)
+        snrpos = np.zeros(len(sfiles),dtype=np.float32)
+        iflip = np.zeros(len(sfiles),dtype=np.int16)
         for ii in range(len(sfiles)):
             sfile = sfiles[ii]
-            iflip = 0
+            iflip[ii] = 0
             treceiver = sfile.split('_')[-1]
             if treceiver == receiver:
-                iflip = 1
+                iflip[ii] = 1
 
             ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
             try:
                 # load data to variables
-                dist = ds.auxiliary_data[dtype][comp].parameters['dist']
+                dist[ii] = ds.auxiliary_data[dtype][comp].parameters['dist']
                 ngood= ds.auxiliary_data[dtype][comp].parameters['ngood']
-                tdata  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
+                data0[ii]  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
 
                 if qc:
                     #get the pseudo-SNR: maximum absolute amplitude/mean absolute amplitude.
                     dneg=ds.auxiliary_data[dtype][comp].data[indx1:indx0-1]
                     dpos=ds.auxiliary_data[dtype][comp].data[indx0+1:indx2]
-                    snrneg=np.max(np.abs(dneg))/np.mean(np.abs(dneg))
-                    snrpos=np.max(np.abs(dpos))/np.mean(np.abs(dpos))
+                    snrneg[ii]=np.max(np.abs(dneg))/np.mean(np.abs(dneg))
+                    snrpos[ii]=np.max(np.abs(dpos))/np.mean(np.abs(dpos))
 #                     print([snrneg,snrpos])
-                    if np.max([snrneg,snrpos]) < minsnr:
-#                         print("continue! didn't pass QC.")
-                        continue
-
             except Exception as e:
                 print("continue! error working on %s "%sfile);
                 print(e)
                 continue
 
+        mdist=np.max(dist)
+        mindist=np.min(dist)
+        plt.figure(figsize=figsize)
+        for f in range(freq.shape[0]):
+            freqmin=freq[f][0]
+            freqmax=freq[f][1]
+            plt.subplot(subplot[0],subplot[1],f+1)
 
-            if ylim is not None:
-                if dist>ylim[1] or dist<ylim[0]:
-                    continue
-            elif dist>mdist:
-                mdist=dist
+            for i2 in range(data0.shape[0]):
+                tdata = bandpass(data0[i2],freqmin,freqmax,1/dt,corners=4, zerophase=True)
+                tdata /= np.max(tdata,axis=0)
 
-            tdata = bandpass(tdata,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-            tdata /= np.max(tdata,axis=0)
+                if ylim is not None:
+                    if dist[i2]>ylim[1] or dist[i2]<ylim[0]:
+                        continue
+                if qc:
+                    if np.max([snrneg[i2],snrpos[i2]]) < minsnr:
+                        continue
 
-            if iflip:
-                plt.plot(tt,scale*np.flip(tdata,axis=0)+dist,'k',linewidth=0.8)
-            else:
-                plt.plot(tt,scale*tdata+dist,'k',linewidth=0.8)
-            plt.title('%s filtered @%5.3f-%5.3f Hz' % (sta,freqmin,freqmax))
+                if iflip[i2]:
+                    plt.plot(tt,scale*np.flip(tdata,axis=0)+dist[i2],'k',linewidth=0.8)
+                else:
+                    plt.plot(tt,scale*tdata+dist[i2],'k',linewidth=0.8)
+            plt.title('%s %s filtered %5.3f-%5.3f Hz' % (figlabels[f],sta,freqmin,freqmax))
             plt.xlabel('time (s)')
             plt.ylabel('offset (km)')
 
-        plt.xlim([-1.0*lag,lag])
-        if ylim is None:
-            ylim=[0.0,mdist]
-        plt.plot([0,0],ylim,'b--',linewidth=1)
+            plt.xlim([-1.0*lag,lag])
+            if ylim is None:
+                ylim=[0.8*mindist,1.1*mdist]
+            plt.plot([0,0],ylim,'b--',linewidth=1)
 
-        plt.ylim(ylim)
-        font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
-        plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),comp,fontdict=font,
-                 bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
-    plt.tight_layout()
+            plt.ylim(ylim)
+            font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
+            plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),comp,fontdict=font,
+                     bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
+        plt.tight_layout()
 
-    # save figure or show
-    if save:
-        outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(freqmin)+'_'+str(freqmax)+'Hz_'+str(len(ccomp))+'ccomp_minsnr'+str(minsnr)+'.png'
-        plt.savefig(outfname, format='png', dpi=300)
-        plt.close()
-    else:
-        plt.show()
+        # save figure or show
+        if save:
+            if len(ccomp)>1:
+                outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(len(ccomp))+\
+                            'ccomp_minsnr'+str(minsnr)+'.'+format
+            else:
+                outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+ccomp[0]+\
+                            '_minsnr'+str(minsnr)+'.'+format
+            plt.savefig(outfname, format=format, dpi=300)
+            plt.close()
+        else:
+            plt.show()
 
 #get peak amplitudes
 def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],

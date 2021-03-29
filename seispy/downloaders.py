@@ -23,8 +23,10 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     lon = [];
     lat = [];
     elev = []
-
-    client=Client(source)
+    if source == 'IRISPH5':
+        client=Client(service_mappings={'station':'http://service.iris.edu/ph5ws/station/1'})
+    else:
+        client=Client(source)
     # time tags
     starttime_UTC = obspy.UTCDateTime(starttime)
     endtime_UTC   = obspy.UTCDateTime(endtime)
@@ -92,6 +94,9 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     dict = {'network': net, 'station': sta, 'channel': chan, 'latitude': lat, 'longitude': lon, 'elevation': elev}
     locs = pd.DataFrame(dict)
     if fname is not None:
+        fsplit=fname.split('/')[:-1]
+        fdir=os.path.join(*fsplit)
+        if not os.path.isdir(fdir):os.makedirs(fdir)
         locs.to_csv(fname, index=False)
 
     return locs
@@ -133,7 +138,12 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     sacheader : bool
             Key sacheader information in a dictionary using the SAC header naming convention.
     """
-    client = Client(source)
+
+    if source == 'IRISPH5':
+        client=Client(service_mappings={'dataselect':'http://service.iris.edu/ph5ws/dataselect/1',
+                        'station':'http://service.iris.edu/ph5ws/station/1'})
+    else:
+        client=Client(source)
     tr = None
     sac=dict() #place holder to save some sac headers.
     #check arguments
@@ -145,7 +155,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     """
     a. Downloading
     """
-    if sacheader or getstainv:
+    if sacheader or getstainv or rmresp:
         inv = client.get_stations(network=net,station=sta,
                         channel=chan,location="*",starttime=starttime,endtime=endtime,
                         level='response')
@@ -161,7 +171,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
 
     # pressure channel
     tr=client.get_waveforms(network=net,station=sta,
-                    channel=chan,location="*",starttime=starttime,endtime=endtime,attach_response=True)
+                    channel=chan,location="*",starttime=starttime,endtime=endtime)
 #     trP[0].detrend()
     print('number of segments downloaded: '+str(len(tr)))
 
@@ -217,6 +227,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
             else:
                 try:
                     print('  removing response using inv for '+net+"."+sta+"."+r.stats.channel)
+                    r.attach_response(inv)
                     r.remove_response(output=rmresp_output,pre_filt=pre_filt,
                                               water_level=60,zero_mean=True,plot=False)
                 except Exception as e:
@@ -462,3 +473,93 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                     break
 
     return trlist,sta_inv_list
+
+def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
+                stainv=True,samp_freq=None):
+    """
+    Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
+
+    ==== PARAMETERS ====
+    files: local data file or a list of files.
+    rm_resp: 'no'[default], 'spectrum', 'RESP', or 'polozeros'.
+    respdir: directory for response files, default is '.'
+    freqmin: minimum frequency in removing responses. default is 0.001
+    freqmax: maximum frequency in removing responses. default is 0.499*sample_rate
+    rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
+    stainv: get station inventory or not, default is True.
+
+    ==== RETURNS ====
+    tr_all: all traces as a list of obspy Trace objects.
+    inv_all: all inventory objects, if stainv flag is True. Otherwise, only tr_all will be returned.
+    """
+    if isinstance(files,str):files=[files]
+    tr_all=[]
+    inv_all=[]
+    for f in files:
+        tr=obspy.read(f, debug_headers=True)
+
+        fs=tr[0].stats.sampling_rate
+        if freqmin is None: freqmin=0.001
+        if freqmax is None: freqmax=0.499*fs
+        pre_filt = set_filter(fs, freqmin,freqmax)
+        net=tr[0].stats.network
+        sta=tr[0].stats.station
+        chan=tr[0].stats.channel
+        netstachan=net+"."+sta+"."+chan
+        date_info = {'starttime':tr[0].stats.starttime,'endtime':tr[0].stats.endtime}
+        if rm_resp != 'no':
+            if rm_resp == 'spectrum':
+                print('remove response using spectrum')
+                specfile = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if len(specfile)==0:
+                    raise ValueError('no response sepctrum found for %s' % netstachan)
+                tr = utils.resp_spectrum(tr,specfile[0],fs,pre_filt)
+
+            elif rm_resp == 'RESP':
+                print('remove response using RESP files')
+                resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
+                print(resp)
+                if len(resp)==0:
+                    raise ValueError('no RESP files found for %s' % netstachan)
+                seedresp = {'filename':resp[0],'date':date_info['starttime'],'units':rm_resp_out}
+                tr.simulate(paz_remove=None,pre_filt=pre_filt,seedresp=seedresp)
+
+            elif rm_resp == 'polozeros':
+                print('remove response using polos and zeros')
+                paz_sts = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if len(paz_sts)==0:
+                    raise ValueError('no polozeros found for %s' % netstachan)
+                tr.simulate(paz_remove=paz_sts[0],pre_filt=pre_filt)
+            else:
+                raise ValueError('no such option for rm_resp! please double check!')
+
+        if samp_freq is not None:
+            sps=int(tr[0].stats.sampling_rate)
+            delta = tr[0].stats.delta
+            #assume pressure and vertical channels have the same sampling rat
+            # make downsampling if needed
+            if sps > samp_freq:
+                print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+                if np.sum(np.isnan(tr[0].data))>0:
+                    raise(Exception('NaN found in trace'))
+                else:
+                    tr[0].interpolate(samp_freq,method='weighted_average_slopes')
+                    # when starttimes are between sampling points
+                    fric = tr[0].stats.starttime.microsecond%(delta*1E6)
+                    if fric>1E-4:
+                        tr[0].data = utils.segment_interpolate(np.float32(tr[0].data),float(fric/(delta*1E6)))
+                        #--reset the time to remove the discrepancy---
+                        tr[0].stats.starttime-=(fric*1E-6)
+        tr[0].detrend('demean')
+        tr[0].detrend('linear')
+        tr[0].taper(0.005)
+        tr_all.append(tr[0])
+
+        if stainv:
+            inv_all.append(utils.stats2inv(tr[0].stats))
+    #
+    #return
+    if stainv:
+        return tr_all,inv_all
+    else:
+        return tr_all

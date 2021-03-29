@@ -1,5 +1,4 @@
 import os,sys,glob,time
-import copy
 import obspy
 import scipy
 import pycwt
@@ -7,13 +6,9 @@ import pyasdf
 import datetime
 import numpy as np
 import pandas as pd
-from scipy.signal import hilbert
-from obspy.signal.util import _npts2nfft
 from obspy.signal.invsim import cosine_taper
 from obspy.signal.regression import linear_regression
-from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from scipy.fftpack import fft,ifft,next_fast_len
-from obspy.signal.filter import bandpass,lowpass
 from seispy import stacking as stack
 from seispy.types import CorrData, FFTData
 from seispy import utils
@@ -34,14 +29,14 @@ def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
 
 def compute_fft(trace,cc_len_secs,cc_step_secs,stainv=None,
                  freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
-                 smooth=20,misc=dict()):
+                 smooth=20,smooth_spec=None,misc=dict()):
     """
     Call FFTData to build the object. This is an alternative of directly call FFTData().
     The motivation of this function is to provide an user interface to build FFTData object.
     """
     return FFTData(trace=trace,cc_len_secs=cc_len_secs,cc_step_secs=cc_step_secs,
                     stainv=stainv,freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,freq_norm=freq_norm,
-                    smooth=smooth,misc=misc)
+                    smooth=smooth,smooth_spec=smooth_spec,misc=misc)
 #assemble FFT with given asdf file name
 def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,exclude_chan=[None],v=True):
@@ -200,7 +195,7 @@ def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr'
     return ndata
 
 def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
-                substack_len=None,smoothspect_N=20,maxstd=10):
+                substack_len=None,smoothspect_N=20,maxstd=10,terror=0.01):
     '''
     this function does the cross-correlation in freq domain and has the option to keep sub-stacks of
     the cross-correlation if needed. it takes advantage of the linear relationship of ifft, so that
@@ -212,6 +207,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     fftdata2: FFTData of the receiver station
     maxlag:  maximum lags to keep in the cross correlation
     method:  cross-correlation methods selected by the user
+    terror: 0-1 fraction of timing error in searching for overlapping. The timing error =
+                    terror*dt
     RETURNS:
     ---------------------
     corrdata: CorrData object of cross-correlation functions in time domain
@@ -220,7 +217,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
 
     #check overlapping timestamps before any other processing
     #this step is required when there are gaps in the data.
-    ind1,ind2=utils.check_overlap(fftdata1.time,fftdata2.time)
+    ind1,ind2=utils.check_overlap(fftdata1.time,fftdata2.time,error=terror*fftdata1.dt)
     if not len(ind1):
         print('no overlapped timestamps in the data.')
         return corrdata
@@ -249,7 +246,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     fft1=fftdata1.data[bb_data1,:Nfft2]
     fft1=np.conj(fft1) #get the conjugate of fft1
     nwin  = fft1.shape[0]
-    fft2=fftdata2.data[bb_data1,:Nfft2]
+    fft2=fftdata2.data[bb_data2,:Nfft2]
 
     timestamp=fftdata1.time[bb_data1]
 
@@ -350,8 +347,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                     loc=[fftdata1.loc,fftdata2.loc],chan=[fftdata1.chan,fftdata2.chan],\
                     lon=[fftdata1.lon,fftdata2.lon],lat=[fftdata1.lat,fftdata2.lat],\
                     ele=[fftdata1.ele,fftdata2.ele],cc_comp=cc_comp,lag=maxlag,\
-                    dt=fftdata1.dt,dist=dist,az=azi,baz=baz,ngood=n_corr,time=t_corr,data=s_corr,\
-                    substack=substack,misc={"cc_method":method})
+                    dt=fftdata1.dt,dist=dist/1000,az=azi,baz=baz,ngood=n_corr,time=t_corr,data=s_corr,\
+                    substack=substack,misc={"cc_method":method,"dist_unit":"km"})
     return corrdata
 
 def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
@@ -538,67 +535,191 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
         'comp':comp}
     return parameters
 
-def stacking(cc_array,cc_time,cc_ngood,stack_para):
+def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotation=False,correctionfile=None,flag=False):
+    # source folder
+    if pairlist is None:
+        pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
+        if len(ccfiles)==0:
+            raise IOError('Abort! no available CCF data for stacking')
+        for s in netsta_all:
+            tmp = os.path.join(outdir,s)
+            if not os.path.isdir(tmp):os.mkdir(tmp)
+    if isinstance(pairlist,str):pairlist=[pairlist]
+
+    if not os.path.isdir(outdir):os.makedirs(outdir)
+    if rotation:
+        enz_system = ['EE','EN','EZ','NE','NN','NZ','ZE','ZN','ZZ']
+        rtz_components = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
+    for pair in pairlist:
+        ttr   = pair.split('_')
+        snet,ssta = ttr[0].split('.')
+        rnet,rsta = ttr[1].split('.')
+        idir  = ttr[0]
+
+        # continue when file is done
+        toutfn = os.path.join(outdir,idir+'/'+pair+'.tmp')
+        if os.path.isfile(toutfn):continue
+        if flag:print('assembling all corrdata ...')
+        t0=time.time()
+        corrdict_all=dict() #all components for the single station pair
+        txtract=np.zeros(len(ccfiles),dtype=np.float32)
+        tmerge=np.zeros(len(ccfiles),dtype=np.float32)
+        tparameters=None
+        for i,ifile in enumerate(ccfiles):
+            # tt00=time.time()
+            corrdict=extract_corrdata(ifile,pair=pair)
+            # txtract[i]=time.time()-tt00
+            if len(list(corrdict.keys()))>0:
+                comp_list=list(corrdict[pair].keys())
+
+                if len(comp_list)==0:
+                    continue
+                elif len(comp_list) >9:
+                    print(comp_list)
+                    raise ValueError('more than 9 cross-component exists for %s %s! please double check'%(ifile,pair))
+
+                ### merge same component corrdata.
+                # tt11=time.time()
+                for c in comp_list:
+                    if tparameters is None:tparameters=corrdict[pair][c].misc
+                    if c in list(corrdict_all.keys()):
+                        corrdict_all[c].merge(corrdict[pair][c])
+                    else:corrdict_all[c]=corrdict[pair][c]
+                # tmerge[i]=time.time()-tt11
+        #
+        # if flag:print('extract time:'+str(np.sum(txtract)))
+        # if flag:print('merge time:'+str(np.sum(tmerge)))
+        t1=time.time()
+        if flag:print('finished assembling in %6.2fs ...'%(t1-t0))
+        #get length info from anyone of the corrdata, assuming all corrdata having the same length.
+        cc_comp=list(corrdict_all.keys()) #final check on number of keys after merging all data.
+        if len(cc_comp)==0:
+            if flag:print('continue! no cross components for %s'%(pair))
+            continue
+        elif len(cc_comp)<9 and rotation:
+            if flag:print('continue! not enough cross components for %s to do rotation'%(pair))
+            continue
+        elif len(cc_comp) >9:
+            print(cc_comp)
+            raise ValueError('more than 9 cross-component exists for %s! please double check'%(pair))
+
+        #save data.
+        outfn = pair+'.h5'
+        if flag:print('ready to output to %s'%(outfn))
+
+        t2=time.time()
+        # loop through cross-component for stacking
+        if isinstance(method,str):method=[method]
+        tparameters['station_source']=ssta
+        tparameters['station_receiver']=rsta
+        if rotation: #need to order the components according to enz_system list.
+            if corrdict_all[cc_comp[0]].substack:
+                npts_segmt  = corrdict_all[cc_comp[0]].data.shape[1]
+            else:
+                npts_segmt  = corrdict_all[cc_comp[0]].data.shape[0]
+            bigstack=np.zeros(shape=(9,npts_segmt),dtype=np.float32)
+            if flag:print('applying stacking and rotation ...')
+            stack_h5 = os.path.join(outdir,idir+'/'+outfn)
+            ds=pyasdf.ASDFDataSet(stack_h5,mpi=False)
+            #codes for ratation option.
+            for m in method:
+                data_type = 'Allstack_'+m
+                bigstack=np.zeros(shape=(9,npts_segmt),dtype=np.float32)
+                for icomp in range(9):
+                    comp = enz_system[icomp]
+                    indx = np.where(cc_comp==comp)[0]
+                    # jump if there are not enough data
+                    dstack,stamps_final=stacking(corrdict_all[cc_comp[indx[0]]],method=m)
+                    bigstack[icomp]=dstack
+                    tparameters['time']  = stamps_final[0]
+                    tparameters['ngood'] = len(stamps_final)
+                    ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp, parameters=tparameters)
+                # start rotation
+                if np.all(bigstack==0):continue
+
+                bigstack_rotated = rotation(bigstack,tparameters,correctionfile,flag)
+
+                # write to file
+                data_type = 'Allstack_'+m
+                for icomp2 in range(9):
+                    rcomp  = rtz_components[icomp2]
+                    if rcomp != 'ZZ':
+                        ds.add_auxiliary_data(data=bigstack_rotated[icomp2], data_type=data_type,
+                                                path=rcomp, parameters=tparameters)
+
+        else: #no need to care about the order of components.
+            stack_h5 = os.path.join(outdir,idir+'/'+outfn)
+            ds=pyasdf.ASDFDataSet(stack_h5,mpi=False)
+            if flag:print('applying stacking ...')
+            for ic in cc_comp:
+                # write stacked data into ASDF file
+                dstack,stamps_final=stacking(corrdict_all[ic],method=method)
+                tparameters['time']  = stamps_final[0]
+                tparameters['ngood'] = len(stamps_final)
+                for i in range(len(method)):
+                    m=method[i]
+                    ds.add_auxiliary_data(data=dstack[i,:], data_type='Allstack_'+m, path=ic, parameters=tparameters)
+
+        #
+        if flag: print('stacking and saving took %6.2fs'%(time.time()-t2))
+        # write file stamps
+        ftmp = open(toutfn,'w');ftmp.write('done');ftmp.close()
+
+####
+def stacking(corrdata,method='linear'):
     '''
-    this function stacks the cross correlation data according to the user-defined substack_len parameter
+    this function stacks the cross correlation data
 
     PARAMETERS:
     ----------------------
-    cc_array: 2D numpy float32 matrix containing all segmented cross-correlation data
-    cc_time:  1D numpy array of timestamps for each segment of cc_array
-    cc_ngood: 1D numpy int16 matrix showing the number of segments for each sub-stack and/or full stack
-    stack_para: a dict containing all stacking parameters
+    corrdata: CorrData object.
+    method: stacking method, could be: linear, robust, pws, acf, or nroot.
 
     RETURNS:
     ----------------------
-    cc_array, cc_ngood, cc_time: same to the input parameters but with abnormal cross-correaltions removed
-    allstacks1: 1D matrix of stacked cross-correlation functions over all the segments
-    nstacks:    number of overall segments for the final stacks
+    dstack: 1D matrix of stacked cross-correlation functions over all the segments
+    cc_time: timestamps of the traces for the stack
     '''
-    # load useful parameters from dict
-    samp_freq = stack_para['samp_freq']
-    smethod   = stack_para['stack_method']
-    start_date   = stack_para['start_date']
-    end_date     = stack_para['end_date']
-    npts = cc_array.shape[1]
-
+    if isinstance(method,str):method=[method]
     # remove abnormal data
-    ampmax = np.max(cc_array,axis=1)
-    tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-    if not len(tindx):
-        allstacks1=[];allstacks2=[];allstacks3=[];nstacks=0
-        cc_array=[];cc_ngood=[];cc_time=[]
-        return cc_array,cc_ngood,cc_time,allstacks1,allstacks2,allstacks3,nstacks
-    else:
-
-        # remove ones with bad amplitude
-        cc_array = cc_array[tindx,:]
-        cc_time  = cc_time[tindx]
-        cc_ngood = cc_ngood[tindx]
+    if corrdata.data.ndim==1:
+        cc_time  = [corrdata.time]
 
         # do stacking
-        allstacks1 = np.zeros(npts,dtype=np.float32)
-        allstacks2 = np.zeros(npts,dtype=np.float32)
-        allstacks3 = np.zeros(npts,dtype=np.float32)
+        dstack = np.zeros((len(method),corrdata.data.shape[0]),dtype=np.float32)
+        for i in range(len(method)):
+            m =method[i]
+            dstack[i,:]=corrdata.data[:]
+    else:
+        ampmax = np.max(corrdata.data,axis=1)
+        tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+        nstacks=len(tindx)
+        dstack=[]
+        cc_time=[]
+        if nstacks >0:
+            # remove ones with bad amplitude
+            cc_array = corrdata.data[tindx,:]
+            cc_time  = corrdata.time[tindx]
 
-        if smethod == 'linear':
-            allstacks1 = np.mean(cc_array,axis=0)
-        elif smethod == 'pws':
-            allstacks1 = stack.pws(cc_array,samp_freq)
-        elif smethod == 'robust':
-            allstacks1,w,nstep = stack.robust_stack(cc_array,0.001)
-        elif smethod == 'acf':
-            allstack1 = stack.adaptive_filter(cc_array,1)
-        elif smethod == 'nroot':
-            allstack1 = stack.nroot_stack(cc_array,2)
-        elif smethod == 'all':
-            allstacks1 = np.mean(cc_array,axis=0)
-            allstacks2 = stack.pws(cc_array,samp_freq)
-            allstacks3,w,nstep = stack.robust_stack(cc_array,0.001)
-        nstacks = np.sum(cc_ngood)
+            # do stacking
+            dstack = np.zeros((len(method),corrdata.data.shape[1]),dtype=np.float32)
+            for i in range(len(method)):
+                m =method[i]
+                if nstacks==1: dstack[i,:]=cc_array
+                else:
+                    if m == 'linear':
+                        dstack[i,:] = np.mean(cc_array,axis=0)
+                    elif m == 'pws':
+                        dstack[i,:] = stack.pws(cc_array,1.0/corrdata.dt)
+                    elif m == 'robust':
+                        dstack[i,:] = stack.robust_stack(cc_array)[0]
+                    elif m == 'acf':
+                        dstack[i,:] = stack.adaptive_filter(cc_array,1)
+                    elif m == 'nroot':
+                        dstack[i,:] = stack.nroot_stack(cc_array,2)
 
     # good to return
-    return cc_array,cc_ngood,cc_time,allstacks1,allstacks2,allstacks3,nstacks
+    return dstack,cc_time
 
 
 def stacking_rma(cc_array,cc_time,cc_ngood,stack_para):
@@ -721,7 +842,7 @@ def rotation(bigstack,parameters,locs,flag):
     staS  = parameters['station_source']
     staR  = parameters['station_receiver']
 
-    if len(locs):
+    if locs is not None:
         sta_list = list(locs['station'])
         angles   = list(locs['angle'])
         # get station info from the name of ASDF file
@@ -730,8 +851,7 @@ def rotation(bigstack,parameters,locs,flag):
         ind   = sta_list.index(staR)
         bcorr = angles[ind]
 
-    #---angles to be corrected----
-    if len(locs):
+        #---angles to be corrected----
         cosa = np.cos((azi+acorr)*pi/180)
         sina = np.sin((azi+acorr)*pi/180)
         cosb = np.cos((baz+bcorr)*pi/180)
@@ -823,6 +943,53 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 
+def get_stationpairs(ccfiles,getcclist=True,flag=False):
+    """
+    Extract unique station pairs from all cc files in ASDF format.
+
+    ====PARAMETERS===
+    ccfiles: a list of cc files.
+
+    ====RETURNS===
+    pairs_all: all netstaion pairs in the format of NET1.STA1_NET2.STA2
+    netsta_all: all net.sta (unique list)
+    ccomp_all: all unique list of cc components.
+    """
+    if isinstance(ccfiles,str):ccfiles=[ccfiles]
+    pairs_all = []
+    ccomp_all=[]
+    for f in ccfiles:
+        # load the data from daily compilation
+        ds=pyasdf.ASDFDataSet(f,mpi=False,mode='r')
+        try:
+            pairlist   = ds.auxiliary_data.list()
+            if getcclist:
+                for p in pairlist:
+                    chanlist=ds.auxiliary_data[p].list()
+                    for c in chanlist:
+                        c1,c2=c.split('_')
+                        ccomp_all.extend(c1[-1]+c2[-1])
+                ccomp_all=sorted(set(ccomp_all))
+
+            pairs_all.extend(pairlist)
+            pairs_all=sorted(set(pairs_all))
+
+        except Exception:
+            if flag:print('continue! no data in %s'%(f))
+            continue
+
+    netsta_all=[]
+    for p in pairs_all:
+        netsta=p.split('_')
+        netsta_all.extend(netsta)
+
+    netsta_all=sorted(set(netsta_all))
+
+    if getcclist:
+        return pairs_all,netsta_all,ccomp_all
+    else:
+        return pairs_all,netsta_all
+
 def extract_corrdata(sfile,pair=None,comp=['all']):
     '''
     extract the 2D matrix of the cross-correlation functions and the metadata for a certain time-chunck.
@@ -851,58 +1018,48 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
         ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
         # extract common variables
         spairs_all = ds.auxiliary_data.list()
-        path_lists = ds.auxiliary_data[spairs_all[0]].list()
-        flag   = ds.auxiliary_data[spairs_all[0]][path_lists[0]].parameters['substack']
-        dt     = ds.auxiliary_data[spairs_all[0]][path_lists[0]].parameters['dt']
-        maxlag = ds.auxiliary_data[spairs_all[0]][path_lists[0]].parameters['maxlag']
     except Exception:
         print("exit! cannot open %s to read"%sfile);sys.exit()
     if pair is None: pair=spairs_all
 
-    for spair in pair:
-        if spair in spairs_all:
-            ttr = spair.split('_')
-            snet,ssta = ttr[0].split('.')
-            rnet,rsta = ttr[1].split('.')
-            path_lists = ds.auxiliary_data[spair].list()
-            corrdict[spair]=dict()
-            for ipath in path_lists:
-                schan,rchan = ipath.split('_')
-                cc_comp=schan[-1]+rchan[-1]
-                if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
-                    try:
-                        az = ds.auxiliary_data[spair][ipath].parameters['azi']
-                        baz = ds.auxiliary_data[spair][ipath].parameters['baz']
-                        cc_method = ds.auxiliary_data[spair][ipath].parameters['cc_method']
-                        dist = ds.auxiliary_data[spair][ipath].parameters['dist']
-                        ngood= ds.auxiliary_data[spair][ipath].parameters['ngood']
-                        ttime= ds.auxiliary_data[spair][ipath].parameters['time']
-                        slat  = ds.auxiliary_data[spair][ipath].parameters['latS']
-                        slon  = ds.auxiliary_data[spair][ipath].parameters['lonS']
-                        rlat  = ds.auxiliary_data[spair][ipath].parameters['latR']
-                        rlon  = ds.auxiliary_data[spair][ipath].parameters['lonR']
-                        if "eleS" in  list(ds.auxiliary_data[spair][ipath].parameters.keys()):
-                            sele = ds.auxiliary_data[spair][ipath].parameters['eleS']
-                        else:
-                            sele = 0.0
-                        if "eleR" in  list(ds.auxiliary_data[spair][ipath].parameters.keys()):
-                            rele = ds.auxiliary_data[spair][ipath].parameters['eleR']
-                        else:
-                            rele = 0.0
+    for spair in list(set(pair) & set(spairs_all)):
+        ttr = spair.split('_')
+        snet,ssta = ttr[0].split('.')
+        rnet,rsta = ttr[1].split('.')
+        path_lists = ds.auxiliary_data[spair].list()
+        corrdict[spair]=dict()
+        for ipath in path_lists:
+            schan,rchan = ipath.split('_')
+            cc_comp=schan[-1]+rchan[-1]
+            if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
+                try:
+                    para=ds.auxiliary_data[spair][ipath].parameters
+                    flag,ngood,ttime,dt,maxlag,az,baz,cc_method,dist,slat,slon,rlat,rlon = \
+                                [para['substack'],para['ngood'],para['time'],\
+                                para['dt'],para['maxlag'],para['azi'],para['baz'],\
+                                para['cc_method'],para['dist'],para['latS'],para['lonS'],\
+                                para['latR'],para['lonR']]
+                    if "eleS" in  list(para.keys()):
+                        sele = para['eleS']
+                    else:
+                        sele = 0.0
+                    if "eleR" in  list(para.keys()):
+                        rele = para['eleR']
+                    else:
+                        rele = 0.0
 
-                        if flag:
-                            data = ds.auxiliary_data[spair][ipath].data[:,:]
-                        else:
-                            data = ds.auxiliary_data[spair][ipath].data[:]
-                    except Exception:
-                        print('continue! something wrong with %s %s'%(spair,ipath))
-                        continue
-
-                    corrdict[spair][cc_comp]=CorrData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
-                                                    chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
-                                                    ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
-                                                    dist=dist,az=az,baz=baz,ngood=ngood,time=ttime,
-                                                    data=data,substack=flag,misc={"cc_method":cc_method})
+                    if flag:
+                        data = ds.auxiliary_data[spair][ipath].data[:,:]
+                    else:
+                        data = ds.auxiliary_data[spair][ipath].data[:]
+                except Exception:
+                    print('continue! something wrong with %s %s'%(spair,ipath))
+                    continue
+                corrdict[spair][cc_comp]=CorrData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
+                                                chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
+                                                ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
+                                                dist=dist,az=az,baz=baz,ngood=ngood,time=ttime,
+                                                data=data,substack=flag,misc=para)
 
     return corrdict
 

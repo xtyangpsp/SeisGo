@@ -1,7 +1,9 @@
 # SeisPy
-*Python modules for seismic data analysis*
+*A Python package for seismic data analysis*
 
 ### Author: Xiaotao Yang (stcyang@gmail.com)
+
+![plot1](/figs/seispy_logo.png)
 
 ## Introduction
 This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
@@ -112,25 +114,24 @@ DATADIR  = os.path.join(rootpath,'Raw')          # where to store the downloaded
 down_list  = os.path.join(DATADIR,'station.txt') # CSV file for station location info
 
 # download parameters
-source='IRIS'                       # client/data center. see https://docs.obspy.org/packages/obspy.clients.fdsn.html for a list
+source='IRIS'
 samp_freq = 10                      # targeted sampling rate at X samples per seconds
 rmresp   = True
 rmresp_out = 'DISP'
 
-# targeted region/station information: only needed when use_down_list is False
-lamin,lamax,lomin,lomax= 39,41,-88,-86           # regional box: min lat, min lon, max lat, max lon (-114.0)
-chan_list = ["BHZ"]
+# targeted region/station information
+lamin,lamax,lomin,lomax= 39,41,-88,-86           # regional box:
 net_list  = ["TA"] #                              # network list
-sta_list  = ["O45A","SFIN"]                       # station (using a station list is way either compared to specifying stations one by one)
+sta_list  = ["O45A","SFIN"]                       # station
 start_date = "2012_01_01_0_0_0"                   # start date of download
 end_date   = "2012_01_02_1_0_0"                   # end date of download
 inc_hours  = 12                                   # length of data for each request (in hour)
-maxseischan = 1                                   # the maximum number of seismic channels, excluding pressure channels for OBS stations.
+maxseischan = 1                                   # the maximum number of seismic channels
 ncomp      = maxseischan #len(chan_list)
 
 downlist_kwargs = {"source":source, 'net_list':net_list, "sta_list":sta_list, "chan_list":chan_list, \
-                    "starttime":start_date, "endtime":end_date, "maxseischan":maxseischan, "lamin":lamin, "lamax":lamax, \
-                    "lomin":lomin, "lomax":lomax, "fname":down_list}
+                   "starttime":start_date, "endtime":end_date, "maxseischan":maxseischan, "lamin":lamin, \
+                   "lamax":lamax,"lomin":lomin, "lomax":lomax, "fname":down_list}
 
 stalist=downloaders.get_sta_list(**downlist_kwargs) #
 #this is a critical step for long duration downloading, as a demo here.
@@ -138,10 +139,10 @@ all_chunk = split_datetimestr(start_date,end_date,inc_hours)
 
 #################DOWNLOAD SECTION#######################
 for ick in range(len(all_chunk)-1):
-    s1= all_chunk[ick];s2=all_chunk[ick+1]
-    print('time segment:'+s1+' to '+s2)
-    downloaders.download(source=source,rawdatadir=DATADIR,starttime=s1,endtime=s2,\
-                       stationinfo=stalist,samp_freq=samp_freq)
+   s1= all_chunk[ick];s2=all_chunk[ick+1]
+   print('time segment:'+s1+' to '+s2)
+   downloaders.download(source=source,rawdatadir=DATADIR,starttime=s1,endtime=s2,\
+                      stationinfo=stalist,samp_freq=samp_freq)
 
 print('downloading finished.')
 

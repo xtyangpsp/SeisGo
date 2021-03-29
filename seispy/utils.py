@@ -21,7 +21,10 @@ from scipy.signal import tukey
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
 from obspy.core.util.base import _get_function_from_entry_point
+from obspy.signal.util import _npts2nfft
 from scipy.fftpack import fft,ifft,next_fast_len
+from obspy.core.inventory import Inventory, Network, Station, Channel, Site
+from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 
 ####
 # ##################### qml_to_event_list #####################################
@@ -215,22 +218,66 @@ def sta_info_from_inv(inv):
     # print(sta,net,lon,lat,elv,location)
     return sta,net,lon,lat,elv,location
 
-def stats2inv(stats,prepro_para,locs=None):
+def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
+    '''
+    this function removes the instrument response using response spectrum from evalresp.
+    the response spectrum is evaluated based on RESP/PZ files before inverted using the obspy
+    function of invert_spectrum. a module of create_resp.py is provided in directory of 'additional_modules'
+    to create the response spectrum
+    PARAMETERS:
+    ----------------------
+    source: obspy stream object of targeted noise data
+    resp_file: numpy data file of response spectrum
+    downsamp_freq: sampling rate of the source data
+    pre_filt: pre-defined filter parameters
+    RETURNS:
+    ----------------------
+    source: obspy stream object of noise data with instrument response removed
+    '''
+    #--------resp_file is the inverted spectrum response---------
+    respz = np.load(resp_file)
+    nrespz= respz[1][:]
+    spec_freq = max(respz[0])
+
+    #-------on current trace----------
+    nfft = _npts2nfft(source[0].stats.npts)
+    sps  = int(source[0].stats.sampling_rate)
+
+    #---------do the interpolation if needed--------
+    if spec_freq < 0.5*sps:
+        raise ValueError('spectrum file has peak freq smaller than the data, abort!')
+    else:
+        indx = np.where(respz[0]<=0.5*sps)
+        nfreq = np.linspace(0,0.5*sps,nfft//2+1)
+        nrespz= np.interp(nfreq,np.real(respz[0][indx]),respz[1][indx])
+
+    #----do interpolation if necessary-----
+    source_spect = np.fft.rfft(source[0].data,n=nfft)
+
+    #-----nrespz is inversed (water-leveled) spectrum-----
+    source_spect *= nrespz
+    source[0].data = np.fft.irfft(source_spect)[0:source[0].stats.npts]
+
+    if pre_filt is not None:
+        source[0].data = np.float32(bandpass(source[0].data,pre_filt[0],pre_filt[-1],df=sps,corners=4,zerophase=True))
+
+    return source
+
+def stats2inv(stats,locs=None):
     '''
     this function creates inventory given the stats parameters in an obspy stream or a station list.
-    (used in S0B)
+
     PARAMETERS:
     ------------------------
     stats: obspy trace stats object containing all station header info
-    prepro_para: dict containing fft parameters, such as frequency bands and selection for instrument response removal etc.
     locs:  panda data frame of the station list. it is needed for convering miniseed files into ASDF
     RETURNS:
     ------------------------
     inv: obspy inventory object of all station info to be used later
     '''
-    staxml    = prepro_para['stationxml']
-    respdir   = prepro_para['respdir']
-    input_fmt = prepro_para['input_fmt']
+    staxml    = False
+    respdir   = "."
+    input_fmt = stats._format.lower()
 
     if staxml:
         if not respdir:
@@ -495,10 +542,11 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
     plt.show()
     plt.close()
 
-def check_overlap(t1,t2):
+def check_overlap(t1,t2,error=0):
     """
     check the common
     t1,t2: list or numpy arrays.
+    error: measurement error in comparison. default is 0
     """
     ind1=[]
     ind2=[]
@@ -507,7 +555,7 @@ def check_overlap(t1,t2):
 
     for i in range(len(t1)):
         f1=t1[i]
-        ind_temp=np.where(t2==f1)
+        ind_temp=np.where(np.abs(t2-f1)<=error)
 
         if len(ind_temp[0])>0:
             ind1.append(i)
@@ -531,14 +579,11 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     trace_stdS: standard deviation of the noise amplitude of each segment
     dataS_t:    timestamps of each segment
     dataS:      2D matrix of the segmented data
-
-    ##TODO: deal with gaps, regardless of expected length.
     '''
     # define return variables first
     source_params=[];dataS_t=[];dataS=[]
 
     # useful parameters for trace sliding
-    # nseg = int(np.floor((exp_len_hours*3600-slice_len_secs)/slice_step_secs))
     sps  = int(source[0].stats.sampling_rate)
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
     endtime = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
@@ -551,11 +596,6 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     # copy data into array
     data = source[0].data
 
-    # if the data is shorter than the tim chunck, return zero values
-    # if data.size < sps*exp_len_hours*3600:
-    #     print('data is smaller than expected length of the chunck. return empty data.')
-    #     return source_params,dataS_t,dataS
-
     # statistic to detect segments that may be associated with earthquakes
     all_madS = mad(data)	            # median absolute deviation over all noise window
     all_stdS = np.std(data)	        # standard deviation over all noise window
@@ -565,7 +605,6 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
 
     # initialize variables
     npts = slice_len_secs*sps
-    #trace_madS = np.zeros(nseg,dtype=np.float32)
     trace_stdS = np.zeros(nseg,dtype=np.float32)
     dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
     dataS_t  = np.zeros(nseg,dtype=np.float)
@@ -574,7 +613,6 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     for iseg in range(nseg):
         indx2 = indx1+npts
         dataS[iseg] = data[indx1:indx2]
-        #trace_madS[iseg] = (np.max(np.abs(dataS[iseg]))/all_madS)
         trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
         dataS_t[iseg]    = starttime+slice_step_secs*iseg
         indx1 = indx1+slice_step_secs*sps

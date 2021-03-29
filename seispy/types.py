@@ -8,8 +8,15 @@ import matplotlib.pyplot as plt
 from obspy.io.sac.sactrace import SACTrace
 from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
-from seispy import utils
+from seispy import utils,stacking
 ######
+class SeismicEngine(object):
+    """
+    Engine to interactively display time series data.
+    """
+    def __init__(self):
+        self.type="Seismic Engine"
+
 class Station(object):
     """
     Container for basic station information. Doesn't intend to replace the inventory class in ObsPy.
@@ -48,18 +55,55 @@ class Station(object):
 
         return "<Station object>"
 
+class RawData(object):
+    """
+    Object to store seismic waveforms. When in three components, there is an option
+    to do rotation from ENZ system to RTZ or LQT systems. The component labels will be
+    renewed after rotation. This object is useful particularly in receiver function
+    processing.
+    """
+    def __init__(self,trlist,stlo,stla,stel,stloc=None,stainv=None,evlo=None,evlat=None,evdp=None,evmag=None,evmagtype=None,
+                    quake_ml=None,misc=dict()):
+        """
+        Initialize the object.
+
+        trlist: a list of obspy.core.Trace object or a Stream object. Please make sure the list is for
+                different channels when more than one trace in the list, NOT the segments with gaps for
+                one station-channel pair.
+        """
+        if stainv is not None:
+            self.sta,self.net,self.lon,self.lat,self.ele,self.loc = utils.sta_info_from_inv(stainv)
+        elif None not in [stlo,stla,stel]:
+            self.net=trace[0].stats.network
+            self.sta=trace[0].stats.station
+            self.stlo=stlo
+            self.stla=stla
+            self.stel=stel
+            if stloc is None:
+                self.stloc=''
+            else: self.stloc=stloc
+
+class RFData(object):
+    """
+    Reciever function data.
+    """
+    def __init__(self):
+        self.type='Receiver Function Data'
+
 class FFTData(object):
     """
-    Object to FFT data. The idea of having a FFTData data type
+    Object to store FFT data. The idea of having a FFTData data type
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
     """
     def __init__(self,trace,cc_len_secs,cc_step_secs,stainv=None,
-                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,misc=dict()):
+                     freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
+                     smooth_spec=None,misc=dict()):
         """
         Initialize the object. Will do whitening if specicied in freq_norm.
 
         trace: obspy.core.Trace or Stream object.
         """
+        self.type='FFT Data'
         if isinstance(trace,Trace):trace=Stream([trace])
 
         if stainv is not None:
@@ -73,6 +117,7 @@ class FFTData(object):
             self.loc=''
 
         self.chan=trace[0].stats.channel
+        self.id=self.net+'.'+self.sta+'.'+self.loc+'.'+self.chan
         self.dt = 1/trace[0].stats.sampling_rate
         self.sps  = int(trace[0].stats.sampling_rate)
         self.freqmin=freqmin
@@ -80,6 +125,10 @@ class FFTData(object):
         self.time_norm=time_norm
         self.freq_norm=freq_norm
         self.smooth=smooth
+        if smooth_spec is None:
+            self.smooth_spec=self.smooth
+        else:
+            self.smooth_spec=smooth_spec
         self.cc_len_secs=cc_len_secs
         self.cc_step_secs=cc_step_secs
         self.misc=misc
@@ -87,7 +136,7 @@ class FFTData(object):
         fft_white=[]
         # cut daily-long data into smaller segments (dataS always in 2D)
         trace_stdS,dataS_t,dataS = utils.slicing_trace(trace,cc_len_secs,cc_step_secs)        # optimized version:3-4 times faster
-
+        N=dataS.shape[0]
         self.std=trace_stdS
         self.time=dataS_t
         Nfft=0
@@ -100,7 +149,8 @@ class FFTData(object):
                     white = np.zeros(shape=dataS.shape,dtype=dataS.dtype)
                     for kkk in range(N):
                         white[kkk,:] = dataS[kkk,:]/utils.moving_ave(np.abs(dataS[kkk,:]),smooth)
-
+                else:
+                    raise ValueError("The input "+time_norm+" is not recoganizable. Could only be: no, one_bit, or rma.")
             else:	# don't normalize
                 white = dataS
 
@@ -121,11 +171,12 @@ class FFTData(object):
             self.whiten()  # whiten and return FFT
 
     ##### method for whitening
-    def whiten(self):
+    def whiten(self,freq_norm=None,smooth=None):
         """
         Whiten FFTData
         """
-        freq_norm=self.freq_norm
+        if freq_norm is None: freq_norm=self.freq_norm
+        if smooth is None: smooth=self.smooth_spec
         if self.freqmin is None:
             raise ValueError('freqmin has to be specified as an attribute in FFTData!')
 
@@ -165,7 +216,7 @@ class FFTData(object):
                 FFTRawSign[:,left:right] = np.exp(1j * np.angle(FFTRawSign[:,left:right]))
             elif freq_norm == 'rma':
                 for ii in range(self.data.shape[0]):
-                    tave = moving_ave(np.abs(FFTRawSign[ii,left:right]),self.smooth_N)
+                    tave = utils.moving_ave(np.abs(FFTRawSign[ii,left:right]),smooth)
                     FFTRawSign[ii,left:right] = FFTRawSign[ii,left:right]/tave
             # Right tapering:
             FFTRawSign[:,right:high] = np.cos(
@@ -184,7 +235,7 @@ class FFTData(object):
             if freq_norm == 'phase_only':
                 FFTRawSign[left:right] = np.exp(1j * np.angle(FFTRawSign[left:right]))
             elif freq_norm == 'rma':
-                tave = moving_ave(np.abs(FFTRawSign[left:right]),self.smooth_N)
+                tave = utils.moving_ave(np.abs(FFTRawSign[left:right]),smooth)
                 FFTRawSign[left:right] = FFTRawSign[left:right]/tave
             # Right tapering:
             FFTRawSign[right:high] = np.cos(
@@ -194,11 +245,37 @@ class FFTData(object):
 
             # Hermitian symmetry (because the input is real)
             FFTRawSign[-(Nfft//2)+1:] = FFTRawSign[1:(Nfft//2)].conjugate()[::-1]
-
-
         ##re-assign back to self.data.
         self.data=FFTRawSign
 
+    def __str__(self):
+        """
+        Display key content of the object.
+        """
+        print("id           :   "+str(self.id))
+        print("net          :   "+str(self.net))
+        print("sta          :   "+str(self.sta))
+        print("loc          :   "+str(self.loc))
+        print("chan         :   "+str(self.chan))
+        print("lon          :   "+str(self.lon))
+        print("lat          :   "+str(self.lat))
+        print("ele          :   "+str(self.ele))
+        print("sps          :   "+str(self.sps))
+        print("dt           :   "+str(self.dt))
+        print("freqmin      :   "+str(self.freqmin))
+        print("freqmax      :   "+str(self.freqmax))
+        print("time_norm    :   "+self.time_norm)
+        print("freq_norm    :   "+self.freq_norm)
+        print("smooth       :   "+str(self.smooth))
+        print("cc_len_secs  :   "+str(self.cc_len_secs))
+        print("cc_step_secs :   "+str(self.cc_step_secs))
+        print("std          :   "+str(self.std.shape))
+        print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        print("Nfft         :   "+str(self.Nfft))
+        print("misc         :   "+str(self.misc))
+        print("data         :   "+str(self.data.shape))
+        print("")
+        return "<FFTData object>"
 
 class CorrData(object):
     """
@@ -219,10 +296,12 @@ class CorrData(object):
     to_sac(): convert and save to sac file, using obspy SACTrace object.
     plot(): simple plotting function to display the cross-correlation data.
     """
-    def __init__(self,net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],\
-                    lon=[None,None],lat=[None,None],ele=[None,None],cc_comp=None,lag=None,\
-                    dt=None,dist=None,az=None,baz=None,ngood=None,time=None,data=None,\
+    def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
+                    lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',lag=0.0,\
+                    dt=0.0,dist=0.0,az=0.0,baz=0.0,ngood=[],time=[],data=None,\
                     substack:bool=False,misc=dict()):
+        self.type='Correlation Data'
+        self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
         self.net=net
         self.sta=sta
         self.loc=loc
@@ -230,7 +309,10 @@ class CorrData(object):
         self.lon=lon
         self.lat=lat
         self.ele=ele
-        self.cc_comp=cc_comp
+        if cc_comp is None:
+            self.cc_comp=chan[0][-1]+chan[1][-1]
+        else:
+            self.cc_comp=cc_comp
         self.lag=lag
         self.dt=dt
         self.dist=dist
@@ -246,28 +328,65 @@ class CorrData(object):
         """
         Display key content of the object.
         """
-        print("network      :   "+str(self.net))
-        print("station      :   "+str(self.sta))
-        print("location     :   "+str(self.loc))
-        print("channel      :   "+str(self.chan))
-        print("longitudes   :   "+str(self.lon))
-        print("latitudes    :   "+str(self.lat))
-        print("elevations   :   "+str(self.ele))
-        print("cc_comp      :   "+self.cc_comp)
-        print("maxlag       :   "+str(self.lag))
-        print("delta        :   "+str(self.dt))
-        print("dist (km)    :   "+str(self.dist))
-        print("ngood        :   "+str(self.ngood))
+        print("id       :   "+str(self.id))
+        print("net      :   "+str(self.net))
+        print("sta      :   "+str(self.sta))
+        print("loc      :   "+str(self.loc))
+        print("chan     :   "+str(self.chan))
+        print("lon      :   "+str(self.lon))
+        print("lat      :   "+str(self.lat))
+        print("ele      :   "+str(self.ele))
+        print("cc_comp  :   "+str(self.cc_comp))
+        print("lag      :   "+str(self.lag))
+        print("dt       :   "+str(self.dt))
+        print("dist     :   "+str(self.dist))
+        print("ngood    :   "+str(self.ngood))
         if self.substack:
-            print("time         :   "+str(obspy.UTCDateTime(self.time)[0])+" to "+obspy.UTCDateTime(self.time)[-1])
+            print("time :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         else:
-            print("time         :   "+str(obspy.UTCDateTime(self.time)))
-        print("substack     :   "+str(self.substack))
-        print("data         :   "+str(self.data.shape))
+            print("time :   "+str(obspy.UTCDateTime(self.time)))
+        print("substack :   "+str(self.substack))
+        print("data     :   "+str(self.data.shape))
         print(str(self.data))
         print("")
 
         return "<CorrData object>"
+
+    def __add__(c1,c2):
+        """
+        Merge with another object for the same station pair. The idea is to merge multiple sets
+        of CorrData at different time chunks. Therefore, this function will merge the following
+        attributes only: <ngood>,<time>,<data>
+
+        **Note: substack will be set to True after merging, regardless the value in the original object.**
+        """
+        #sanity check: stop merging and raise error if the two objects have different IDs.
+        if c1.id != c2.id:
+            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+        if not c1.substack:
+            ngood1=np.reshape(c1.ngood,(1))
+            time1=np.reshape(c1.time,(1))
+            data1=np.reshape(c1.data,(1,c1.data.shape[0]))
+        else:
+            ngood1=c1.ngood
+            time1=c1.time
+            data1=c1.data
+        if not c2.substack:
+            ngood2=np.reshape(c2.ngood,(1))
+            time2=np.reshape(c2.time,(1))
+            data2=np.reshape(c2.data,(1,c2.data.shape[0]))
+        else:
+            ngood2=c2.ngood
+            time2=c2.time
+            data2=c2.data
+
+        ngood =np.concatenate((ngood1,ngood2))
+        time=np.concatenate((time1,time2))
+        data=np.concatenate((data1,data2),axis=0)
+
+        return CorrData(net=c1.net,sta=c1.sta,loc=c1.loc,chan=c1.chan,lon=c1.lon,lat=c1.lat,ele=c1.ele,\
+                    cc_comp=c1.cc_comp,lag=c1.lag,dt=c1.dt,dist=c1.dist,az=c1.az,baz=c1.baz,misc=c1.misc,\
+                    ngood=ngood,time=time,substack=True,data=data)
 
     def merge(self,c):
         """
@@ -277,14 +396,17 @@ class CorrData(object):
 
         **Note: substack will be set to True after merging, regardless the value in the original object.**
         """
+        #sanity check: stop merging and raise error if the two objects have different IDs.
+        if self.id != c.id:
+            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
         if not self.substack:
-            self.ngood=np.reshape(self.ngood,(1,1))
-            self.time=np.reshape(self.time,(1,1))
+            self.ngood=np.reshape(self.ngood,(1))
+            self.time=np.reshape(self.time,(1))
             self.data=np.reshape(self.data,(1,self.data.shape[0]))
 
         if not c.substack:
-            c.ngood=np.reshape(c.ngood,(1,1))
-            c.time=np.reshape(c.time,(1,1))
+            c.ngood=np.reshape(c.ngood,(1))
+            c.time=np.reshape(c.time,(1))
             c.data=np.reshape(c.data,(1,c.data.shape[0]))
 
         self.ngood =np.concatenate((self.ngood,c.ngood))
@@ -292,6 +414,46 @@ class CorrData(object):
         self.data=np.concatenate((self.data,c.data),axis=0)
 
         self.substack=True
+
+    def stack(self,method='linear'):
+        '''
+        this function stacks the cross correlation data. This method will overwrite the
+        data attribute with the stacked trace. Substack will be turned to False.
+
+        PARAMETERS:
+        ----------------------
+        method: stacking method, could be: linear, robust, pws, acf, or nroot.
+        '''
+        if isinstance(method,list):method=method[0]
+        # remove abnormal data
+        if self.substack:
+            ampmax = np.max(self.data,axis=1)
+            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+            nstacks=len(tindx)
+            if nstacks >0:
+                self.substack=False
+                # remove ones with bad amplitude
+                cc_array = self.data[tindx,:]
+                self.time  = self.time[tindx[0]]
+                self.ngood = nstacks
+
+                # do stacking
+                dstack = np.zeros((self.data.shape[1]),dtype=np.float32)
+                if nstacks==1: dstack=cc_array
+                else:
+                    if method == 'linear':
+                        dstack = np.mean(cc_array,axis=0)
+                    elif method == 'pws':
+                        dstack = stacking.pws(cc_array,1.0/self.dt)
+                    elif method == 'robust':
+                        dstack = stacking.robust_stack(cc_array)[0]
+                    elif method == 'acf':
+                        dstack = stacking.adaptive_filter(cc_array,1)
+                    elif method == 'nroot':
+                        dstack = stacking.nroot_stack(cc_array,2)
+                #overwrite the data attribute.
+                self.data=dstack
+            print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
 
     def to_asdf(self,file,v=True):
         """
@@ -357,7 +519,7 @@ class CorrData(object):
             nzsec=corrtime.second
             nzmsec=corrtime.microsecond
             if file is None:
-                file=str(corrtime).replace(':', '-')+'_'+self.cc_comp+'.sac'
+                file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'.sac'
             sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                            b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                            evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data)
@@ -376,7 +538,7 @@ class CorrData(object):
                 nzsec=corrtime.second
                 nzmsec=corrtime.microsecond
                 if file is None:
-                    ofile=str(corrtime).replace(':', '-')+'_'+self.cc_comp+'.sac'
+                    ofile=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'.sac'
                     sacfile  = os.path.join(outdir,ofile)
                 else:
                     sacfile  = os.path.join(outdir,file)
@@ -387,7 +549,8 @@ class CorrData(object):
                 sac.write(sacfile,byteorder='big')
                 if v: print('saved sac to: '+sacfile)
 
-    def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8)):
+    def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8),
+            stack_method='linear'):
         """
         Plotting method for CorrData. It is the same as seispy.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
@@ -425,7 +588,7 @@ class CorrData(object):
 
         # cc matrix
         if substack:
-            data = self.data[:,indx1:indx2]
+            data = np.ndarray.copy(self.data[:,indx1:indx2])
             timestamp = np.empty(ttime.size,dtype='datetime64[s]')
             # print(data.shape)
             nwin = data.shape[0]
@@ -435,19 +598,29 @@ class CorrData(object):
                 return
 
             tmarks = []
-            data_normalizd=data
+            data_normalizd=np.zeros(data.shape)
 
             # load cc for each station-pair
             for ii in range(nwin):
                 if freqmin is not None and freqmax is not None:
                     data[ii] = bandpass(data[ii],freqmin,freqmax,1/dt,corners=4, zerophase=True)
-                data[ii] = data[ii]-np.mean(data[ii])
+                data[ii] = utils.taper(data[ii]-np.mean(data[ii]))
                 amax[ii] = np.max(np.abs(data[ii]))
                 data_normalizd[ii] = data[ii]/amax[ii]
                 timestamp[ii] = obspy.UTCDateTime(ttime[ii])
                 tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%Y-%m-%dT%H:%M:%S'))
 
-            dstack_mean=np.mean(data,axis=0)
+            if stack_method == 'linear':
+                dstack = np.mean(data,axis=0)
+            elif stack_method == 'pws':
+                dstack = stacking.pws(data,1.0/dt)
+            elif stack_method == 'robust':
+                dstack = stacking.robust_stack(data)[0]
+            elif stack_method == 'acf':
+                dstack = stacking.adaptive_filter(data,1)
+            elif stack_method == 'nroot':
+                dstack = stacking.nroot_stack(data,2)
+            del data
     #         dstack_robust=stack.robust_stack(data)[0]
 
             # plotting
@@ -478,8 +651,8 @@ class CorrData(object):
             else:
                 ax1.set_title('stack: unfiltered')
             tstack=np.arange(-lag0,lag0+0.5*dt,dt)
-            if len(tstack)>len(dstack_mean):tstack=tstack[:-1]
-            ax1.plot(tstack,dstack_mean,'b-',linewidth=1,label='mean')
+            if len(tstack)>len(dstack):tstack=tstack[:-2]
+            ax1.plot(tstack,dstack,'b-',linewidth=1,label=stack_method)
     #         ax1.plot(tstack,dstack_robust,'r-',linewidth=1,label='robust')
             ax1.set_xlabel('time [s]')
             ax1.set_xticks(t)
@@ -493,12 +666,12 @@ class CorrData(object):
 
             fig.tight_layout()
         else: #only one trace available
-            data = self.data[indx1:indx2]
+            data = np.ndarray.copy(self.data[indx1:indx2])
 
             # load cc for each station-pair
             if freqmin is not None and freqmax is not None:
                 data = bandpass(data,freqmin,freqmax,1/dt,corners=4, zerophase=True)
-            data = data-np.mean(data)
+            data = utils.taper(data-np.mean(data))
             amax = np.max(np.abs(data))
             data /= amax
             timestamp = obspy.UTCDateTime(ttime)
@@ -525,7 +698,7 @@ class CorrData(object):
 
         # save figure or just show
         if save:
-            if figdir==None:figdir = sfile.split('.')[0]
+            if figdir==None:figdir = '.'
             if not os.path.isdir(figdir):os.mkdir(figdir)
             outfname = figdir+\
             '/{0:s}_{1:s}_{2:s}-{3:s}Hz.png'.format(netstachan1,netstachan2,
