@@ -97,7 +97,7 @@ class FFTData(object):
     """
     def __init__(self,trace,cc_len_secs,cc_step_secs,stainv=None,
                      freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
-                     smooth_spec=None,misc=dict()):
+                     smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
         """
         Initialize the object. Will do whitening if specicied in freq_norm.
 
@@ -122,6 +122,10 @@ class FFTData(object):
         self.sps  = int(trace[0].stats.sampling_rate)
         self.freqmin=freqmin
         self.freqmax=freqmax
+        self.df = df
+        if df is None and self.freqmin is not None:
+            self.df = self.freqmin/4
+
         self.time_norm=time_norm
         self.freq_norm=freq_norm
         self.smooth=smooth
@@ -134,8 +138,16 @@ class FFTData(object):
         self.misc=misc
 
         fft_white=[]
+        tr=trace[0].copy()
+        if time_norm == 'ftn':
+            if self.freqmin is not None:
+                if self.freqmax is None:self.freqmax=0.499*self.sps
+                tr.data=utils.ftn(trace[0].data,self.dt,self.freqmin,self.freqmax,df=self.df)
+            else:
+                raise ValueError("freqmin must be specified with ftn normalization.")
         # cut daily-long data into smaller segments (dataS always in 2D)
-        trace_stdS,dataS_t,dataS = utils.slicing_trace(trace,cc_len_secs,cc_step_secs)        # optimized version:3-4 times faster
+        trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],cc_len_secs,cc_step_secs,
+                                                        taper_frac=taper_frac)        # optimized version:3-4 times faster
         N=dataS.shape[0]
         self.std=trace_stdS
         self.time=dataS_t
@@ -149,8 +161,11 @@ class FFTData(object):
                     white = np.zeros(shape=dataS.shape,dtype=dataS.dtype)
                     for kkk in range(N):
                         white[kkk,:] = dataS[kkk,:]/utils.moving_ave(np.abs(dataS[kkk,:]),smooth)
+                elif time_norm == 'ftn':
+                    white = dataS
                 else:
-                    raise ValueError("The input "+time_norm+" is not recoganizable. Could only be: no, one_bit, or rma.")
+                    raise ValueError("The input "+time_norm+" is not recoganizable. "+
+                            "Could only be: no, one_bit, ftn, or rma.")
             else:	# don't normalize
                 white = dataS
 
@@ -433,7 +448,7 @@ class CorrData(object):
             if nstacks >0:
                 self.substack=False
                 # remove ones with bad amplitude
-                cc_array = self.data[tindx,:]
+                cc_array = utils.demean(self.data[tindx,:])
                 self.time  = self.time[tindx[0]]
                 self.ngood = nstacks
 
@@ -569,6 +584,7 @@ class CorrData(object):
 
         dt,maxlag,dist,ngood,ttime,substack = [self.dt,self.lag,self.dist,self.ngood,self.time,self.substack]
 
+        dreturn=[]
        # lags for display
         if not lag:lag=maxlag
         if lag>maxlag:raise ValueError('lag excceds maxlag!')
@@ -665,6 +681,8 @@ class CorrData(object):
             ax1.grid()
 
             fig.tight_layout()
+
+            dreturn=dstack
         else: #only one trace available
             data = np.ndarray.copy(self.data[indx1:indx2])
 
@@ -696,6 +714,8 @@ class CorrData(object):
             plt.xlim([-lag,lag])
             ax.grid()
 
+            dreturn=data
+
         # save figure or just show
         if save:
             if figdir==None:figdir = '.'
@@ -708,6 +728,9 @@ class CorrData(object):
             plt.close()
         else:
             plt.show()
+
+        ##
+        return dreturn
 
 class Power(object):
     """

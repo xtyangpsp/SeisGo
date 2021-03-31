@@ -17,11 +17,12 @@ from numba import jit
 # import pandas as pd
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
-from scipy.signal import tukey
+from scipy.signal import tukey,hilbert
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
 from obspy.core.util.base import _get_function_from_entry_point
 from obspy.signal.util import _npts2nfft
+from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
@@ -563,7 +564,7 @@ def check_overlap(t1,t2,error=0):
 
     return ind1,ind2
 
-def slicing_trace(source,slice_len_secs,slice_step_secs):
+def slicing_trace(source,slice_len_secs,slice_step_secs,taper_frac=0.02):
     '''
     this function cuts continous noise data into user-defined segments, estimate the statistics of
     each segment and keep timestamp of each segment for later use.
@@ -583,6 +584,7 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     # define return variables first
     source_params=[];dataS_t=[];dataS=[]
 
+    if isinstance(source,Trace):source=Stream([source])
     # useful parameters for trace sliding
     sps  = int(source[0].stats.sampling_rate)
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
@@ -620,7 +622,7 @@ def slicing_trace(source,slice_len_secs,slice_step_secs):
     # 2D array processing
     dataS = demean(dataS)
     dataS = detrend(dataS)
-    dataS = taper(dataS)
+    dataS = taper(dataS,fraction=taper_frac)
 
     return trace_stdS,dataS_t,dataS
 
@@ -1085,6 +1087,79 @@ def moving_ave(A,N):
             B[pos]=1
     return B[N:-N]
 
+def ftn(data,dt,fl,fh,df=None,taper_frac=None,taper_maxlen=20,max_abs=2,
+            inc_type='linear',nf=100):
+    """
+    Conduct frequency-time normalization, based on the method in Shen, BSSA, 2012. This function
+    was wrote based on the MATLAB version, obtained from Dr. Haiying Gao at UMass Amhert.
+
+    ============PARAMETERS===============
+    data: Numpy ndarray of the data, maximum dimension=2.
+    dt: sample interval in time (s)
+    fl: lowest frequency.
+    fh: highest frequency.
+    df: frequency interval in narrow band filtering, default is df=fl/4
+    taper_frac: fraction 0-1 for tapering. ignore tapering if None.
+    taper_maxlen: maxlength in number of points for tapering (ignore if taper_frac is None). Defatul 20.
+    max_abs: maximum absolute value of the data after FTN. Default 2.
+    inc_type: frequency increment type, 'linear' [default] or 'log'. when 'linear', df will be used
+                and when 'log', nf will be used.
+    nf: number of frequencies for 'log' type increment. default 100.
+    ============RETURNS================
+    dftn: data after FTN.
+
+    ====================================
+    Ref: Shen et al. (2012) An Improved Method to Extract Very-Broadband Empirical Green’s
+        Functions from Ambient Seismic Noise, BSSA, doi: 10.1785/0120120023
+    """
+    if fh>0.5/dt:
+        raise ValueError('upper bound of frequency CANNOT be larger than Nyquist frequency.')
+    if inc_type=="log":
+        dinc=1 - 1/np.geomspace(1,100,nf)
+        dinc=np.append(dinc,1)
+        freqs=fl + dinc*(fh-fl)
+    elif inc_type=="linear":
+        if df is None: df=fl/4
+        freqs=np.arange(fl,fh+0.5*df,df)
+
+    if freqs[-1]>0.5/dt:freqs[-1]=0.5/dt
+
+    ncorners=4
+    if taper_frac is None:
+        d=data
+    else:
+        d=taper(data,fraction=taper_frac,maxlen=taper_maxlen)
+
+    dftn=np.zeros(d.shape,dtype=d.dtype)
+    if d.ndim == 1:
+        for i in range(len(freqs)-1):
+            dfilter=bandpass(d,freqs[i],freqs[i+1],1/dt,corners=ncorners, zerophase=True)
+            env=np.abs(hilbert(dfilter))
+            dftn += np.divide(dfilter,env)
+        dftn /= np.sqrt(len(freqs)-1)
+
+        #normalization
+        idx=np.where(np.abs(dftn)>max_abs)[0]
+        if len(idx)>0: dftn[idx]=0.0
+    elif d.ndim==2:
+        for k in range(d.shape[0]):
+            for i in range(len(freqs)-1):
+                dfilter=bandpass(d[k,:],freqs[i],freqs[i+1],1/dt,corners=ncorners, zerophase=True)
+                env=np.abs(hilbert(dfilter))
+                dftn[k,:] += np.divide(dfilter,env)
+            dftn[k,:] /= np.sqrt(len(freqs)-1)
+
+            #normalization
+            idx=np.where(np.abs(dftn[k,:])>max_abs)[0]
+            if len(idx)>0: dftn[k,idx]=0.0
+    else:
+        raise ValueError('Dimension %d is higher than allowed 2.'%(d.ndim))
+    #taper
+    if taper_frac is not None:
+        dftn=taper(dftn,fraction=taper_frac,maxlen=taper_maxlen)
+
+    return dftn
+
 def mad(arr):
     """
     Median Absolute Deviation: MAD = median(|Xi- median(X)|)
@@ -1153,7 +1228,7 @@ def demean(data):
             data[ii] = data[ii]-np.mean(data[ii])
     return data
 
-def taper(data):
+def taper(data,fraction=0.05,maxlen=20):
     '''
     this function applies a cosine taper using obspy functions
     PARAMETERS:
@@ -1167,8 +1242,9 @@ def taper(data):
     if data.ndim == 1:
         npts = data.shape[0]
         # window length
-        if npts*0.05>20:wlen = 20
-        else:wlen = npts*0.05
+        wlen = npts*fraction
+        if wlen>maxlen:wlen = maxlen
+
         # taper values
         func = _get_function_from_entry_point('taper', 'hann')
         if 2*wlen == npts:
@@ -1181,8 +1257,8 @@ def taper(data):
     elif data.ndim == 2:
         npts = data.shape[1]
         # window length
-        if npts*0.05>20:wlen = 20
-        else:wlen = npts*0.05
+        wlen = npts*fraction
+        if wlen>maxlen:wlen = maxlen
         # taper values
         func = _get_function_from_entry_point('taper', 'hann')
         if 2*wlen == npts:

@@ -29,17 +29,19 @@ def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
 
 def compute_fft(trace,cc_len_secs,cc_step_secs,stainv=None,
                  freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
-                 smooth=20,smooth_spec=None,misc=dict()):
+                 smooth=20,smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
     """
     Call FFTData to build the object. This is an alternative of directly call FFTData().
     The motivation of this function is to provide an user interface to build FFTData object.
     """
     return FFTData(trace=trace,cc_len_secs=cc_len_secs,cc_step_secs=cc_step_secs,
-                    stainv=stainv,freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,freq_norm=freq_norm,
-                    smooth=smooth,smooth_spec=smooth_spec,misc=misc)
+                    stainv=stainv,freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,
+                    freq_norm=freq_norm,smooth=smooth,smooth_spec=smooth_spec,misc=misc,
+                    taper_frac=taper_frac,df=df)
 #assemble FFT with given asdf file name
 def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
-                    time_norm='no',freq_norm='no',smooth=20,exclude_chan=[None],v=True):
+                    time_norm='no',freq_norm='no',smooth=20,smooth_spec=20,
+                    taper_frac=0.05,df=None,exclude_chan=[None],v=True):
     #only deal with ASDF format for now.
 
     # retrive station information
@@ -87,7 +89,8 @@ def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
 
             fftdata=FFTData(source,cc_len_secs,cc_step_secs,stainv=inv1,
                             time_norm=time_norm,freq_norm=freq_norm,
-                            smooth=smooth,freqmin=freqmin,freqmax=freqmax)
+                            smooth=smooth,freqmin=freqmin,freqmax=freqmax,
+                            smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
             if fftdata.Nfft>0:
                 fftdata_all.append(fftdata)
     ####
