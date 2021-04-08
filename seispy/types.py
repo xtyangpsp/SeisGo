@@ -343,6 +343,7 @@ class CorrData(object):
         """
         Display key content of the object.
         """
+        print("type       :   "+str(self.type))
         print("id       :   "+str(self.id))
         print("net      :   "+str(self.net))
         print("sta      :   "+str(self.sta))
@@ -469,6 +470,37 @@ class CorrData(object):
                 #overwrite the data attribute.
                 self.data=dstack
             print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
+
+    #convert to EGF by taking the netagive time derivative of the noise correlation functions.
+    def to_egf(self):
+        """
+        This function converts the CorrData correlaiton results to EGF by taking
+        the netagive time derivative of the noise correlation functions.
+
+        The positive and negative lags are converted seperatedly but merged afterward.
+        """
+        print("Converting to empirical Green's functions.")
+
+        dt=self.dt
+        #check whether the corrdata includes two sides.
+        if self.substack:
+            nhalfpoint=np.int(self.data.shape[1]/2)
+            t=np.arange(-nhalfpoint,nhalfpoint+0.5)*dt
+
+            ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
+
+            #initiate as zeros
+            egf=np.zeros(self.data.shape,dtype=self.data.dtype)
+            #positive side
+            egf[:,ind_zero:]=-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt
+
+            #negative side
+            egf[:,:ind_zero]=np.gradient(self.data[:,:ind_zero],axis=1)/dt
+
+            egf[:,[0,ind_zero,-1]]=0
+
+        self.data=egf
+        self.type="Empirical Green's Functions"
 
     def to_asdf(self,file,v=True):
         """
