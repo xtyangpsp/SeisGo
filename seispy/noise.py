@@ -539,7 +539,8 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
         'comp':comp}
     return parameters
 
-def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotation=False,correctionfile=None,flag=False):
+def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
+                rotation=False,correctionfile=None,flag=False,keep_substack=False):
     # source folder
     if pairlist is None:
         pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
@@ -637,7 +638,8 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                     bigstack[icomp]=dstack
                     tparameters['time']  = stamps_final[0]
                     tparameters['ngood'] = len(stamps_final)
-                    ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp, parameters=tparameters)
+                    ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp,
+                                            parameters=tparameters)
                 # start rotation
                 if np.all(bigstack==0):continue
 
@@ -650,6 +652,15 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                     if rcomp != 'ZZ':
                         ds.add_auxiliary_data(data=bigstack_rotated[icomp2], data_type=data_type,
                                                 path=rcomp, parameters=tparameters)
+            if keep_substack:
+                for ic in cc_comp:
+                    for ii in range(corrdict_all[ic].data.shape[0]):
+                        tparameters2=tparameters
+                        tparameters2['time']  = corrdict_all[ic].time[ii]
+                        tparameters2['ngood'] = corrdict_all[ic].ngood[ii]
+                        data_type = 'T'+str(int(corrdict_all[ic].time[ii]))
+                        ds.add_auxiliary_data(data=corrdict_all[ic].data[ii], data_type=data_type,
+                                            path=ic, parameters=tparameters2)
 
         else: #no need to care about the order of components.
             stack_h5 = os.path.join(outdir,idir+'/'+outfn)
@@ -662,8 +673,17 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                 tparameters['ngood'] = len(stamps_final)
                 for i in range(len(method)):
                     m=method[i]
-                    ds.add_auxiliary_data(data=dstack[i,:], data_type='Allstack_'+m, path=ic, parameters=tparameters)
+                    ds.add_auxiliary_data(data=dstack[i,:], data_type='Allstack_'+m, path=ic,
+                                            parameters=tparameters)
 
+                if keep_substack:
+                    for ii in range(corrdict_all[ic].data.shape[0]):
+                        tparameters2=tparameters
+                        tparameters2['time']  = corrdict_all[ic].time[ii]
+                        tparameters2['ngood'] = corrdict_all[ic].ngood[ii]
+                        data_type = 'T'+str(int(corrdict_all[ic].time[ii]))
+                        ds.add_auxiliary_data(data=corrdict_all[ic].data[ii], data_type=data_type,
+                                            path=ic, parameters=tparameters2)
         #
         if flag: print('stacking and saving took %6.2fs'%(time.time()-t2))
         # write file stamps
