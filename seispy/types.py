@@ -527,10 +527,14 @@ class CorrData(object):
             cc_method = self.misc['cc_method']
         else:
             cc_method = ''
-
+        if "dist_unit" in list(self.misc.keys()):
+            dist_unit=self.misc['dist_unit']
+        else:
+            dist_unit=''
         parameters = {'dt':self.dt,
             'maxlag':np.float32(self.lag),
-            'dist':np.float32(self.dist/1000),
+            'dist':np.float32(self.dist),
+            'dist_unit':dist_unit,
             'azi':np.float32(self.az),
             'baz':np.float32(self.baz),
             'lonS':np.float32(lonS),
