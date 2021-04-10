@@ -148,11 +148,12 @@ class FFTData(object):
         # cut daily-long data into smaller segments (dataS always in 2D)
         trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],cc_len_secs,cc_step_secs,
                                                         taper_frac=taper_frac)        # optimized version:3-4 times faster
-        N=dataS.shape[0]
-        self.std=trace_stdS
-        self.time=dataS_t
-        Nfft=0
+
         if len(dataS)>0:
+            N=dataS.shape[0]
+            self.std=trace_stdS
+            self.time=dataS_t
+            Nfft=0
             #------to normalize in time or not------
             if time_norm != 'no':
                 if time_norm == 'one_bit': 	# sign normalization
@@ -177,13 +178,18 @@ class FFTData(object):
                 axis = 1
             fft_white = fft(white, Nfft, axis=axis) # return FFT
 
-        ##
-        self.data=fft_white
-        self.Nfft=Nfft
+            ##
+            self.data=fft_white
+            self.Nfft=Nfft
 
-        if len(dataS)>0 and freq_norm != 'no' and freqmin is not None:
-            print('Initializing FFTData with whitening ...')
-            self.whiten()  # whiten and return FFT
+            if freq_norm != 'no' and freqmin is not None:
+                print('Initializing FFTData with whitening ...')
+                self.whiten()  # whiten and return FFT
+        else:
+            self.std=None
+            self.time=None
+            self.data=None
+            self.Nfft=None
 
     ##### method for whitening
     def whiten(self,freq_norm=None,smooth=None):

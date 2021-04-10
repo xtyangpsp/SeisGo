@@ -185,11 +185,12 @@ def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr'
         #-----------now loop III for each receiver B----------
         for iiR in range(istart,iend):
             if v:print('receiver: %s %s' % (fftdata[iiR].net,fftdata[iiR].sta))
-            corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
-                                smoothspect_N=smoothspect_N,substack_len=substack_len,
-                                maxstd=maxstd)
+            if fftdata[iiS].data is not None and fftdata[iiR].data is not None:
+                corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
+                                    smoothspect_N=smoothspect_N,substack_len=substack_len,
+                                    maxstd=maxstd)
 
-            if corrdata.data is not None: corrdata.to_asdf(file=outfile)
+                if corrdata.data is not None: corrdata.to_asdf(file=outfile)
 
     # create a stamp to show time chunk being done
     ftmp.write('done')
