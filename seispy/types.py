@@ -153,7 +153,6 @@ class FFTData(object):
             N=dataS.shape[0]
             self.std=trace_stdS
             self.time=dataS_t
-            Nfft=0
             #------to normalize in time or not------
             if time_norm != 'no':
                 if time_norm == 'one_bit': 	# sign normalization

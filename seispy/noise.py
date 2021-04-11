@@ -91,7 +91,7 @@ def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
                             time_norm=time_norm,freq_norm=freq_norm,
                             smooth=smooth,freqmin=freqmin,freqmax=freqmax,
                             smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
-            if fftdata.Nfft>0:
+            if fftdata.data is not None:
                 fftdata_all.append(fftdata)
     ####
     return fftdata_all
