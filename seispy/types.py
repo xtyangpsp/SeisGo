@@ -95,7 +95,40 @@ class FFTData(object):
     Object to store FFT data. The idea of having a FFTData data type
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
     """
-    def __init__(self,trace,cc_len_secs,cc_step_secs,stainv=None,
+    def __init__(self,trace=None,cc_len_secs=None,cc_step_secs=None,stainv=None,
+                id=None,net=None,sta=None,loc=None,chan=None,lon=None,lat=None,ele=None,
+                dt=None,std=None,time=None,Nfft=None,data=None,
+                 freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
+                 smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
+        if trace is None:
+            self.id=id
+            self.net=net
+            self.sta=sta
+            self.loc=loc
+            self.chan=chan
+            self.lon=lon
+            self.lat=lat
+            self.ele=ele
+            self.dt=dt
+            self.freqmin=freqmin
+            self.freqmax=freqmax
+            self.time_norm=time_norm
+            self.freq_norm=freq_norm
+            self.smooth=smooth
+            self.cc_len_secs=cc_len_secs
+            self.cc_step_secs=cc_step_secs
+            self.std=std
+            self.time=time
+            self.Nfft=Nfft
+            self.misc=misc
+            self.data=data
+        else:
+            construct(trace,cc_len_secs,cc_step_secs,stainv=stainv,
+                         freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,
+                         freq_norm=freq_norm,smooth=smooth,
+                         smooth_spec=smooth_spec,misc=misc,taper_frac=taper_frac,df=df)
+
+    def construct(self,trace,cc_len_secs,cc_step_secs,stainv=None,
                      freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
                      smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
         """
@@ -115,11 +148,16 @@ class FFTData(object):
             self.lat=0.0
             self.ele=0.0
             self.loc=''
+        if isinstance(self.sta,list):self.sta=self.sta[0]
+        if isinstance(self.net,list):self.net=self.net[0]
+        if isinstance(self.lon,list):self.lon=self.lon[0]
+        if isinstance(self.lat,list):self.lat=self.lat[0]
+        if isinstance(self.ele,list):self.ele=self.ele[0]
+        if isinstance(self.loc,list):self.loc=self.loc[0]
 
         self.chan=trace[0].stats.channel
         self.id=self.net+'.'+self.sta+'.'+self.loc+'.'+self.chan
         self.dt = 1/trace[0].stats.sampling_rate
-        self.sps  = int(trace[0].stats.sampling_rate)
         self.freqmin=freqmin
         self.freqmax=freqmax
         self.df = df
@@ -141,7 +179,7 @@ class FFTData(object):
         tr=trace[0].copy()
         if time_norm == 'ftn':
             if self.freqmin is not None:
-                if self.freqmax is None:self.freqmax=0.499*self.sps
+                if self.freqmax is None:self.freqmax=0.499/self.dt
                 tr.data=utils.ftn(trace[0].data,self.dt,self.freqmin,self.freqmax,df=self.df)
             else:
                 raise ValueError("freqmin must be specified with ftn normalization.")
@@ -201,7 +239,7 @@ class FFTData(object):
             raise ValueError('freqmin has to be specified as an attribute in FFTData!')
 
         if self.freqmax is None:
-            self.freqmax=0.499*self.sps
+            self.freqmax=0.499/self.dt
             print('freqmax not specified, use default as 0.499*samp_freq.')
 
         if self.data.ndim == 1:
@@ -280,7 +318,6 @@ class FFTData(object):
         print("lon          :   "+str(self.lon))
         print("lat          :   "+str(self.lat))
         print("ele          :   "+str(self.ele))
-        print("sps          :   "+str(self.sps))
         print("dt           :   "+str(self.dt))
         print("freqmin      :   "+str(self.freqmin))
         print("freqmax      :   "+str(self.freqmax))
@@ -296,6 +333,30 @@ class FFTData(object):
         print("data         :   "+str(self.data.shape))
         print("")
         return "<FFTData object>"
+
+    def __add__(f1,f2):
+        """
+        Merge two FFTData objects with the same id. Only merge [time],[std],[data] attributes.
+        """
+        if c1.id != c2.id:
+            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+
+        time1=f1.time
+        time2=f2.time
+        std1=f1.std
+        std2=f2.std
+        data1=f1.data
+        data2=f2.data
+
+        time=np.concatenate((time1,time2))
+        std=np.concatenate((std1,std2))
+        data=np.concatenate((data1,data2),axis=0)
+
+        return FFTData(cc_len_secs=f1.cc_len_secs,cc_step_secs=f1.cc_step_secs,id=f1.id,net=f1.net,
+                        sta=f1.sta,loc=f1.loc,chan=f1.chan,lon=f1.lon,lat=f1.lat,ele=f1.ele,dt=f1.dt,
+                        std=std,time=time,Nfft=f1.Nfft,data=data,freqmin=f1.freqmin,freqmax=f1.freqmax,
+                        time_norm=f1.time_norm,freq_norm=f1.freq_norm,smooth=f1.smooth,
+                        smooth_spec=f1.smooth_spec,misc=f1.misc,taper_frac=f1.taper_frac,df=f1.df)
 
 class CorrData(object):
     """
