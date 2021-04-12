@@ -564,7 +564,7 @@ def check_overlap(t1,t2,error=0):
 
     return ind1,ind2
 
-def slicing_trace(source,slice_len_secs,slice_step_secs,taper_frac=0.02):
+def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
     '''
     this function cuts continous noise data into user-defined segments, estimate the statistics of
     each segment and keep timestamp of each segment for later use.
@@ -572,8 +572,8 @@ def slicing_trace(source,slice_len_secs,slice_step_secs,taper_frac=0.02):
     ----------------------
     source: obspy stream object
     exp_len_hours: expected length of the data (source) in hours
-    slice_len_secs: length of the slicing segments in seconds
-    slice_step_secs: step of slicing in seconds.
+    win_len_secs: length of the slicing segments in seconds
+    step_secs: step of slicing in seconds.
 
     RETURNS:
     ----------------------
@@ -590,10 +590,10 @@ def slicing_trace(source,slice_len_secs,slice_step_secs,taper_frac=0.02):
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
     endtime = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
     duration=endtime-starttime
-    if duration < slice_len_secs:
+    if duration < win_len_secs:
         print("return empty! data duration is < slice length." % source)
         return source_params,dataS_t,dataS
-    nseg = int(np.floor((endtime-starttime-slice_len_secs)/slice_step_secs))
+    nseg = int(np.floor((endtime-starttime-win_len_secs)/step_secs))
     print('slicing trace into ['+str(nseg)+'] segments.')
     # copy data into array
     data = source[0].data
@@ -606,7 +606,7 @@ def slicing_trace(source,slice_len_secs,slice_step_secs,taper_frac=0.02):
         return source_params,dataS_t,dataS
 
     # initialize variables
-    npts = slice_len_secs*sps
+    npts = win_len_secs*sps
     trace_stdS = np.zeros(nseg,dtype=np.float32)
     dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
     dataS_t  = np.zeros(nseg,dtype=np.float)
@@ -616,8 +616,8 @@ def slicing_trace(source,slice_len_secs,slice_step_secs,taper_frac=0.02):
         indx2 = indx1+npts
         dataS[iseg] = data[indx1:indx2]
         trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
-        dataS_t[iseg]    = starttime+slice_step_secs*iseg
-        indx1 = indx1+slice_step_secs*sps
+        dataS_t[iseg]    = starttime+step_secs*iseg
+        indx1 = indx1+step_secs*sps
 
     # 2D array processing
     dataS = demean(dataS)
