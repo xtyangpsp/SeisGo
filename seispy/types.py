@@ -95,12 +95,13 @@ class FFTData(object):
     Object to store FFT data. The idea of having a FFTData data type
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
     """
-    def __init__(self,trace=None,cc_len_secs=None,cc_step_secs=None,stainv=None,
+    def __init__(self,trace=None,win_len=None,step=None,stainv=None,
                 id=None,net=None,sta=None,loc=None,chan=None,lon=None,lat=None,ele=None,
                 dt=None,std=None,time=None,Nfft=None,data=None,
                  freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
                  smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
         if trace is None:
+            self.type='FFT Data'
             self.id=id
             self.net=net
             self.sta=sta
@@ -115,24 +116,24 @@ class FFTData(object):
             self.time_norm=time_norm
             self.freq_norm=freq_norm
             self.smooth=smooth
-            self.cc_len_secs=cc_len_secs
-            self.cc_step_secs=cc_step_secs
+            self.win_len=win_len
+            self.step=step
             self.std=std
             self.time=time
             self.Nfft=Nfft
             self.misc=misc
             self.data=data
         else:
-            construct(trace,cc_len_secs,cc_step_secs,stainv=stainv,
+            self.construct(trace,win_len,step,stainv=stainv,
                          freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,
                          freq_norm=freq_norm,smooth=smooth,
                          smooth_spec=smooth_spec,misc=misc,taper_frac=taper_frac,df=df)
 
-    def construct(self,trace,cc_len_secs,cc_step_secs,stainv=None,
+    def construct(self,trace,win_len,step,stainv=None,
                      freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
                      smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
         """
-        Initialize the object. Will do whitening if specicied in freq_norm.
+        Constructure the FFTData object. Will do whitening if specicied in freq_norm.
 
         trace: obspy.core.Trace or Stream object.
         """
@@ -171,8 +172,8 @@ class FFTData(object):
             self.smooth_spec=self.smooth
         else:
             self.smooth_spec=smooth_spec
-        self.cc_len_secs=cc_len_secs
-        self.cc_step_secs=cc_step_secs
+        self.win_len=win_len
+        self.step=step
         self.misc=misc
 
         fft_white=[]
@@ -184,7 +185,7 @@ class FFTData(object):
             else:
                 raise ValueError("freqmin must be specified with ftn normalization.")
         # cut daily-long data into smaller segments (dataS always in 2D)
-        trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],cc_len_secs,cc_step_secs,
+        trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],win_len,step,
                                                         taper_frac=taper_frac)        # optimized version:3-4 times faster
 
         if len(dataS)>0:
@@ -220,7 +221,7 @@ class FFTData(object):
             self.Nfft=Nfft
 
             if freq_norm != 'no' and freqmin is not None:
-                print('Initializing FFTData with whitening ...')
+                print('Constructing FFTData with whitening ...')
                 self.whiten()  # whiten and return FFT
         else:
             self.std=None
@@ -324,13 +325,22 @@ class FFTData(object):
         print("time_norm    :   "+self.time_norm)
         print("freq_norm    :   "+self.freq_norm)
         print("smooth       :   "+str(self.smooth))
-        print("cc_len_secs  :   "+str(self.cc_len_secs))
-        print("cc_step_secs :   "+str(self.cc_step_secs))
-        print("std          :   "+str(self.std.shape))
-        print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        print("win_len      :   "+str(self.win_len))
+        print("step         :   "+str(self.step))
+        if self.std is not None:
+            print("std          :   "+str(self.std.shape))
+        else:
+            print("std          :   none")
+        if self.time is not None:
+            print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        else:
+            print("time         :   none")
         print("Nfft         :   "+str(self.Nfft))
         print("misc         :   "+str(self.misc))
-        print("data         :   "+str(self.data.shape))
+        if self.data is not None:
+            print("data         :   "+str(self.data.shape))
+        else:
+            print("data         :   none")
         print("")
         return "<FFTData object>"
 
@@ -338,7 +348,7 @@ class FFTData(object):
         """
         Merge two FFTData objects with the same id. Only merge [time],[std],[data] attributes.
         """
-        if c1.id != c2.id:
+        if f1.id != f2.id:
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
 
         time1=f1.time
@@ -352,11 +362,11 @@ class FFTData(object):
         std=np.concatenate((std1,std2))
         data=np.concatenate((data1,data2),axis=0)
 
-        return FFTData(cc_len_secs=f1.cc_len_secs,cc_step_secs=f1.cc_step_secs,id=f1.id,net=f1.net,
+        return FFTData(win_len=f1.win_len,step=f1.step,id=f1.id,net=f1.net,
                         sta=f1.sta,loc=f1.loc,chan=f1.chan,lon=f1.lon,lat=f1.lat,ele=f1.ele,dt=f1.dt,
                         std=std,time=time,Nfft=f1.Nfft,data=data,freqmin=f1.freqmin,freqmax=f1.freqmax,
                         time_norm=f1.time_norm,freq_norm=f1.freq_norm,smooth=f1.smooth,
-                        smooth_spec=f1.smooth_spec,misc=f1.misc,taper_frac=f1.taper_frac,df=f1.df)
+                        smooth_spec=f1.smooth_spec,misc=f1.misc,df=f1.df)
 
 class CorrData(object):
     """
@@ -423,13 +433,19 @@ class CorrData(object):
         print("dt       :   "+str(self.dt))
         print("dist     :   "+str(self.dist))
         print("ngood    :   "+str(self.ngood))
-        if self.substack:
-            print("time :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        if self.time is not None:
+            if self.substack:
+                print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+            else:
+                print("time     :   "+str(obspy.UTCDateTime(self.time)))
         else:
-            print("time :   "+str(obspy.UTCDateTime(self.time)))
+            print("time     :   none")
         print("substack :   "+str(self.substack))
-        print("data     :   "+str(self.data.shape))
-        print(str(self.data))
+        if self.data is not None:
+            print("data     :   "+str(self.data.shape))
+            print(str(self.data))
+        else:
+            print("data     :   none")
         print("")
 
         return "<CorrData object>"
