@@ -1242,7 +1242,7 @@ def taper(data,fraction=0.05,maxlen=20):
     if data.ndim == 1:
         npts = data.shape[0]
         # window length
-        wlen = npts*fraction
+        wlen = int(npts*fraction)
         if wlen>maxlen:wlen = maxlen
 
         # taper values
@@ -1257,7 +1257,7 @@ def taper(data,fraction=0.05,maxlen=20):
     elif data.ndim == 2:
         npts = data.shape[1]
         # window length
-        wlen = npts*fraction
+        wlen = int(npts*fraction)
         if wlen>maxlen:wlen = maxlen
         # taper values
         func = _get_function_from_entry_point('taper', 'hann')
