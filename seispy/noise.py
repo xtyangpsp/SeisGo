@@ -27,19 +27,19 @@ def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
 
     return memory_size
 
-def compute_fft(trace,cc_len_secs,cc_step_secs,stainv=None,
+def compute_fft(trace,win_len,step,stainv=None,
                  freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
                  smooth=20,smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
     """
     Call FFTData to build the object. This is an alternative of directly call FFTData().
     The motivation of this function is to provide an user interface to build FFTData object.
     """
-    return FFTData(trace=trace,cc_len_secs=cc_len_secs,cc_step_secs=cc_step_secs,
+    return FFTData(trace=trace,win_len=win_len,step=step,
                     stainv=stainv,freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,
                     freq_norm=freq_norm,smooth=smooth,smooth_spec=smooth_spec,misc=misc,
                     taper_frac=taper_frac,df=df)
 #assemble FFT with given asdf file name
-def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
+def assemble_fft(sfile,win_len,step,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,smooth_spec=20,
                     taper_frac=0.05,df=None,exclude_chan=[None],v=True):
     #only deal with ASDF format for now.
@@ -87,11 +87,11 @@ def assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=None,freqmax=None,
                 print(comp+" is in the exclude_chan list. Skip it!")
                 continue
 
-            fftdata=FFTData(source,cc_len_secs,cc_step_secs,stainv=inv1,
+            fftdata=FFTData(source,win_len,step,stainv=inv1,
                             time_norm=time_norm,freq_norm=freq_norm,
                             smooth=smooth,freqmin=freqmin,freqmax=freqmax,
                             smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
-            if fftdata.Nfft>0:
+            if fftdata.data is not None:
                 fftdata_all.append(fftdata)
     ####
     return fftdata_all
@@ -137,7 +137,7 @@ def smooth_source_spect(fft1,cc_method,sn):
 
     return sfft1.reshape(N,Nfft2)
 #
-def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr',
+def do_correlation(sfile,ncomp,win_len,step,maxlag,cc_method='xcorr',
                     acorr_only=False,xcorr_only=True,substack=False,substack_len=None,
                     smoothspect_N=20,maxstd=10,freqmin=None,freqmax=None,time_norm='no',
                     freq_norm='no',smooth_N=20,exclude_chan=[None],outdir='.',v=True):
@@ -171,7 +171,7 @@ def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr'
     ftmp = open(tmpfile,'w')
 
     ##############compute FFT#############
-    fftdata=assemble_fft(sfile,cc_len_secs,cc_step_secs,freqmin=freqmin,freqmax=freqmax,
+    fftdata=assemble_fft(sfile,win_len,step,freqmin=freqmin,freqmax=freqmax,
                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
     ndata=len(fftdata)
 
@@ -185,11 +185,12 @@ def do_correlation(sfile,ncomp,cc_len_secs,cc_step_secs,maxlag,cc_method='xcorr'
         #-----------now loop III for each receiver B----------
         for iiR in range(istart,iend):
             if v:print('receiver: %s %s' % (fftdata[iiR].net,fftdata[iiR].sta))
-            corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
-                                smoothspect_N=smoothspect_N,substack_len=substack_len,
-                                maxstd=maxstd)
+            if fftdata[iiS].data is not None and fftdata[iiR].data is not None:
+                corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
+                                    smoothspect_N=smoothspect_N,substack_len=substack_len,
+                                    maxstd=maxstd)
 
-            if corrdata.data is not None: corrdata.to_asdf(file=outfile)
+                if corrdata.data is not None: corrdata.to_asdf(file=outfile)
 
     # create a stamp to show time chunk being done
     ftmp.write('done')
@@ -240,7 +241,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
 
     #----load paramters----
     dt      = fftdata1.dt
-    cc_len  = fftdata1.cc_len_secs
+    cc_len  = fftdata1.win_len
     if substack_len is None: substack_len=cc_len
 
     Nfft = fftdata1.Nfft
@@ -538,7 +539,8 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
         'comp':comp}
     return parameters
 
-def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotation=False,correctionfile=None,flag=False):
+def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
+                rotation=False,correctionfile=None,flag=False,keep_substack=False):
     # source folder
     if pairlist is None:
         pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
@@ -636,7 +638,8 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                     bigstack[icomp]=dstack
                     tparameters['time']  = stamps_final[0]
                     tparameters['ngood'] = len(stamps_final)
-                    ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp, parameters=tparameters)
+                    ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp,
+                                            parameters=tparameters)
                 # start rotation
                 if np.all(bigstack==0):continue
 
@@ -649,6 +652,15 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                     if rcomp != 'ZZ':
                         ds.add_auxiliary_data(data=bigstack_rotated[icomp2], data_type=data_type,
                                                 path=rcomp, parameters=tparameters)
+            if keep_substack:
+                for ic in cc_comp:
+                    for ii in range(corrdict_all[ic].data.shape[0]):
+                        tparameters2=tparameters
+                        tparameters2['time']  = corrdict_all[ic].time[ii]
+                        tparameters2['ngood'] = corrdict_all[ic].ngood[ii]
+                        data_type = 'T'+str(int(corrdict_all[ic].time[ii]))
+                        ds.add_auxiliary_data(data=corrdict_all[ic].data[ii], data_type=data_type,
+                                            path=ic, parameters=tparameters2)
 
         else: #no need to care about the order of components.
             stack_h5 = os.path.join(outdir,idir+'/'+outfn)
@@ -661,8 +673,17 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],rotatio
                 tparameters['ngood'] = len(stamps_final)
                 for i in range(len(method)):
                     m=method[i]
-                    ds.add_auxiliary_data(data=dstack[i,:], data_type='Allstack_'+m, path=ic, parameters=tparameters)
+                    ds.add_auxiliary_data(data=dstack[i,:], data_type='Allstack_'+m, path=ic,
+                                            parameters=tparameters)
 
+                if keep_substack:
+                    for ii in range(corrdict_all[ic].data.shape[0]):
+                        tparameters2=tparameters
+                        tparameters2['time']  = corrdict_all[ic].time[ii]
+                        tparameters2['ngood'] = corrdict_all[ic].ngood[ii]
+                        data_type = 'T'+str(int(corrdict_all[ic].time[ii]))
+                        ds.add_auxiliary_data(data=corrdict_all[ic].data[ii], data_type=data_type,
+                                            path=ic, parameters=tparameters2)
         #
         if flag: print('stacking and saving took %6.2fs'%(time.time()-t2))
         # write file stamps

@@ -95,11 +95,45 @@ class FFTData(object):
     Object to store FFT data. The idea of having a FFTData data type
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
     """
-    def __init__(self,trace,cc_len_secs,cc_step_secs,stainv=None,
+    def __init__(self,trace=None,win_len=None,step=None,stainv=None,
+                id=None,net=None,sta=None,loc=None,chan=None,lon=None,lat=None,ele=None,
+                dt=None,std=None,time=None,Nfft=None,data=None,
+                 freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
+                 smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
+        if trace is None:
+            self.type='FFT Data'
+            self.id=id
+            self.net=net
+            self.sta=sta
+            self.loc=loc
+            self.chan=chan
+            self.lon=lon
+            self.lat=lat
+            self.ele=ele
+            self.dt=dt
+            self.freqmin=freqmin
+            self.freqmax=freqmax
+            self.time_norm=time_norm
+            self.freq_norm=freq_norm
+            self.smooth=smooth
+            self.win_len=win_len
+            self.step=step
+            self.std=std
+            self.time=time
+            self.Nfft=Nfft
+            self.misc=misc
+            self.data=data
+        else:
+            self.construct(trace,win_len,step,stainv=stainv,
+                         freqmin=freqmin,freqmax=freqmax,time_norm=time_norm,
+                         freq_norm=freq_norm,smooth=smooth,
+                         smooth_spec=smooth_spec,misc=misc,taper_frac=taper_frac,df=df)
+
+    def construct(self,trace,win_len,step,stainv=None,
                      freqmin=None,freqmax=None,time_norm='no',freq_norm='no',smooth=20,
                      smooth_spec=None,misc=dict(),taper_frac=0.05,df=None):
         """
-        Initialize the object. Will do whitening if specicied in freq_norm.
+        Constructure the FFTData object. Will do whitening if specicied in freq_norm.
 
         trace: obspy.core.Trace or Stream object.
         """
@@ -115,11 +149,16 @@ class FFTData(object):
             self.lat=0.0
             self.ele=0.0
             self.loc=''
+        if isinstance(self.sta,list):self.sta=self.sta[0]
+        if isinstance(self.net,list):self.net=self.net[0]
+        if isinstance(self.lon,list):self.lon=self.lon[0]
+        if isinstance(self.lat,list):self.lat=self.lat[0]
+        if isinstance(self.ele,list):self.ele=self.ele[0]
+        if isinstance(self.loc,list):self.loc=self.loc[0]
 
         self.chan=trace[0].stats.channel
         self.id=self.net+'.'+self.sta+'.'+self.loc+'.'+self.chan
         self.dt = 1/trace[0].stats.sampling_rate
-        self.sps  = int(trace[0].stats.sampling_rate)
         self.freqmin=freqmin
         self.freqmax=freqmax
         self.df = df
@@ -133,26 +172,26 @@ class FFTData(object):
             self.smooth_spec=self.smooth
         else:
             self.smooth_spec=smooth_spec
-        self.cc_len_secs=cc_len_secs
-        self.cc_step_secs=cc_step_secs
+        self.win_len=win_len
+        self.step=step
         self.misc=misc
 
         fft_white=[]
         tr=trace[0].copy()
         if time_norm == 'ftn':
             if self.freqmin is not None:
-                if self.freqmax is None:self.freqmax=0.499*self.sps
+                if self.freqmax is None:self.freqmax=0.499/self.dt
                 tr.data=utils.ftn(trace[0].data,self.dt,self.freqmin,self.freqmax,df=self.df)
             else:
                 raise ValueError("freqmin must be specified with ftn normalization.")
         # cut daily-long data into smaller segments (dataS always in 2D)
-        trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],cc_len_secs,cc_step_secs,
+        trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],win_len,step,
                                                         taper_frac=taper_frac)        # optimized version:3-4 times faster
-        N=dataS.shape[0]
-        self.std=trace_stdS
-        self.time=dataS_t
-        Nfft=0
+
         if len(dataS)>0:
+            N=dataS.shape[0]
+            self.std=trace_stdS
+            self.time=dataS_t
             #------to normalize in time or not------
             if time_norm != 'no':
                 if time_norm == 'one_bit': 	# sign normalization
@@ -177,13 +216,18 @@ class FFTData(object):
                 axis = 1
             fft_white = fft(white, Nfft, axis=axis) # return FFT
 
-        ##
-        self.data=fft_white
-        self.Nfft=Nfft
+            ##
+            self.data=fft_white
+            self.Nfft=Nfft
 
-        if len(dataS)>0 and freq_norm != 'no' and freqmin is not None:
-            print('Initializing FFTData with whitening ...')
-            self.whiten()  # whiten and return FFT
+            if freq_norm != 'no' and freqmin is not None:
+                print('Constructing FFTData with whitening ...')
+                self.whiten()  # whiten and return FFT
+        else:
+            self.std=None
+            self.time=None
+            self.data=None
+            self.Nfft=None
 
     ##### method for whitening
     def whiten(self,freq_norm=None,smooth=None):
@@ -196,7 +240,7 @@ class FFTData(object):
             raise ValueError('freqmin has to be specified as an attribute in FFTData!')
 
         if self.freqmax is None:
-            self.freqmax=0.499*self.sps
+            self.freqmax=0.499/self.dt
             print('freqmax not specified, use default as 0.499*samp_freq.')
 
         if self.data.ndim == 1:
@@ -275,22 +319,54 @@ class FFTData(object):
         print("lon          :   "+str(self.lon))
         print("lat          :   "+str(self.lat))
         print("ele          :   "+str(self.ele))
-        print("sps          :   "+str(self.sps))
         print("dt           :   "+str(self.dt))
         print("freqmin      :   "+str(self.freqmin))
         print("freqmax      :   "+str(self.freqmax))
         print("time_norm    :   "+self.time_norm)
         print("freq_norm    :   "+self.freq_norm)
         print("smooth       :   "+str(self.smooth))
-        print("cc_len_secs  :   "+str(self.cc_len_secs))
-        print("cc_step_secs :   "+str(self.cc_step_secs))
-        print("std          :   "+str(self.std.shape))
-        print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        print("win_len      :   "+str(self.win_len))
+        print("step         :   "+str(self.step))
+        if self.std is not None:
+            print("std          :   "+str(self.std.shape))
+        else:
+            print("std          :   none")
+        if self.time is not None:
+            print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        else:
+            print("time         :   none")
         print("Nfft         :   "+str(self.Nfft))
         print("misc         :   "+str(self.misc))
-        print("data         :   "+str(self.data.shape))
+        if self.data is not None:
+            print("data         :   "+str(self.data.shape))
+        else:
+            print("data         :   none")
         print("")
         return "<FFTData object>"
+
+    def __add__(f1,f2):
+        """
+        Merge two FFTData objects with the same id. Only merge [time],[std],[data] attributes.
+        """
+        if f1.id != f2.id:
+            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+
+        time1=f1.time
+        time2=f2.time
+        std1=f1.std
+        std2=f2.std
+        data1=f1.data
+        data2=f2.data
+
+        time=np.concatenate((time1,time2))
+        std=np.concatenate((std1,std2))
+        data=np.concatenate((data1,data2),axis=0)
+
+        return FFTData(win_len=f1.win_len,step=f1.step,id=f1.id,net=f1.net,
+                        sta=f1.sta,loc=f1.loc,chan=f1.chan,lon=f1.lon,lat=f1.lat,ele=f1.ele,dt=f1.dt,
+                        std=std,time=time,Nfft=f1.Nfft,data=data,freqmin=f1.freqmin,freqmax=f1.freqmax,
+                        time_norm=f1.time_norm,freq_norm=f1.freq_norm,smooth=f1.smooth,
+                        smooth_spec=f1.smooth_spec,misc=f1.misc,df=f1.df)
 
 class CorrData(object):
     """
@@ -343,6 +419,7 @@ class CorrData(object):
         """
         Display key content of the object.
         """
+        print("type       :   "+str(self.type))
         print("id       :   "+str(self.id))
         print("net      :   "+str(self.net))
         print("sta      :   "+str(self.sta))
@@ -356,13 +433,19 @@ class CorrData(object):
         print("dt       :   "+str(self.dt))
         print("dist     :   "+str(self.dist))
         print("ngood    :   "+str(self.ngood))
-        if self.substack:
-            print("time :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        if self.time is not None:
+            if self.substack:
+                print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+            else:
+                print("time     :   "+str(obspy.UTCDateTime(self.time)))
         else:
-            print("time :   "+str(obspy.UTCDateTime(self.time)))
+            print("time     :   none")
         print("substack :   "+str(self.substack))
-        print("data     :   "+str(self.data.shape))
-        print(str(self.data))
+        if self.data is not None:
+            print("data     :   "+str(self.data.shape))
+            print(str(self.data))
+        else:
+            print("data     :   none")
         print("")
 
         return "<CorrData object>"
@@ -470,6 +553,37 @@ class CorrData(object):
                 self.data=dstack
             print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
 
+    #convert to EGF by taking the netagive time derivative of the noise correlation functions.
+    def to_egf(self):
+        """
+        This function converts the CorrData correlaiton results to EGF by taking
+        the netagive time derivative of the noise correlation functions.
+
+        The positive and negative lags are converted seperatedly but merged afterward.
+        """
+        print("Converting to empirical Green's functions.")
+
+        dt=self.dt
+        #check whether the corrdata includes two sides.
+        if self.substack:
+            nhalfpoint=np.int(self.data.shape[1]/2)
+            t=np.arange(-nhalfpoint,nhalfpoint+0.5)*dt
+
+            ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
+
+            #initiate as zeros
+            egf=np.zeros(self.data.shape,dtype=self.data.dtype)
+            #positive side
+            egf[:,ind_zero:]=-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt
+
+            #negative side
+            egf[:,:ind_zero]=np.gradient(self.data[:,:ind_zero],axis=1)/dt
+
+            egf[:,[0,ind_zero,-1]]=0
+
+        self.data=egf
+        self.type="Empirical Green's Functions"
+
     def to_asdf(self,file,v=True):
         """
         Save CorrData object too asdf file.
@@ -489,10 +603,14 @@ class CorrData(object):
             cc_method = self.misc['cc_method']
         else:
             cc_method = ''
-
+        if "dist_unit" in list(self.misc.keys()):
+            dist_unit=self.misc['dist_unit']
+        else:
+            dist_unit=''
         parameters = {'dt':self.dt,
             'maxlag':np.float32(self.lag),
-            'dist':np.float32(self.dist/1000),
+            'dist':np.float32(self.dist),
+            'dist_unit':dist_unit,
             'azi':np.float32(self.az),
             'baz':np.float32(self.baz),
             'lonS':np.float32(lonS),
