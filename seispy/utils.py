@@ -264,21 +264,29 @@ def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
 
     return source
 
-def stats2inv(stats,locs=None):
+def stats2inv(stats,locs=None,format=None):
     '''
     this function creates inventory given the stats parameters in an obspy stream or a station list.
 
     PARAMETERS:
     ------------------------
     stats: obspy trace stats object containing all station header info
-    locs:  panda data frame of the station list. it is needed for convering miniseed files into ASDF
+    locs:  panda data frame of the station list. it is needed for converting miniseed files into ASDF
+    format: format of the original data that the obspy trace was built from. if not specified, it will
+            read the format by the Trace._format attribute. 'sac' format will be used if there is a sac
+            dictionary in stats.
     RETURNS:
     ------------------------
     inv: obspy inventory object of all station info to be used later
     '''
     staxml    = False
     respdir   = "."
-    input_fmt = stats._format.lower()
+    if format is None:
+        input_fmt = stats._format.lower()
+        if 'sac' in list(stats.keys()):
+            input_fmt = 'sac'
+    else:
+        input_fmt = format
 
     if staxml:
         if not respdir:
@@ -292,65 +300,71 @@ def stats2inv(stats,locs=None):
     inv = Inventory(networks=[],source="homegrown")
 
     if input_fmt=='sac':
-        net = Network(
-            # This is the network code according to the SEED standard.
-            code=stats.network,
-            stations=[],
-            description="created from SAC and resp files",
-            start_date=stats.starttime)
+        if 'sac' not in list(stats.keys()):
+            raise ValueError('Abort! sac key is not in stats for input format: sac.')
+        else:
+            net = Network(
+                # This is the network code according to the SEED standard.
+                code=stats.network,
+                stations=[],
+                description="created from SAC and resp files",
+                start_date=stats.starttime)
 
-        sta = Station(
-            # This is the station code according to the SEED standard.
-            code=stats.station,
-            latitude=stats.sac["stla"],
-            longitude=stats.sac["stlo"],
-            elevation=stats.sac["stel"],
-            creation_date=stats.starttime,
-            site=Site(name="First station"))
+            sta = Station(
+                # This is the station code according to the SEED standard.
+                code=stats.station,
+                latitude=stats.sac["stla"],
+                longitude=stats.sac["stlo"],
+                elevation=stats.sac["stel"],
+                creation_date=stats.starttime,
+                site=Site(name="First station"))
 
-        cha = Channel(
-            # This is the channel code according to the SEED standard.
-            code=stats.channel,
-            # This is the location code according to the SEED standard.
-            location_code=stats.location,
-            # Note that these coordinates can differ from the station coordinates.
-            latitude=stats.sac["stla"],
-            longitude=stats.sac["stlo"],
-            elevation=stats.sac["stel"],
-            depth=-stats.sac["stel"],
-            azimuth=stats.sac["cmpaz"],
-            dip=stats.sac["cmpinc"],
-            sample_rate=stats.sampling_rate)
+            cha = Channel(
+                # This is the channel code according to the SEED standard.
+                code=stats.channel,
+                # This is the location code according to the SEED standard.
+                location_code=stats.location,
+                # Note that these coordinates can differ from the station coordinates.
+                latitude=stats.sac["stla"],
+                longitude=stats.sac["stlo"],
+                elevation=stats.sac["stel"],
+                depth=-stats.sac["stel"],
+                azimuth=stats.sac["cmpaz"],
+                dip=stats.sac["cmpinc"],
+                sample_rate=stats.sampling_rate)
 
-    elif input_fmt == 'mseed':
-        ista=locs[locs['station']==stats.station].index.values.astype('int64')[0]
+    else:# input_fmt == 'mseed':
+        if locs is not None:
+            ista=locs[locs['station']==stats.station].index.values.astype('int64')[0]
 
-        net = Network(
-            # This is the network code according to the SEED standard.
-            code=locs.iloc[ista]["network"],
-            stations=[],
-            description="created from SAC and resp files",
-            start_date=stats.starttime)
+            net = Network(
+                # This is the network code according to the SEED standard.
+                code=locs.iloc[ista]["network"],
+                stations=[],
+                description="created from SAC and resp files",
+                start_date=stats.starttime)
 
-        sta = Station(
-            # This is the station code according to the SEED standard.
-            code=locs.iloc[ista]["station"],
-            latitude=locs.iloc[ista]["latitude"],
-            longitude=locs.iloc[ista]["longitude"],
-            elevation=locs.iloc[ista]["elevation"],
-            creation_date=stats.starttime,
-            site=Site(name="First station"))
+            sta = Station(
+                # This is the station code according to the SEED standard.
+                code=locs.iloc[ista]["station"],
+                latitude=locs.iloc[ista]["latitude"],
+                longitude=locs.iloc[ista]["longitude"],
+                elevation=locs.iloc[ista]["elevation"],
+                creation_date=stats.starttime,
+                site=Site(name="First station"))
 
-        cha = Channel(
-            code=stats.channel,
-            location_code=stats.location,
-            latitude=locs.iloc[ista]["latitude"],
-            longitude=locs.iloc[ista]["longitude"],
-            elevation=locs.iloc[ista]["elevation"],
-            depth=-locs.iloc[ista]["elevation"],
-            azimuth=0,
-            dip=0,
-            sample_rate=stats.sampling_rate)
+            cha = Channel(
+                code=stats.channel,
+                location_code=stats.location,
+                latitude=locs.iloc[ista]["latitude"],
+                longitude=locs.iloc[ista]["longitude"],
+                elevation=locs.iloc[ista]["elevation"],
+                depth=-locs.iloc[ista]["elevation"],
+                azimuth=0,
+                dip=0,
+                sample_rate=stats.sampling_rate)
+        else:
+            raise ValueError('locs has to be specified for miniseed data and other formats.')
 
     response = obspy.core.inventory.response.Response()
 
@@ -1472,7 +1486,7 @@ def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
     return source
 
 #extract waveform (raw) from ASDF file.
-def extract_waveform(sfile,net,sta,comp=None):
+def extract_waveform(sfile,net,sta,comp=None,get_stainv=False):
     '''
     extract the downloaded waveform for station A
     PARAMETERS:
@@ -1499,6 +1513,12 @@ def extract_waveform(sfile,net,sta,comp=None):
 
     tcomp = ds.waveforms[tsta].get_waveform_tags()
     ncomp = len(tcomp)
+    if get_stainv:
+        try:
+            inv = ds.waveforms[tsta]['StationXML']
+        except Exception as e:
+            print('abort! no stationxml for %s in file %s'%(tsta,sfile))
+            inv=[]
 
     if ncomp == 1:
         tr=ds.waveforms[tsta][tcomp[0]]
@@ -1518,7 +1538,10 @@ def extract_waveform(sfile,net,sta,comp=None):
 
     if len(tr)==1:tr=tr[0]
 
-    return tr
+    if get_stainv:
+        return tr,inv
+    else:
+        return tr
 
 
 def xcorr(x, y, maxlags=10):
