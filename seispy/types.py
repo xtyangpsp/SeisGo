@@ -574,10 +574,10 @@ class CorrData(object):
             #initiate as zeros
             egf=np.zeros(self.data.shape,dtype=self.data.dtype)
             #positive side
-            egf[:,ind_zero:]=-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt
+            egf[:,ind_zero:]=utils.tapper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt)
 
             #negative side
-            egf[:,:ind_zero]=np.gradient(self.data[:,:ind_zero],axis=1)/dt
+            egf[:,:ind_zero]=utils.tapper(np.gradient(self.data[:,:ind_zero],axis=1)/dt)
 
             egf[:,[0,ind_zero,-1]]=0
 
