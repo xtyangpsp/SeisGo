@@ -540,7 +540,8 @@ def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
     return parameters
 
 def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
-                rotation=False,correctionfile=None,flag=False,keep_substack=False):
+                rotation=False,correctionfile=None,flag=False,keep_substack=False,
+                to_egf=False):
     # source folder
     if pairlist is None:
         pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
@@ -586,6 +587,11 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                 ### merge same component corrdata.
                 # tt11=time.time()
                 for c in comp_list:
+                    #convert corrdata to empirical Green's functions by
+                    #taking the negative time derivative. See types.CorrData.to_egf() for details.
+                    if to_egf:
+                        corrdict[pair][c].to_egf()
+
                     if tparameters is None:tparameters=corrdict[pair][c].misc
                     if c in list(corrdict_all.keys()):
                         corrdict_all[c].merge(corrdict[pair][c])
