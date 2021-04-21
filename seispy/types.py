@@ -585,10 +585,10 @@ class CorrData(object):
             ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
 
             #positive side
-            egf[ind_zero:]=utils.taper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt)
+            egf[ind_zero:]=utils.taper(-1.0*np.gradient(self.data[ind_zero:])/dt)
 
             #negative side
-            egf[:ind_zero]=utils.taper(np.gradient(self.data[:,:ind_zero],axis=1)/dt)
+            egf[:ind_zero]=utils.taper(np.gradient(self.data[:ind_zero])/dt)
 
             egf[[0,ind_zero,-1]]=0
 
