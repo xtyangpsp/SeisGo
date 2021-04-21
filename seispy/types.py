@@ -564,15 +564,14 @@ class CorrData(object):
         print("Converting to empirical Green's functions.")
 
         dt=self.dt
-        #check whether the corrdata includes two sides.
+        #
+        #initiate as zeros
+        egf=np.zeros(self.data.shape,dtype=self.data.dtype)
         if self.substack:
             nhalfpoint=np.int(self.data.shape[1]/2)
             t=np.arange(-nhalfpoint,nhalfpoint+0.5)*dt
-
             ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
 
-            #initiate as zeros
-            egf=np.zeros(self.data.shape,dtype=self.data.dtype)
             #positive side
             egf[:,ind_zero:]=utils.tapper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt)
 
@@ -580,6 +579,18 @@ class CorrData(object):
             egf[:,:ind_zero]=utils.tapper(np.gradient(self.data[:,:ind_zero],axis=1)/dt)
 
             egf[:,[0,ind_zero,-1]]=0
+        else:
+            nhalfpoint=np.int(self.data.shape[0]/2)
+            t=np.arange(-nhalfpoint,nhalfpoint+0.5)*dt
+            ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
+
+            #positive side
+            egf[ind_zero:]=utils.tapper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt)
+
+            #negative side
+            egf[:ind_zero]=utils.tapper(np.gradient(self.data[:,:ind_zero],axis=1)/dt)
+
+            egf[[0,ind_zero,-1]]=0
 
         self.data=egf
         self.type="Empirical Green's Functions"
