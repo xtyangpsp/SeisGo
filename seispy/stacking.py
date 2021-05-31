@@ -26,6 +26,7 @@ def robust_stack(cc_array,epsilon=1E-5):
     newstack: numpy vector contains the stacked cross correlation
 
     Written by Marine Denolle
+    Modified by Xiaotao Yang
     """
     res  = 9E9  # residuals
     w = np.ones(cc_array.shape[0])

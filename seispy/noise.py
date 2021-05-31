@@ -695,6 +695,8 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
         # write file stamps
         ftmp = open(toutfn,'w');ftmp.write('done');ftmp.close()
 
+        del corrdict_all
+
 ####
 def stacking(corrdata,method='linear'):
     '''
@@ -906,6 +908,80 @@ def rotation(bigstack,parameters,locs,flag):
 
     return tcorr
 
+####
+def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False):
+    # source folder
+    if pairlist is None:
+        pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
+        if len(ccfiles)==0:
+            raise IOError('Abort! no available CCF data for stacking')
+        for s in netsta_all:
+            tmp = os.path.join(outdir,s)
+            if not os.path.isdir(tmp):os.mkdir(tmp)
+    if isinstance(pairlist,str):pairlist=[pairlist]
+
+    if not os.path.isdir(outdir):os.makedirs(outdir)
+
+    for pair in pairlist:
+        ttr   = pair.split('_')
+        snet,ssta = ttr[0].split('.')
+        rnet,rsta = ttr[1].split('.')
+        idir  = ttr[0]
+
+        # continue when file is done
+        ioutdir=os.path.join(outdir,idir)
+        if not os.path.isdir(ioutdir):os.makedirs(ioutdir)
+        toutfn = os.path.join(ioutdir,pair+'.tmp')
+        if os.path.isfile(toutfn):continue
+        if flag:print('assembling all corrdata ...')
+        t0=time.time()
+        corrdict_all=dict() #all components for the single station pair
+        # txtract=np.zeros(len(ccfiles),dtype=np.float32)
+        # tmerge=np.zeros(len(ccfiles),dtype=np.float32)
+        tparameters=None
+        for i,ifile in enumerate(ccfiles):
+            # tt00=time.time()
+            corrdict=extract_corrdata(ifile,pair=pair)
+            # txtract[i]=time.time()-tt00
+            if len(list(corrdict.keys()))>0:
+                comp_list=list(corrdict[pair].keys())
+
+                if len(comp_list)==0:
+                    continue
+                ### merge same component corrdata.
+                # tt11=time.time()
+                for c in comp_list:
+                    if c in list(corrdict_all.keys()):
+                        corrdict_all[c].merge(corrdict[pair][c])
+                    else:corrdict_all[c]=corrdict[pair][c]
+                # tmerge[i]=time.time()-tt11
+        #
+        # if flag:print('extract time:'+str(np.sum(txtract)))
+        # if flag:print('merge time:'+str(np.sum(tmerge)))
+        t1=time.time()
+        if flag:print('finished assembling in %6.2fs ...'%(t1-t0))
+        #get length info from anyone of the corrdata, assuming all corrdata having the same length.
+        cc_comp=list(corrdict_all.keys()) #final check on number of keys after merging all data.
+        if len(cc_comp)==0:
+            if flag:print('continue! no cross components for %s'%(pair))
+            continue
+
+        #save data.
+        outfn = pair+'.h5'
+        if flag:print('save to %s'%(outfn))
+        merged_h5 = os.path.join(ioutdir,outfn)
+        for ic in cc_comp:
+            #save components.
+            #convert corrdata to empirical Green's functions by
+            #taking the negative time derivative. See types.CorrData.to_egf() for details.
+            if to_egf:
+                corrdict_all[ic].to_egf()
+            corrdict_all[ic].to_asdf(file=merged_h5)
+
+        # write file stamps
+        ftmp = open(toutfn,'w');ftmp.write('done');ftmp.close()
+
+        del corrdict_all
 ########################################################
 ################ XCORR ANALYSIS FUNCTIONS ##################
 ########################################################
