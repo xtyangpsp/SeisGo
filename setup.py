@@ -8,7 +8,7 @@ setup(
     author_email='stcyang@gmail.com',
     maintainer='Xiaotao Yang',
     maintainer_email='stcyang@gmail.com',
-    download_url='https://github.com/xtyangpsp/SeisPy',
+    download_url='https://github.com/xtyangpsp/SeisPy/archive/refs/tags/v0.4.1.tar.gz',
     classifiers=[
         'Development Status :: Beta',
         'License :: MIT License',
