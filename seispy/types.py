@@ -419,7 +419,7 @@ class CorrData(object):
         """
         Display key content of the object.
         """
-        print("type       :   "+str(self.type))
+        print("type     :   "+str(self.type))
         print("id       :   "+str(self.id))
         print("net      :   "+str(self.net))
         print("sta      :   "+str(self.sta))
@@ -493,6 +493,9 @@ class CorrData(object):
         attributes only: <ngood>,<time>,<data>
 
         **Note: substack will be set to True after merging, regardless the value in the original object.**
+
+        ===PARAMETERS===
+        c: the other CorrData object to merge with.
         """
         #sanity check: stop merging and raise error if the two objects have different IDs.
         if self.id != c.id:
@@ -513,7 +516,7 @@ class CorrData(object):
 
         self.substack=True
 
-    def stack(self,method='linear'):
+    def stack(self,method='linear',overwrite=True,ampcut=20):
         '''
         this function stacks the cross correlation data. This method will overwrite the
         data attribute with the stacked trace. Substack will be turned to False.
@@ -521,19 +524,18 @@ class CorrData(object):
         PARAMETERS:
         ----------------------
         method: stacking method, could be: linear, robust, pws, acf, or nroot.
+        overwrite: if True (default), it replaces the data attribute in CorrData. Otherwise,
+                    it returns the stacked data as a vector.
+        ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax))
         '''
         if isinstance(method,list):method=method[0]
         # remove abnormal data
         if self.substack:
             ampmax = np.max(self.data,axis=1)
-            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
+            tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
             nstacks=len(tindx)
             if nstacks >0:
-                self.substack=False
-                # remove ones with bad amplitude
                 cc_array = utils.demean(self.data[tindx,:])
-                self.time  = self.time[tindx[0]]
-                self.ngood = nstacks
 
                 # do stacking
                 dstack = np.zeros((self.data.shape[1]),dtype=np.float32)
@@ -549,17 +551,27 @@ class CorrData(object):
                         dstack = stacking.adaptive_filter(cc_array,1)
                     elif method == 'nroot':
                         dstack = stacking.nroot_stack(cc_array,2)
-                #overwrite the data attribute.
-                self.data=dstack
+                if overwrite:
+                    #overwrite the data attribute.
+                    self.substack=False
+                    self.time  = self.time[tindx[0]]
+                    self.ngood = nstacks
+                    self.data=dstack
+                else:
+                    return dstack
             print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
 
     #convert to EGF by taking the netagive time derivative of the noise correlation functions.
-    def to_egf(self):
+    def to_egf(self,taper_frac=0.01,taper_maxlen=10):
         """
         This function converts the CorrData correlaiton results to EGF by taking
         the netagive time derivative of the noise correlation functions.
 
         The positive and negative lags are converted seperatedly but merged afterward.
+
+        =======PARAMETERS=========
+        taper_frac: default 0.01. taper fraction when process the two sides seperatedly.
+        taper_maxlen: default 10. taper maximum number of points.
         """
         print("Converting to empirical Green's functions.")
 
@@ -573,10 +585,12 @@ class CorrData(object):
             ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
 
             #positive side
-            egf[:,ind_zero:]=utils.taper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt)
+            egf[:,ind_zero:]=utils.taper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt,
+                                            fraction=taper_frac,maxlen=taper_maxlen)
 
             #negative side
-            egf[:,:ind_zero]=utils.taper(np.gradient(self.data[:,:ind_zero],axis=1)/dt)
+            egf[:,:ind_zero]=utils.taper(np.gradient(self.data[:,:ind_zero],axis=1)/dt,
+                                            fraction=taper_frac,maxlen=taper_maxlen)
 
             egf[:,[0,ind_zero,-1]]=0
         else:
@@ -585,10 +599,12 @@ class CorrData(object):
             ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
 
             #positive side
-            egf[ind_zero:]=utils.taper(-1.0*np.gradient(self.data[ind_zero:])/dt)
+            egf[ind_zero:]=utils.taper(-1.0*np.gradient(self.data[ind_zero:])/dt,
+                                        fraction=taper_frac,maxlen=taper_maxlen)
 
             #negative side
-            egf[:ind_zero]=utils.taper(np.gradient(self.data[:ind_zero])/dt)
+            egf[:ind_zero]=utils.taper(np.gradient(self.data[:ind_zero])/dt,
+                                        fraction=taper_frac,maxlen=taper_maxlen)
 
             egf[[0,ind_zero,-1]]=0
 
@@ -598,6 +614,7 @@ class CorrData(object):
     def to_asdf(self,file,v=True):
         """
         Save CorrData object too asdf file.
+        file: file name, which is required.
         """
         cc_comp = self.cc_comp
         # source-receiver pair
@@ -634,7 +651,8 @@ class CorrData(object):
             'cc_method':cc_method,
             'time':self.time,
             'substack':self.substack,
-            'comp':self.cc_comp}
+            'comp':self.cc_comp,
+            'type':self.type}
 
         with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
             ccf_ds.add_auxiliary_data(data=self.data, data_type=netsta_pair, path=chan_pair, parameters=parameters)
@@ -644,6 +662,11 @@ class CorrData(object):
     def to_sac(self,outdir='.',file=None,v=True):
         """
         Save CorrData object to sac file.
+
+        ====PARAMETERS====
+        outdir: output file directory. default is the current folder.
+        file: specify file name, ONLY when there is only one trace. i.e., substack is False.
+        v: verbose, default is True.
         """
         try:
             if not os.path.isdir(outdir):os.makedirs(outdir)
@@ -694,7 +717,7 @@ class CorrData(object):
                 if v: print('saved sac to: '+sacfile)
 
     def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8),
-            stack_method='linear'):
+            stack_method='linear',get_stack=False):
         """
         Plotting method for CorrData. It is the same as seispy.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
@@ -703,6 +726,11 @@ class CorrData(object):
         freqmin: min frequency to be filtered
         freqmax: max frequency to be filtered
         lag: time ranges for display
+        save: Save figure, default is False
+        figdir: only applies when save is True.
+        figsize: Matplotlib figsize, default is (10,8).
+        stack_method: method to get the stack, default is 'linear'
+        get_stack: returns the sacked trace if True. Default is False.
         """
         # open data for read
         if save:
@@ -749,7 +777,7 @@ class CorrData(object):
             for ii in range(nwin):
                 if freqmin is not None and freqmax is not None:
                     data[ii] = bandpass(data[ii],freqmin,freqmax,1/dt,corners=4, zerophase=True)
-                data[ii] = utils.taper(data[ii]-np.mean(data[ii]))
+                data[ii] = utils.taper(data[ii]-np.mean(data[ii]),maxlen=10)
                 amax[ii] = np.max(np.abs(data[ii]))
                 data_normalizd[ii] = data[ii]/amax[ii]
                 timestamp[ii] = obspy.UTCDateTime(ttime[ii])
@@ -818,7 +846,7 @@ class CorrData(object):
             # load cc for each station-pair
             if freqmin is not None and freqmax is not None:
                 data = bandpass(data,freqmin,freqmax,1/dt,corners=4, zerophase=True)
-            data = utils.taper(data-np.mean(data))
+            data = utils.taper(data-np.mean(data),maxlen=10)
             amax = np.max(np.abs(data))
             data /= amax
             timestamp = obspy.UTCDateTime(ttime)
@@ -859,7 +887,8 @@ class CorrData(object):
             plt.show()
 
         ##
-        return dreturn
+        if get_stack:
+            return dreturn
 
 class Power(object):
     """

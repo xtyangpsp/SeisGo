@@ -1166,6 +1166,7 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
                                                 dist=dist,az=az,baz=baz,ngood=ngood,time=ttime,
                                                 data=data,substack=flag,misc=para)
+                if "type" in  list(para.keys()): corrdict[spair][cc_comp].type=para['type']
 
     return corrdict
 

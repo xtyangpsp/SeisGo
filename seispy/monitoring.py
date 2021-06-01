@@ -136,7 +136,7 @@ def wcc_dvv(ref, cur, moving_window_length, slide_step, para):
 
     return -m0*100,em0*100
 
-def ts_dvv(ref, cur, dv_range, nbtrial, para):
+def ts_dvv(ref, cur, dv_max, ndv, para):
 
     """
     This function compares the Reference waveform to stretched/compressed current waveforms to get the relative seismic velocity variation (and associated error).
@@ -146,8 +146,8 @@ def ts_dvv(ref, cur, dv_range, nbtrial, para):
     ----------------
     ref: Reference waveform (np.ndarray, size N)
     cur: Current waveform (np.ndarray, size N)
-    dv_range: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change ('float')
-    nbtrial: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  ('float')
+    dv_max: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change ('float')
+    ndv: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  ('float')
     para: vector of the indices of the cur and ref windows on wich you want to do the measurements (np.ndarray, size tmin*delta:tmax*delta)
     For error computation, we need parameters:
         fmin: minimum frequency of the data
@@ -161,7 +161,7 @@ def ts_dvv(ref, cur, dv_range, nbtrial, para):
     cdp: correlation coefficient between the reference waveform and the initial current waveform
     error: Errors in the dv/v measurements based on Weaver et al (2011), On the precision of noise-correlation interferometry, Geophys. J. Int., 185(3)
 
-    Note: The code first finds the best correlation coefficient between the Reference waveform and the stretched/compressed current waveform among the "nbtrial" values.
+    Note: The code first finds the best correlation coefficient between the Reference waveform and the stretched/compressed current waveform among the "ndv" values.
     A refined analysis is then performed around this value to obtain a more precise dv/v measurement .
 
     Originally by L. Viens 04/26/2018 (Viens et al., 2018 JGR)
@@ -180,9 +180,9 @@ def ts_dvv(ref, cur, dv_range, nbtrial, para):
     tvec = t[itvec]
 
     # make useful one for measurements
-    dvmin = -np.abs(dv_range)
-    dvmax = np.abs(dv_range)
-    Eps = 1+(np.linspace(dvmin, dvmax, nbtrial))
+    dvmin = -np.abs(dv_max)
+    dvmax = np.abs(dv_max)
+    Eps = 1+(np.linspace(dvmin, dvmax, ndv))
     cof = np.zeros(Eps.shape,dtype=np.float32)
 
     # Set of stretched/compressed current waveforms
@@ -557,7 +557,7 @@ def wxs_dvv(ref,cur,allfreq,para,dj=1/12, s0=-1, J=-1, sig=False, wvn='morlet',u
 
         return freq[freq_indin], dvv*100, err*100
 
-def wts_dvv(ref,cur,allfreq,para,dv_range,nbtrial,dj=1/12,s0=-1,J=-1,wvn='morlet',normalize=True):
+def wts_dvv(ref,cur,allfreq,para,dv_max,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet',normalize=True):
     """
     Apply stretching method to continuous wavelet transformation (CWT) of signals
     for all frequecies in an interest range
@@ -568,9 +568,9 @@ def wts_dvv(ref,cur,allfreq,para,dv_range,nbtrial,dj=1/12,s0=-1,J=-1,wvn='morlet
     cur: The complete "Current" time series (numpy.ndarray)
     allfreq: a boolen variable to make measurements on all frequency range or not
     para: a dict containing freq/time info of the data matrix
-    dv_range: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change (float)
-    nbtrial: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  (float)
-    dj, s0, J, sig, wvn: common parameters used in 'wavelet.wct'
+    dv_max: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change (float)
+    ndv: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  (float)
+    dj, s0, J, sig, wvn: common parameters used in 'wavelet.wct'. Defaults are dj=1/12,s0=-1,J=-1,wvn='morlet'
     normalize: normalize the wavelet spectrum or not. Default is True
 
     RETURNS:
@@ -624,7 +624,7 @@ def wts_dvv(ref,cur,allfreq,para,dv_range,nbtrial,dj=1/12,s0=-1,J=-1,wvn='morlet
             ncwt2 = wcwt2
 
         # run stretching
-        dvv, err, cc, cdp = ts_dvv(ncwt2[itvec], ncwt1[itvec], dv_range, nbtrial, para)
+        dvv, err, cc, cdp = ts_dvv(ncwt2[itvec], ncwt1[itvec], dv_max, ndv, para)
         return dvv, err, cc, cdp
 
     # directly take advantage of the real-valued parts of wavelet transforms
@@ -649,7 +649,7 @@ def wts_dvv(ref,cur,allfreq,para,dv_range,nbtrial,dj=1/12,s0=-1,J=-1,wvn='morlet
                 ncwt2 = wcwt2
 
             # run stretching
-            dv, error, c1, c2 = ts_dvv(ncwt2[itvec], ncwt1[itvec], dv_range, nbtrial, para)
+            dv, error, c1, c2 = ts_dvv(ncwt2[itvec], ncwt1[itvec], dv_max, ndv, para)
             dvv[ii], cc[ii], cdp[ii], err[ii]=dv, c1, c2, error
 
         return f[f_ind], dvv, err, cc, cdp
