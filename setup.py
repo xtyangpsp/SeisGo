@@ -2,7 +2,7 @@ from numpy.distutils.core import setup
 
 setup(
     name='seisgo',
-    version='0.5.2',
+    version='v0.5.3',
     description='A ready-to-go Python toolbox for seismic data analysis',
     author='Xiaotao Yang',
     author_email='stcyang@gmail.com',
