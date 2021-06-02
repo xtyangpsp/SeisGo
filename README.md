@@ -20,6 +20,8 @@ This package is under active development. The currently available modules are li
 
 5. `plotting`: This module contains major plotting functions for raw waveforms, cross-correlation results, and station maps.
 
+6. `monitoring`: This module contains functions for ambient noise seismic monitoring, adapted from functions by Yuan et al. (2021).
+
 ## Installation
 1. Create and activate the **conda** `seisgo` environment
 
@@ -210,3 +212,4 @@ Any bugs and ideas are welcome. Please file an issue through GitHub.
 * Tian, Y., & M. H. Ritzwoller (2017), Improving ambient noise cross-correlations in the noisy ocean bottom environment of the Juan de Fuca plate, Geophys. J. Int., 210(3), 1787-1805, doi:10.1093/gji/ggx281.
 * Jiang, C., & Denolle, M. A. (2020). NoisePy: A New High-Performance Python Tool for Ambient-Noise Seismology. Seismological Research Letters. https://doi.org/10.1785/0220190364
 * Clements, T., & Denolle, M. A. (2020). SeisNoise.jl: Ambient Seismic Noise Cross Correlation on the CPU and GPU in Julia. Seismological Research Letters. https://doi.org/10.1785/0220200192
+* Yuan, C., Bryan, J., & Denolle, M. (2021). Numerical comparison of time-, frequency-, and wavelet-domain methods for coda wave interferometry. Geophysical Journal International, 828–846. https://doi.org/10.1093/gji/ggab140
