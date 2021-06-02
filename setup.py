@@ -6,7 +6,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
-version='v0.5.4'
+version='v0.5.5'
 setup(
     name='seisgo',
     version=version,
