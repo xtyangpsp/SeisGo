@@ -8,7 +8,7 @@ setup(
     author_email='stcyang@gmail.com',
     maintainer='Xiaotao Yang',
     maintainer_email='stcyang@gmail.com',
-    download_url='https://github.com/xtyangpsp/SeisGo/archive/refs/tags/v0.5.2.tar.gz',
+    download_url='https://github.com/xtyangpsp/SeisGo/archive/refs/tags/v0.5.3.tar.gz',
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: MIT License',
