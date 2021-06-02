@@ -18,7 +18,7 @@ Original by: Chengxin Jiang (chengxin_jiang@fas.harvard.edu)
              Marine Denolle (mdenolle@fas.harvard.edu)
 Updated by:
              Congcong Yuan (cyuan@fas.harvard.edu)
-Adapted for SeisPy by:
+Adapted for SeisGo by:
             Xiaotao Yang (xtyang@purdue.edu)
 
 several utility functions are modified based on https://github.com/tclements/noise

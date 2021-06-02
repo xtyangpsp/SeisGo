@@ -6,8 +6,8 @@ import sys
 import pandas as pd
 from obspy.core import Trace, Stream
 from obspy.clients.fdsn import Client
-from seispy import utils
-from seispy.utils import get_tracetag, save2asdf
+from seisgo import utils
+from seisgo.utils import get_tracetag, save2asdf
 import numpy as np
 
 def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,maxseischan=3,source='IRIS',

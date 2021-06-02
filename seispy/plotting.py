@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
-from seispy import noise
+from seisgo import noise
 import pygmt as gmt
 
 #############################################################################
@@ -93,7 +93,7 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
 
 
 #############################################################################
-###############PLOTTING XCORR RESULTS AS THE OUTPUT OF SEISPY ##########################
+###############PLOTTING XCORR RESULTS AS THE OUTPUT OF SEISGO ##########################
 #############################################################################
 def plot_xcorr_substack(sfile,freqmin,freqmax,lag=None,comp='ZZ',
                         save=True,figdir=None):
@@ -101,7 +101,7 @@ def plot_xcorr_substack(sfile,freqmin,freqmax,lag=None,comp='ZZ',
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
     PARAMETERS:
     --------------------------
-    sfile: cross-correlation functions outputed by SeisPy workflow
+    sfile: cross-correlation functions outputed by SeisGo workflow
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
     lag: time ranges for display
@@ -254,7 +254,7 @@ def plot_corrfile(sfile,freqmin,freqmax,lag=None,comp='ZZ',
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
     PARAMETERS:
     --------------------------
-    sfile: cross-correlation functions outputed by SeisPy workflow
+    sfile: cross-correlation functions outputed by SeisGo workflow
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
     lag: time ranges for display
@@ -279,7 +279,7 @@ def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
     PARAMETERS:
     --------------------------
-    corr: : class:`~seispy.types.CorrData`
+    corr: : class:`~seisgo.types.CorrData`
             CorrData object containing the correlation functions and the metadata.
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered

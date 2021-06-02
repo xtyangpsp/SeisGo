@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from obspy.io.sac.sactrace import SACTrace
 from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
-from seispy import utils,stacking
+from seisgo import utils,stacking
 ######
 class SeismicEngine(object):
     """
@@ -372,7 +372,7 @@ class CorrData(object):
     """
     Object to store cross-correlation data. The idea of having a CorrData data type
     was originally designed by Tim Clements for SeisNoise.jl (https://github.com/tclements/SeisNoise.jl).
-    The CorrData class in SeisPy differrs from that in SeisNoise by adding the internal methods
+    The CorrData class in SeisGo differrs from that in SeisNoise by adding the internal methods
     for merging, plotting, and saving.
     ======= Attributes ======
     net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],lon=[None,None],
@@ -719,7 +719,7 @@ class CorrData(object):
     def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8),
             stack_method='linear',get_stack=False):
         """
-        Plotting method for CorrData. It is the same as seispy.plotting.plot_corrdata(), with exactly the same arguments.
+        Plotting method for CorrData. It is the same as seisgo.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
         PARAMETERS:
         --------------------------

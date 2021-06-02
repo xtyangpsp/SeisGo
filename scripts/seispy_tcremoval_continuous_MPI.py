@@ -3,17 +3,12 @@
 
 # # Tilt and Compliance Corrections for OBS Data: Continuous
 # ### Xiaotao Yang @ Harvard University
-# This notebook contains examples of compliance corrections using local data on the disk. The functions for tilt and compliance corrections are in module seispy.obsmaster.
+# This notebook contains examples of compliance corrections using local data on the disk. The functions for tilt and compliance corrections are in module seisgo.obsmaster.
 
 # ## Step 0. Load needed packages.
-# Some functions are imported from the utils.py and the obsmaster.py.
-
-# In[ ]:
-
-
 #import needed packages.
-from seispy import utils
-from seispy import obsmaster as obs
+from seisgo import utils
+from seisgo import obsmaster as obs
 import sys
 import time
 import scipy

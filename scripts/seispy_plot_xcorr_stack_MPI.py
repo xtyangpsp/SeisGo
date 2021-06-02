@@ -10,9 +10,9 @@
 # In[10]:
 
 
-from seispy import utils
-from seispy import obsmaster as obs
-from seispy import noise as ns
+from seisgo import utils
+from seisgo import obsmaster as obs
+from seisgo import noise as ns
 import sys
 import time
 import scipy

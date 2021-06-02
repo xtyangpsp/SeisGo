@@ -1,9 +1,9 @@
-# SeisPy
-*A Python package for seismic data analysis*
+seisgo# SeisGo
+*A ready-to-go Python toolbox for seismic data analysis*
 
 ### Author: Xiaotao Yang (stcyang@gmail.com)
 
-![plot1](/figs/seispy_logo.png)
+![plot1](/figs/seisgo_logo.png)
 
 ## Introduction
 This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
@@ -21,13 +21,13 @@ This package is under active development. The currently available modules are li
 5. `plotting`: This module contains major plotting functions for raw waveforms, cross-correlation results, and station maps.
 
 ## Installation
-1. Create and activate the **conda** `seispy` environment
+1. Create and activate the **conda** `seisgo` environment
 
-Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seispy` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
+Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seisgo` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seispy -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py
-$ conda activate seispy
+$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py
+$ conda activate seisgo
 ```
 
 The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests.
@@ -36,15 +36,15 @@ The `jupyter` package is currently not required, **unless** you plan to run the 
 
 Map views with geographical projections are plotted using **PyGMT** (https://www.pygmt.org/latest/). The following are steps to install PyGMT package (please refer to PyGMT webpage for trouble shooting and testing):
 
-Install GMT through conda first into the `SeisPy` environment:
+Install GMT through conda first into the `SeisGo` environment:
 
 ```
-conda activate seispy
+conda activate seisgo
 conda config --prepend channels conda-forge
 conda install  python pip numpy pandas xarray netcdf4 packaging gmt
 ```
 
-**You may need to specify the python version available on your environment.** In ~/.bash_profile, add this line: `export GMT_LIBRARY_PATH=$SEISPYROOT/lib`, where `$SEISPYROOT` is the root directory of the `seispy` environment. Then, run:
+**You may need to specify the python version available on your environment.** In ~/.bash_profile, add this line: `export GMT_LIBRARY_PATH=$SEISGOROOT/lib`, where `$SEISGOROOT` is the root directory of the `seisgo` environment. Then, run:
 
 ```
 conda install pygmt
@@ -56,16 +56,16 @@ python
 > import pygmt
 ```
 
-2. Download `seispy`
+2. Download `SeisGo`
 
 `cd` to the directory you want to save the package files. Then,
 ```
-$ git clone https://github.com/xtyangpsp/SeisPy.git
+$ git clone https://github.com/xtyangpsp/SeisGo.git
 ```
 
-3. Install `seispy` package functions using `pip`
+3. Install `seisgo` package functions using `pip`
 
-This step will install the **SeisPy** modules under `seispy` environment. The modules would then be imported under any working directory. Remember to rerun this command if you modified the functions/modules.
+This step will install the **SeisGo** modules under `seisgo` environment. The modules would then be imported under any working directory. Remember to rerun this command if you modified the functions/modules.
 
 ```
 $ pip install .
@@ -76,7 +76,7 @@ $ pip install .
 Run the following commands to test your installation.
 ```
 $ python
->>> from seispy import obsmaster as obs
+>>> from seisgo import obsmaster as obs
 >>> tflist=obs.gettflist(help=True)
 ------------------------------------------------------------------
 | Key    | Default  | Note                                       |
@@ -91,7 +91,7 @@ $ python
 ```
 
 ## Structure of the package
-1. **seispy**: This directory contains the main modules.
+1. **seisgo**: This directory contains the main modules.
 
 2. **notebooks**: This directory contains the jupyter notebooks that provide tutorials for all modules.
 
@@ -99,15 +99,15 @@ $ python
 
 4. **figs**: Here we put figures in tutorials and other places.
 
-5. **scripts**: This directory contains example scripts for data processing using `seispy`. Users are welcome to modify from the provided example scripts to work on their own data.
+5. **scripts**: This directory contains example scripts for data processing using `seisgo`. Users are welcome to modify from the provided example scripts to work on their own data.
 
 ## Tutorials on key functionalities
-1. Download continuous waveforms for large-scale job (see item 3 for small jobs processing in memory). Example script using MPI is here: `scripts/seispy_download_MPI.py`. The following lines show an example of the structure without MPI (so that you can easily test run it in Jupyter Notebook).
+1. Download continuous waveforms for large-scale job (see item 3 for small jobs processing in memory). Example script using MPI is here: `scripts/seisgo_download_MPI.py`. The following lines show an example of the structure without MPI (so that you can easily test run it in Jupyter Notebook).
 
 ```Python
 import os,glob
-from seispy.utils import split_datetimestr,extract_waveform,plot_trace
-from seispy import downloaders
+from seisgo.utils import split_datetimestr,extract_waveform,plot_trace
+from seisgo import downloaders
 
 rootpath = "data_test" # roothpath for the project
 DATADIR  = os.path.join(rootpath,'Raw')          # where to store the downloaded data
@@ -158,11 +158,11 @@ You should see the following image showing the waveform for TA.O45A.
 TBA.
 
 3. Ambient noise cross-correlations
-* Minimum lines version for processing small data sets in memory. Another example is in `notebooks/seispy_download_xcorr_demo.ipynb`.
+* Minimum lines version for processing small data sets in memory. Another example is in `notebooks/seisgo_download_xcorr_demo.ipynb`.
 
 ```Python
-from seispy import downloaders
-from seispy.noise import compute_fft,correlate
+from seisgo import downloaders
+from seisgo.noise import compute_fft,correlate
 
 # download parameters
 source='IRIS'                                 # client/data center. see https://docs.obspy.org/packages/obspy.clients.fdsn.html for a list
@@ -198,7 +198,7 @@ corrdata.plot(freqmin=0.1,freqmax=1,lag=100)
 You should get the following figure:
 ![plot1](/figs/noise_xcorr_example.png)
 
-* Run large-scale jobs through MPI. For processing of large datasets, the downloaded and xcorr data will be saved to disk. Example script here: `scripts/seispy_xcorr_MPI.py`
+* Run large-scale jobs through MPI. For processing of large datasets, the downloaded and xcorr data will be saved to disk. Example script here: `scripts/seisgo_xcorr_MPI.py`
 
 ## Contribute
 Any bugs and ideas are welcome. Please file an issue through GitHub.
@@ -208,3 +208,5 @@ Any bugs and ideas are welcome. Please file an issue through GitHub.
 * Bell, S. W., D. W. Forsyth, & Y. Ruan (2015), Removing Noise from the Vertical Component Records of Ocean-Bottom Seismometers: Results from Year One of the Cascadia Initiative, Bull. Seismol. Soc. Am., 105(1), 300-313, doi:10.1785/0120140054.
 * Janiszewski, H A, J B Gaherty, G A Abers, H Gao, Z C Eilon, Amphibious surface-wave phase-velocity measurements of the Cascadia subduction zone, Geophysical Journal International, Volume 217, Issue 3, June 2019, Pages 1929-1948, https://doi.org/10.1093/gji/ggz051
 * Tian, Y., & M. H. Ritzwoller (2017), Improving ambient noise cross-correlations in the noisy ocean bottom environment of the Juan de Fuca plate, Geophys. J. Int., 210(3), 1787-1805, doi:10.1093/gji/ggx281.
+* Jiang, C., & Denolle, M. A. (2020). NoisePy: A New High-Performance Python Tool for Ambient-Noise Seismology. Seismological Research Letters. https://doi.org/10.1785/0220190364
+* Clements, T., & Denolle, M. A. (2020). SeisNoise.jl: Ambient Seismic Noise Cross Correlation on the CPU and GPU in Julia. Seismological Research Letters. https://doi.org/10.1785/0220200192

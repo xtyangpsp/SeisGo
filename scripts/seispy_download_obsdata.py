@@ -2,13 +2,13 @@
 # coding: utf-8
 """
 Download OBS date including all four components (seismic channels and the pressure channel).
-This light-weight script mainly aims at downloading test data for some seispy modules, instead of a comprehensive
+This light-weight script mainly aims at downloading test data for some seisgo modules, instead of a comprehensive
 and robust downloading wrapper. It is recommended to use NoisePy's downloading script for
 more comprehensive downloading (https://github.com/mdenolle/NoisePy).
 """
 #import needed packages.
-from seispy import utils
-from seispy import obsmaster as obs
+from seisgo import utils
+from seisgo import obsmaster as obs
 import sys
 import time
 import scipy

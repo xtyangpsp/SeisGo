@@ -7,7 +7,7 @@ from obspy.clients.fdsn import Client
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
-from seispy.utils import split_datetimestr
+from seisgo.utils import split_datetimestr
 
 # Code to run this file from within a virtual environment
 #########################################################

@@ -1,6 +1,6 @@
 import sys,time,os,glob
 from mpi4py import MPI
-from seispy.noise import save_corrfile_to_sac
+from seisgo.noise import save_corrfile_to_sac
 
 """
 Saves CCF data to SAC.

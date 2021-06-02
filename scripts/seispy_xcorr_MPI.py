@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 from mpi4py import MPI
 from scipy.fftpack.helper import next_fast_len
-from seispy import noise
-from seispy import utils
+from seisgo import noise
+from seisgo import utils
 
 if not sys.warnoptions:
     import warnings

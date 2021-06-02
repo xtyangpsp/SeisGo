@@ -6,8 +6,8 @@
 
 
 #import needed packages.
-from seispy import utils
-from seispy import obsmaster as obs
+from seisgo import utils
+from seisgo import obsmaster as obs
 import sys
 import time
 import scipy

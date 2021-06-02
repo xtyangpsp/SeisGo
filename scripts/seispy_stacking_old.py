@@ -7,14 +7,14 @@ import datetime
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
-from seispy import noise,utils
+from seisgo import noise,utils
 
 if not sys.warnoptions:
     import warnings
     warnings.simplefilter("ignore")
 
 '''
-Stacking script of SeisPy to:
+Stacking script of SeisGo to:
     1) load cross-correlation data for sub-stacking (if needed) and all-time average;
     2) stack data with either linear or phase weighted stacking (pws) methods (or both);
     3) save outputs in ASDF or SAC format depend on user's choice (for latter option, find the script of write_sac

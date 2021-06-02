@@ -9,9 +9,9 @@ import pandas as pd
 from obspy.signal.invsim import cosine_taper
 from obspy.signal.regression import linear_regression
 from scipy.fftpack import fft,ifft,next_fast_len
-from seispy import stacking as stack
-from seispy.types import CorrData, FFTData
-from seispy import utils
+from seisgo import stacking as stack
+from seisgo.types import CorrData, FFTData
+from seisgo import utils
 
 #####
 ########################################################
@@ -1101,7 +1101,7 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
     extract the 2D matrix of the cross-correlation functions and the metadata for a certain time-chunck.
     PARAMETERS:
     --------------------------
-    sfile: cross-correlation functions outputed by SeisPy cross-correlation workflow
+    sfile: cross-correlation functions outputed by SeisGo cross-correlation workflow
     pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.
     comp: cross-correlation component or a list of components to extract, default is all components.
 
@@ -1175,7 +1175,7 @@ def save_corrfile_to_sac(cfile,rootdir='.',pair=None,comp=['all'],v=True):
     Save correlation files in ASDF to sac files.
 
     === PARAMETERS ===
-    cfile: correlation file from SeisPy workflow. It could be a list of files.
+    cfile: correlation file from SeisGo workflow. It could be a list of files.
     rootdir: folder to save the converted sac files. this is the root folder, not
             the folder for individual sources/receivers, which will be created
             by this function. Default is the current directory.

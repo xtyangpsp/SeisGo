@@ -2,8 +2,8 @@
 import pandas as pd
 from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
-from seispy.downloaders import download
-from seispy.downloaders import get_sta_list
+from seisgo.downloaders import download
+from seisgo.downloaders import get_sta_list
 import numpy as np
 from obspy import read_events
 import time
@@ -81,7 +81,7 @@ download_dir= "../../EQData"
 
 for event in catalog:
 
-    # Get station list using seispy.downloaders.get_sta_list()
+    # Get station list using seisgo.downloaders.get_sta_list()
     event_t = event.origins[0].time
     event_long = event.origins[0].longitude
     event_lat = event.origins[0].latitude

@@ -1,14 +1,14 @@
 from numpy.distutils.core import setup
 
 setup(
-    name='seispy',
+    name='seisgo',
     version='0.5.0',
-    description='A Python package for seismic data analysis',
+    description='A ready-to-go Python toolbox for seismic data analysis',
     author='Xiaotao Yang',
     author_email='stcyang@gmail.com',
     maintainer='Xiaotao Yang',
     maintainer_email='stcyang@gmail.com',
-    download_url='https://github.com/xtyangpsp/SeisPy/archive/refs/tags/v0.5.0.tar.gz',
+    download_url='https://github.com/xtyangpsp/SeisGo/archive/refs/tags/v0.5.0.tar.gz',
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: MIT License',
@@ -22,4 +22,4 @@ setup(
                         'pycwt'
         ],
     python_requires='>=3.6',
-    packages=['seispy']) #scripts=scripts
+    packages=['seisgo']) #scripts=scripts

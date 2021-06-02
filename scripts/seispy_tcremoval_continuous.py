@@ -3,17 +3,15 @@
 
 # # Tilt and Compliance Corrections for OBS Data: Continuous
 # ### Xiaotao Yang @ Harvard University
-# This notebook contains examples of compliance corrections using local data on the disk. The functions for tilt and compliance corrections are in module seispy.obsmaster.
+# This notebook contains examples of compliance corrections using local data on the disk.
+# The functions for tilt and compliance corrections are in module seisgo.obsmaster.
 
 # ## Step 0. Load needed packages.
 # Some functions are imported from the utils.py and the obsmaster.py.
 
-# In[ ]:
-
-
 #import needed packages.
-from seispy import utils
-from seispy import obsmaster as obs
+from seisgo import utils
+from seisgo import obsmaster as obs
 import sys
 import time
 import scipy
@@ -55,7 +53,7 @@ if downloadexample:
     print('Cleaning up raw data directory before downloading ...')
     dfiles1 = glob.glob(os.path.join(rawdatadir,'*.h5'))
     for df1 in dfiles1:os.remove(df1)
-    os.system('python seispy_download_obsdata.py')
+    os.system('python seisgo_download_obsdata.py')
 ####################################
 ##### End of downloading block #####
 ####################################
