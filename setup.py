@@ -86,8 +86,8 @@ setup(
 
     packages=['seisgo'],
     scripts=['scripts','notebooks'],
-    include_package_data = True
-    package_data={"":["data","figs","notebooks"]}
+    include_package_data = True,
+    package_data={"":["data","figs","notebooks"]},
     # Specify which Python versions you support. In contrast to the
     # 'Programming Language' classifiers above, 'pip install' will check this
     # and refuse to install the project if the version does not match. See
