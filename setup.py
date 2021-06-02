@@ -1,12 +1,15 @@
 # from numpy.distutils.core import setup
 from setuptools import setup, find_packages
+import pathlib
+
+here = pathlib.Path(__file__).parent.resolve()
 
 # Get the long description from the README file
 long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
-version='v0.5.5'
+version='v0.5.6'
 setup(
     name='seisgo',
     version=version,
@@ -85,7 +88,6 @@ setup(
     #packages=find_packages(where='src'),  # Required
 
     packages=['seisgo'],
-    scripts=['scripts','notebooks'],
     include_package_data = True,
     package_data={"":["data","figs","notebooks"]},
     # Specify which Python versions you support. In contrast to the
