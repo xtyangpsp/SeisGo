@@ -9,7 +9,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
-version='v0.5.6'
+version='0.5.8'
 setup(
     name='seisgo',
     version=version,
@@ -18,7 +18,7 @@ setup(
     author_email='stcyang@gmail.com',
     maintainer='Xiaotao Yang',
     maintainer_email='stcyang@gmail.com',
-    download_url='https://github.com/xtyangpsp/SeisGo/archive/refs/tags/'+version+'.tar.gz',
+    download_url='https://github.com/xtyangpsp/SeisGo/archive/refs/tags/v'+version+'.tar.gz',
 
     # This is an optional longer description of your project that represents
     # the body of text which users will see when they visit PyPI.
