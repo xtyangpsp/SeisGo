@@ -4,6 +4,7 @@ import time
 import pyasdf
 import sys
 import pandas as pd
+from obspy import read_events, UTCDateTime
 from obspy.core import Trace, Stream
 from obspy.clients.fdsn import Client
 from seisgo import utils
@@ -32,6 +33,10 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     endtime_UTC   = obspy.UTCDateTime(endtime)
     # loop through specified network, station and channel lists
     chanhistory = {}
+
+    if isinstance(net_list,str):net_list=[net_list]
+    if isinstance(sta_list,str):sta_list=[sta_list]
+    if isinstance(chan_list,str):chan_list=[chan_list]
 
     for inet in net_list:
         for ista in sta_list:
@@ -104,7 +109,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
 #
 def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
             rmresp=True,rmresp_output='VEL',pre_filt=None,debug=False,
-            sacheader=False,getstainv=False):
+            sacheader=False,getstainv=False,verbose=False):
     """
     This is a wrapper that downloads seismic data and (optionally) removes response
     and downsamples if needed. Most of the arguments have the same meaning as for
@@ -173,11 +178,11 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     tr=client.get_waveforms(network=net,station=sta,
                     channel=chan,location="*",starttime=starttime,endtime=endtime)
 #     trP[0].detrend()
-    print('number of segments downloaded: '+str(len(tr)))
+    if verbose:print('number of segments downloaded: '+str(len(tr)))
 
     tr[0].stats['sac']=sac
 
-    print("station "+net+"."+sta+" --> seismic channel: "+chan)
+    if verbose:print("station "+net+"."+sta+" --> seismic channel: "+chan)
 
     if debug:
         year = tr[0].stats.starttime.year
@@ -196,7 +201,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
         #assume pressure and vertical channels have the same sampling rat
         # make downsampling if needed
         if sps > samp_freq:
-            print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+            if verbose:print("  downsamping from "+str(sps)+" to "+str(samp_freq))
             for r in tr:
                 if np.sum(np.isnan(r.data))>0:
                     raise(Exception('NaN found in trace'))
@@ -226,7 +231,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                 raise(Exception('NaN found in trace'))
             else:
                 try:
-                    print('  removing response using inv for '+net+"."+sta+"."+r.stats.channel)
+                    if verbose:print('  removing response using inv for '+net+"."+sta+"."+r.stats.channel)
                     r.attach_response(inv)
                     r.remove_response(output=rmresp_output,pre_filt=pre_filt,
                                               water_level=60,zero_mean=True,plot=False)
@@ -239,7 +244,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
         r.taper(0.005)
 
     if len(tr.get_gaps())>0:
-        print('merging segments with gaps')
+        if verbose:print('merging segments with gaps')
         tr.merge(fill_value=0)
     tr=tr[0]
     """
@@ -298,7 +303,7 @@ def set_filter(samp_freq, pfreqmin,pfreqmax=None):
 def download(starttime, endtime, stationinfo=None, network=None, station=None,channel=None,
                 source='IRIS',rawdatadir=None,sacheader=False, getstainv=True, max_tries=10,
                 savetofile=False,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
-                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None):
+                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None,verbose=False):
     """
     starttime, endtime: timing duration for the download.
     stationinfo:
@@ -355,8 +360,15 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     # dtlist = utils.split_datetimestr(starttime, endtime, inc_hours)
     # print(dtlist)
     # for idt in range(len(dtlist) - 1):
-    sdatetime = obspy.UTCDateTime(starttime)
-    edatetime = obspy.UTCDateTime(endtime)
+    if isinstance(starttime,str):
+        sdatetime = obspy.UTCDateTime(starttime)
+    else:
+        sdatetime = starttime
+    if isinstance(endtime,str):
+        edatetime = obspy.UTCDateTime(endtime)
+    else:
+        edatetime = endtime
+
     if savetofile:
         if type == "continuous":
             fname = os.path.join(rawdatadir,
@@ -376,7 +388,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
         ichan=channel[i]
 
         for nt in range(max_tries):
-            print(inet+'.'+ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
+            if verbose:print(inet+'.'+ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
 
             t0 = time.time()
 
@@ -399,7 +411,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                 sta_inv = None
 
             ta = time.time() - t0
-            print('  downloaded ' + inet+"." + ista + "." + ichan + " in " + str(ta) + " seconds.")
+            if verbose:print('  downloaded ' + inet+"." + ista + "." + ichan + " in " + str(ta) + " seconds.")
             tag = get_tracetag(tr)
             chan = tr.stats.channel
 
@@ -563,3 +575,88 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         return tr_all,inv_all
     else:
         return tr_all
+
+
+def get_events(start,end,minlon,maxlon,minlat,maxlat,minmag,maxmag,
+                    magstep=1.0,source="USGS",v=False):
+    #elist is a list of panda dataframes
+    t0=time.time()
+
+    #Download the catalog by magnitudes
+    maglist=np.arange(minmag,maxmag+0.5*magstep,magstep)
+    events=[]
+    for i in range(len(maglist)-1):
+        if i>0:
+            minM=str(maglist[i]+0.0001) #to avoid duplicates with intersecting magnitude thresholds
+        else:
+            minM=str(maglist[i])
+        maxM=str(maglist[i+1])
+        if v: print(minM,maxM)
+        if(source=="ISC"):
+            quake_url="http://isc-mirror.iris.washington.edu/fdsnws/event/1/query?starttime="+\
+            start+"&endtime="+end+"&minlatitude="+str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+\
+            str(minlon)+"&maxlongitude="+str(maxlon)+"&minmagnitude="+minM+"&maxmagnitude="+maxM+""
+        elif(source=="USGS"):
+            quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
+            start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&minlatitude="+\
+            str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+str(minlon)+"&maxlongitude="+str(maxlon)+""
+
+        try:
+            event = read_events(quake_url)
+            if v: print("Catalog: " + str(event.count()))
+            events.append(event)
+        except Exception as e:
+            print(e)
+
+    catalog = events[0]
+    for i in np.arange(1,len(events)):
+            catalog.extend(events[i])
+    #Print the data frame, display total, and total time to complete task
+    if v: print("It took "+str(time.time()-t0)+" seconds to download the catalog")
+
+    return catalog
+
+def get_event_waveforms(event,stainfo,window=150,offset=-50,arrival_type='first',maxtry=3,source='IRIS',rawdatadir=None,
+                        sacheader=False, getstainv=False, savetofile=False,pressure_chan=None,
+                        samp_freq=None,freqmin=0.001,freqmax=None,rmresp=True, rmresp_out='DISP',
+                        respdir=None,qc=True):
+    """
+    Download seismic event waveforms. This function downloads one earthquake for one station.
+
+    ====PARAMETERS====
+    event: Obspy Event object.
+    stainfo: Pandas dateframe contaning station information.
+    window: length of the waveform in seconds
+    offset: offset in seconds relative to the specified arrival.
+    arrival_type: default is first arrival time, could be any specified phase string.
+    other options are the same as download().
+
+    savetofile: return Obspy Stream if False.
+    """
+    event_t = event.origins[0].time
+    event_long = event.origins[0].longitude
+    event_lat = event.origins[0].latitude
+    depth_km = event.origins[0].depth / 1000
+    network=list(stainfo.network)
+    station=list(stainfo.station)
+    try:
+        channel = list(stainfo.channel)
+    except Exception as e:
+        channel = ['*']*len(station)
+    trall=[]
+    # Download for each station
+    for i in range(len(network)):
+        sta_lat = stainfo.latitude[i]
+        sta_long = stainfo.longitude[i]
+
+        travel_time = utils.get_tt(event_lat, event_long, sta_lat, sta_long, depth_km,type='first')[0]
+        sta_start = event_t + travel_time + offset
+        sta_end = sta_start + window
+        tr=download(sta_start,sta_end,network=network[i],station=station[i],channel=channel[i],
+                                source=source,rawdatadir=rawdatadir,sacheader=sacheader,
+                                getstainv=getstainv, max_tries=maxtry,savetofile=savetofile,
+                                pressure_chan=pressure_chan,samp_freq=samp_freq,freqmin=freqmin,
+                                freqmax=freqmax,rmresp=rmresp, rmresp_out=rmresp_out,
+                                respdir=respdir,qc=qc,event=event)[0]
+        if not savetofile:
+            return tr

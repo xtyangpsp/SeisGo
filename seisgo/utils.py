@@ -25,6 +25,8 @@ from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
+from obspy.geodetics.base import locations2degrees
+from obspy.taup import TauPyModel
 
 ####
 # ##################### qml_to_event_list #####################################
@@ -217,6 +219,30 @@ def sta_info_from_inv(inv):
         location=location[0]
     # print(sta,net,lon,lat,elv,location)
     return sta,net,lon,lat,elv,location
+
+def get_tt(event_lat, event_long, sta_lat, sta_long, depth_km,model="iasp91",type='first'):
+    # get the seismic phase arrival time of the specified earthquake at the station.
+    sta_t = locations2degrees(event_lat, event_long, sta_lat, sta_long)
+    taup = TauPyModel(model=model)
+    arrivals = taup.get_travel_times(source_depth_in_km=depth_km,distance_in_degree=sta_t)
+    if type == 'first':
+        tt = arrivals[0].time
+        ph = arrivals[0].phase
+    else: #get specific phase
+        phase_found=False
+        phaseall=[]
+        for i in range(len(arrivals)):
+            phaseall.append(arrivals[i].phase.name)
+            if arrivals[i].phase.name == type:
+                tt = arrivals[i].time
+                ph = type
+                phase_found=True
+                break
+        if not phase_found:
+            raise ValueError('phase <'+type+' > not found in '+str(phaseall))
+    # del arrivals
+
+    return tt,ph
 
 def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
     '''
