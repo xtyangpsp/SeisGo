@@ -124,6 +124,7 @@ rmresp_out = 'DISP'
 # targeted region/station information
 lamin,lamax,lomin,lomax= 39,41,-88,-86           # regional box:
 net_list  = ["TA"] #                              # network list
+chan_list = ["BHZ"]
 sta_list  = ["O45A","SFIN"]                       # station
 start_date = "2012_01_01_0_0_0"                   # start date of download
 end_date   = "2012_01_02_1_0_0"                   # end date of download
