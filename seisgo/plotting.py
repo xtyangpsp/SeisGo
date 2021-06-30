@@ -19,7 +19,7 @@ import pygmt as gmt
 Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
 Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
 '''
-def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
+def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='pdf'):
     '''
     display the downloaded waveform for station A
     PARAMETERS:
@@ -46,11 +46,14 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
 
     tcomp = ds.waveforms[tsta].get_waveform_tags()
     ncomp = len(tcomp)
+    if ncomp==0:
+        print('no data found for the specified net.sta.')
+        return None
+    tr   = ds.waveforms[tsta][tcomp[0]]
+    dt   = tr[0].stats.delta
+    npts = tr[0].stats.npts
+    tt   = np.arange(0,npts)*dt
     if ncomp == 1:
-        tr   = ds.waveforms[tsta][tcomp[0]]
-        dt   = tr[0].stats.delta
-        npts = tr[0].stats.npts
-        tt   = np.arange(0,npts)*dt
         data = tr[0].data
         data = bandpass(data,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
         plt.figure(figsize=(9,3))
@@ -60,37 +63,34 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None):
         plt.ylabel('Amplitude')
         plt.tight_layout()
         plt.show()
-    elif ncomp == 3:
-        tr   = ds.waveforms[tsta][tcomp[0]]
-        dt   = tr[0].stats.delta
-        npts = tr[0].stats.npts
-        tt   = np.arange(0,npts)*dt
+    else:
         data = np.zeros(shape=(ncomp,npts),dtype=np.float32)
         for ii in range(ncomp):
             data[ii] = ds.waveforms[tsta][tcomp[ii]][0].data
             data[ii] = bandpass(data[ii],freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
         plt.figure(figsize=(9,6))
-        plt.subplot(311)
-        plt.plot(tt,data[0],'k-',linewidth=1)
-        plt.title('T\u2080:%s   %s.%s   @%5.3f-%5.2f Hz' % (tr[0].stats.starttime,net,sta,freqmin,freqmax))
-        plt.legend([tcomp[0].split('_')[0].upper()],loc='upper left')
-        plt.subplot(312)
-        plt.plot(tt,data[1],'k-',linewidth=1)
-        plt.legend([tcomp[1].split('_')[0].upper()],loc='upper left')
-        plt.subplot(313)
-        plt.plot(tt,data[2],'k-',linewidth=1)
-        plt.legend([tcomp[2].split('_')[0].upper()],loc='upper left')
+
+        for c in range(ncomp):
+            if c==0:
+                plt.subplot(ncomp,1,1)
+                plt.plot(tt,data[0],'k-',linewidth=1)
+                plt.title('T\u2080:%s   %s.%s   @%5.3f-%5.2f Hz' % (tr[0].stats.starttime,net,sta,freqmin,freqmax))
+                plt.legend([tcomp[0].split('_')[0].upper()],loc='upper left')
+            else:
+                plt.subplot(ncomp,1,c+1)
+                plt.plot(tt,data[c],'k-',linewidth=1)
+                plt.legend([tcomp[c].split('_')[0].upper()],loc='upper left')
+
         plt.xlabel('Time [s]')
         plt.tight_layout()
 
-        if save:
-            if not os.path.ifigdir(figdir):os.mkdir(figdir)
-            outfname = figdir+'/{0:s}_{1:s}.{2:s}.pdf'.format(sfile.split('.')[0],net,sta)
-            plt.savefig(outfname, format='pdf', dpi=400)
-            plt.close()
-        else:
-            plt.show()
-
+    if save:
+        if not os.path.isdir(figdir):os.mkdir(figdir)
+        outfname = figdir+'/{0:s}_{1:s}.{2:s}'.format(sfile.split('.')[0],net,sta)
+        plt.savefig(outfname+'.'+format, format=format, dpi=300)
+        plt.close()
+    else:
+        plt.show()
 
 #############################################################################
 ###############PLOTTING XCORR RESULTS AS THE OUTPUT OF SEISGO ##########################
