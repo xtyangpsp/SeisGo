@@ -56,7 +56,7 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
     if ncomp == 1:
         data = tr[0].data
         data = bandpass(data,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-        plt.figure(figsize=(9,3))
+        fig=plt.figure(figsize=(9,3))
         plt.plot(tt,data,'k-',linewidth=1)
         plt.title('T\u2080:%s   %s.%s.%s   @%5.3f-%5.2f Hz' % (tr[0].stats.starttime,net,sta,tcomp[0].split('_')[0].upper(),freqmin,freqmax))
         plt.xlabel('Time [s]')
@@ -68,7 +68,7 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
         for ii in range(ncomp):
             data[ii] = ds.waveforms[tsta][tcomp[ii]][0].data
             data[ii] = bandpass(data[ii],freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-        plt.figure(figsize=(9,6))
+        fig=plt.figure(figsize=(9,6))
 
         for c in range(ncomp):
             if c==0:
@@ -76,22 +76,23 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
                 plt.plot(tt,data[0],'k-',linewidth=1)
                 plt.title('T\u2080:%s   %s.%s   @%5.3f-%5.2f Hz' % (tr[0].stats.starttime,net,sta,freqmin,freqmax))
                 plt.legend([tcomp[0].split('_')[0].upper()],loc='upper left')
+                plt.xlabel('Time [s]')
             else:
                 plt.subplot(ncomp,1,c+1)
                 plt.plot(tt,data[c],'k-',linewidth=1)
                 plt.legend([tcomp[c].split('_')[0].upper()],loc='upper left')
+                plt.xlabel('Time [s]')
 
-        plt.xlabel('Time [s]')
-        plt.tight_layout()
+        fig.tight_layout()
 
     if save:
         if not os.path.isdir(figdir):os.mkdir(figdir)
         sfilebase=sfile.split('/')[-1]
         outfname = figdir+'/{0:s}_{1:s}.{2:s}'.format(sfilebase.split('.')[0],net,sta)
-        plt.savefig(outfname+'.'+format, format=format, dpi=300)
+        fig.savefig(outfname+'.'+format, format=format, dpi=300)
         plt.close()
     else:
-        plt.show()
+        fig.show()
 
 #############################################################################
 ###############PLOTTING XCORR RESULTS AS THE OUTPUT OF SEISGO ##########################
