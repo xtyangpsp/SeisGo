@@ -86,7 +86,8 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
 
     if save:
         if not os.path.isdir(figdir):os.mkdir(figdir)
-        outfname = figdir+'/{0:s}_{1:s}.{2:s}'.format(sfile.split('.')[0],net,sta)
+        sfilebase=sfile.split('/')[-1]
+        outfname = figdir+'/{0:s}_{1:s}.{2:s}'.format(sfilebase.split('.')[0],net,sta)
         plt.savefig(outfname+'.'+format, format=format, dpi=300)
         plt.close()
     else:
