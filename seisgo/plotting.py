@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
-from seisgo import noise
+from seisgo import noise, stacking
 import pygmt as gmt
 
 #############################################################################
@@ -188,7 +188,7 @@ def plot_xcorr_substack(sfile,freqmin,freqmax,lag=None,comp='ZZ',
                     tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%Y-%m-%dT%H:%M:%S'))
 
                 dstack_mean=np.mean(data,axis=0)
-                dstack_robust=stack.robust_stack(data)[0]
+                dstack_robust=stacking.robust_stack(data)[0]
 
                 # plotting
                 if nwin>10:
