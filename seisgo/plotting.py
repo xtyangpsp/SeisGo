@@ -251,7 +251,7 @@ def plot_xcorr_substack(sfile,freqmin,freqmax,lag=None,comp='ZZ',
                     fig.show()
 
 def plot_corrfile(sfile,freqmin,freqmax,lag=None,comp='ZZ',
-                        save=True,figdir=None):
+                        save=True,figname=None,format='png',figdir=None):
     '''
     display the 2D matrix of the cross-correlation functions for a certain time-chunck.
     PARAMETERS:
@@ -273,7 +273,8 @@ def plot_corrfile(sfile,freqmin,freqmax,lag=None,comp='ZZ',
     for c in clist:
         corr=corrdict[c]
         if comp in list(corr.keys()):
-            corr[comp].plot(freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir)
+            corr[comp].plot(freqmin=freqmin,freqmax=freqmax,lag=lag,save=save,figdir=figdir,
+                            figname=figname,format=format)
 
 
 def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8)):
