@@ -717,7 +717,7 @@ class CorrData(object):
                 if v: print('saved sac to: '+sacfile)
 
     def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8),
-            stack_method='linear',get_stack=False):
+            figname=None,format='png',stack_method='linear',get_stack=False):
         """
         Plotting method for CorrData. It is the same as seisgo.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
@@ -807,10 +807,10 @@ class CorrData(object):
             ax.matshow(data_normalizd,cmap='seismic',extent=[-lag0,lag0,nwin,0],aspect='auto')
             ax.plot((0,0),(nwin,0),'k-')
             if freqmin is not None and freqmax is not None:
-                ax.set_title('%s-%s : dist : %5.2f km : %4.2f-%4.2f Hz' % (netstachan1,netstachan2,
+                ax.set_title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz' % (netstachan1,netstachan2,
                                                                            dist,freqmin,freqmax))
             else:
-                ax.set_title('%s-%s : dist : %5.2f km : unfiltered' % (netstachan1,netstachan2,dist))
+                ax.set_title('%s-%s: dist=%5.2f km: unfiltered' % (netstachan1,netstachan2,dist))
             ax.set_xlabel('time [s]')
             ax.set_xticks(t)
             ax.set_yticks(np.arange(0,nwin,step=tick_inc))
@@ -840,6 +840,8 @@ class CorrData(object):
             fig.tight_layout()
 
             dreturn=dstack
+
+            tmark_figname=obspy.UTCDateTime(ttime[0]).strftime('%Y-%m-%dT%H-%M-%S')
         else: #only one trace available
             data = np.ndarray.copy(self.data[indx1:indx2])
 
@@ -858,10 +860,10 @@ class CorrData(object):
             ax=plt.gca()
             plt.plot(tx,data,'k-',linewidth=1)
             if freqmin is not None and freqmax is not None:
-                plt.title('%s-%s : dist : %5.2f km : %4.2f-%4.2f Hz' % (netstachan1,netstachan2,
-                                                                           dist,freqmin,freqmax))
+                plt.title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz: %s' % (netstachan1,netstachan2,
+                                                                           dist,freqmin,freqmax,tmarks))
             else:
-                plt.title('%s-%s : dist : %5.2f km : unfiltered' % (netstachan1,netstachan2,dist))
+                plt.title('%s-%s: dist=%5.2f km: unfiltered: %s' % (netstachan1,netstachan2,dist,tmarks))
             plt.xlabel('time [s]')
             plt.xticks(t)
             ylim=ax.get_ylim()
@@ -872,15 +874,20 @@ class CorrData(object):
             ax.grid()
 
             dreturn=data
+            tmark_figname=obspy.UTCDateTime(ttime).strftime('%Y-%m-%dT%H-%M-%S')
 
         # save figure or just show
         if save:
             if figdir==None:figdir = '.'
             if not os.path.isdir(figdir):os.mkdir(figdir)
-            outfname = figdir+\
-            '/{0:s}_{1:s}_{2:s}-{3:s}Hz.png'.format(netstachan1,netstachan2,
-                                                             str(freqmin),str(freqmax))
-            plt.savefig(outfname, format='png', dpi=300)
+            if figname is None:
+                outfname = figdir+\
+                '/{0:s}_{1:s}_{2:s}-{3:s}Hz-{4:s}.{5:s}'.format(netstachan1,netstachan2,
+                                                                 str(freqmin),str(freqmax),
+                                                                 tmark_figname,format)
+            else:
+                outfname = figdir+'/'+figname
+            plt.savefig(outfname, format=format, dpi=300)
             print('saved to: '+outfname)
             plt.close()
         else:
