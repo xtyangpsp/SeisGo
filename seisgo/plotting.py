@@ -12,6 +12,38 @@ from obspy.signal.filter import bandpass
 from seisgo import noise, stacking
 import pygmt as gmt
 
+def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="fancy",figname=None,
+                  format='png',distance=None,projection="M5i", xshift="6i",frame="af"):
+    """
+    lon, lat: could be list of vectors contaning multiple sets of stations. The number of sets must be the same
+            as the length of the marker list.
+    marker: a list specifying the symbols for each station set.
+    region: [minlon,maxlon,minlat,maxlat] for map view
+    """
+    nsta=len(lon)
+    if isinstance(markersize,str):
+        markersize=[markersize]*nsta
+
+    fig = gmt.Figure()
+    gmt.config(MAP_FRAME_TYPE=style)
+    for i in range(nsta):
+        if i==0:
+            fig.coast(region=region, resolution="f",projection=projection, rivers='rivers',
+                      water="cyan",frame=frame,land="white",
+                      borders=["1/0.5p,gray,2/1p,gray"])
+            fig.basemap(frame='+t"'+title+'"')
+        fig.plot(
+            x=lon[i],
+            y=lat[i],
+            style=markersize[i],
+            color="red",
+        )
+
+    if figname is None:
+        figname='stationmap.'+format
+    fig.savefig(figname)
+    print('plot was saved to: '+figname)
+
 #############################################################################
 ############### PLOTTING RAW SEISMIC WAVEFORMS ##########################
 #############################################################################
