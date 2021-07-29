@@ -1,0 +1,11 @@
+Updates in v0.6.1
+
+PLOTTING
+1. Added plot_stations() to plot seismic station map using GMT
+
+2. Fixed minor bugs in plot_waveform()
+
+3. Updated plot_corrfile() to take more options, more consistent with CorrData.plot()
+
+
+DOWNLOADERS
