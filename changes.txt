@@ -9,3 +9,7 @@ PLOTTING
 
 
 DOWNLOADERS
+1. Fixed bug in get_event_waveforms() where only one station was downloaded. now it downloads
+all station data.
+
+2. Return Stream() for waveform data.

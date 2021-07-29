@@ -29,8 +29,14 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     else:
         client=Client(source)
     # time tags
-    starttime_UTC = obspy.UTCDateTime(starttime)
-    endtime_UTC   = obspy.UTCDateTime(endtime)
+    if not isinstance(starttime,obspy.core.utcdatetime.UTCDateTime) and starttime is not None:
+        starttime_UTC = obspy.UTCDateTime(starttime)
+    else:
+        starttime_UTC = starttime
+    if not isinstance(endtime,obspy.core.utcdatetime.UTCDateTime)  and endtime is not None:
+        endtime_UTC   = obspy.UTCDateTime(endtime)
+    else:
+        endtime_UTC = endtime
     # loop through specified network, station and channel lists
     chanhistory = {}
 
@@ -484,7 +490,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                     sta_inv_list.append(sta_inv)
                     break
 
-    return trlist,sta_inv_list
+    return Stream(trlist),sta_inv_list
 
 def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
                 stainv=True,samp_freq=None):
@@ -572,9 +578,9 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
     #
     #return
     if stainv:
-        return tr_all,inv_all
+        return Stream(tr_all),inv_all
     else:
-        return tr_all
+        return Stream(tr_all)
 
 
 def get_events(start,end,minlon,maxlon,minlat,maxlat,minmag,maxmag,
@@ -658,5 +664,8 @@ def get_event_waveforms(event,stainfo,window=150,offset=-50,arrival_type='first'
                                 pressure_chan=pressure_chan,samp_freq=samp_freq,freqmin=freqmin,
                                 freqmax=freqmax,rmresp=rmresp, rmresp_out=rmresp_out,
                                 respdir=respdir,qc=qc,event=event)[0]
+
         if not savetofile:
-            return tr
+            if len(tr)>0: trall.append(tr[0])
+
+    return Stream(trall)
