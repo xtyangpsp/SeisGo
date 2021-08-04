@@ -222,7 +222,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
                 val_median[idx]=np.nanmedian(np.nanmedian(val[iy,ix]))
                 val_min[idx]=np.nanmin(np.nanmin(val[iy,ix]))
                 val_max[idx]=np.nanmax(np.nanmax(val[iy,ix]))
-                val_std[idx]=np.nanstd(np.nanstd(val[iy,ix]))
+                val_std[idx]=np.nanstd(val[iy,ix])
         #
         if allstats:
             return val_mean,val_median,val_min,val_max,val_std
@@ -246,7 +246,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
                     val_median[idx,k]=np.nanmedian(np.nanmedian(val[k,iy,ix]))
                     val_min[idx,k]=np.nanmin(np.nanmin(val[k,iy,ix]))
                     val_max[idx,k]=np.nanmax(np.nanmax(val[k,iy,ix]))
-                    val_std[idx,k]=np.nanstd(np.nanstd(val[k,iy,ix]))
+                    val_std[idx,k]=np.nanstd(val[k,iy,ix])
         #
         if allstats:
             return dep,val_mean,val_median,val_min,val_max,val_std
