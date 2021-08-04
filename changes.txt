@@ -1,4 +1,4 @@
-Updates in v0.6.1
+Updates in v0.6.2
 
 PLOTTING
 1. Added plot_stations() to plot seismic station map using GMT
@@ -13,3 +13,14 @@ DOWNLOADERS
 all station data.
 
 2. Return Stream() for waveform data.
+
+UTILS
+1. Added subsetindex()
+2. Added points_in_polygon() and generate_points_in_polygon()
+3. Added read_gmtlines() to read in line segments in GMT style.
+4. Added read_ncmodel3d to read 3-D model files in netCDF format.
+5. Added read_ncmodel2d to read 2-D model files in netCDF format.
+6. Added ncmodel_in_polygon to extract seismic model within polygons.
+
+SETUP
+1. Added requirement for shapely and netCDF4 packages.

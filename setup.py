@@ -9,7 +9,7 @@ long_description = (here / 'description.md').read_text(encoding='utf-8')
 
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
-version='0.6.1'
+version='0.6.2'
 setup(
     name='seisgo',
     version=version,
@@ -108,6 +108,8 @@ setup(
                         'obspy',
                         'pyasdf',
                         'numba',
-                        'pycwt'
+                        'pycwt',
+                        'shapely',
+                        'netCDF4'
         ]
 )

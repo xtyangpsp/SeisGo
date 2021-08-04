@@ -27,8 +27,231 @@ from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
+from shapely.geometry import Polygon, Point
+import netCDF4 as nc
 
 ####
+def subsetindex(full,subset):
+    """
+    Get the indices of the subset of a list.
+    """
+    if isinstance(subset,str):subset=[subset]
+    idx=[]
+    for s in subset:
+        idx += [i for i, x in enumerate(full) if x == s]
+
+    return idx
+#
+#
+def generate_points_in_polygon(outline,spacing):
+    """
+    Generate points in polygon, defined as a shapely.polygon object.
+
+    outline: list of (x,y) points that define the polygon.
+    spacing: spacing of the points to be generated.
+    """
+    poly=Polygon(outline)
+    minx, miny, maxx, maxy = poly.bounds
+    x0=np.arange(minx-spacing,maxx+spacing,spacing)
+    y0=np.arange(miny-spacing,maxy+spacing,spacing)
+    pointsx=[]
+    pointsy=[]
+    for i in range(len(x0)):
+        for j in range(len(y0)):
+            p = Point(x0[i], y0[j])
+            if poly.contains(p):
+                pointsx.append(x0[i])
+                pointsy.append(y0[j])
+    return pointsx,pointsy
+#
+#
+def points_in_polygon(outline,qx,qy):
+    """
+    Get points that are within the given polygon. Returns the index list.
+    poly: list of (x,y) points that define the polygon
+    qx,qy: list of the x and y coordinats of the points
+            that are to be checked.
+
+    ===RETURNS===
+    ix,iy: indices of x and y for points within the polygon.
+    """
+    poly=Polygon(outline)
+    ix=[]
+    iy=[]
+    for i in range(len(qx)):
+        for j in range(len(qy)):
+            p = Point(qx[i], qy[j])
+            if poly.contains(p):
+                ix.append(i)
+                iy.append(j)
+    return ix,iy
+#
+#
+def read_gmtlines(file,comment="#",segment=">"):
+    """
+    Read GMT stype lines from text file. By default, the comment lines
+    start with "#" and segments are separated by lines starting with ">".
+    They can be specified if different than the defaults.
+
+    file - File name.
+
+    =====RETURNS====
+    dall, tags - Data (list of all 2-d arrays for all line segments) and tags.
+    """
+    tags=[]
+    data=[]
+    dall=[]
+    with open(file,'r') as fo:
+        for line in fo:
+            idn=line.find("\n")
+            if idn>0: line=line[:idn] #trim ending LINE RETURN SYMBOL
+            if line[0] == comment: #skip comment line
+                pass
+            elif line[0]== segment:
+                tag=str(line[1:])
+                if tag.find("-L"):tag=tag[tag.find("-L")+2:]
+                tags.append(tag)
+                if len(data)>0:dall.append(np.array(data))
+                data=[]
+            else:
+                if line.find("\t"):
+                    cols = line.split("\t")
+                else:
+                    cols = line.split(" ")
+                data.append([float(i) for i in cols])
+        dall.append(np.array(data))
+
+    return dall,tags
+#
+#
+def listvar_ncmodel(dfile,metadata=False):
+    """
+    Read 3D seismic model from netCDF file that follows IRIS EMC format.
+
+    dfile - Data file name.
+    var - variable name.
+
+    ===RETURNS===
+    lon,lat,dep,val - coordinats and the 3-D model (val) for the specified variable.
+    """
+    ds=nc.Dataset(dfile)
+    var=ds.variables
+
+    if metadata:
+        md=ds.__dict__
+        return var,md
+    else:
+        return var
+def read_ncmodel3d(dfile,var,metadata=False):
+    """
+    Read 3D seismic model from netCDF file that follows IRIS EMC format.
+
+    dfile - Data file name.
+    var - variable name.
+    metadata - get metadata or not. Default False.
+
+    ===RETURNS===
+    lon,lat,dep,val - coordinats and the 3-D model (val) for the specified variable.
+    """
+    ds=nc.Dataset(dfile)
+    lon=np.array(ds['longitude'][:])
+    lat=np.array(ds['latitude'][:])
+    dep=np.array(ds['depth'][:])
+    val=np.array(ds[var][:])
+
+    if metadata:
+        md=ds.__dict__
+        return dep,lat,lon,val,md
+    else:
+        return dep,lat,lon,val
+def read_ncmodel2d(dfile,var,metadata=False):
+    """
+    Read 2D seismic surface models from netCDF file that follows IRIS EMC format.
+
+    dfile - Data file name.
+    var - variable name.
+    metadata - get metadata or not. Default False.
+
+    ===RETURNS===
+    lat,lon,val - coordinats and the 3-D model (val) for the specified variable.
+    md - Only returns this when metadata is True.
+    """
+    ds=nc.Dataset(dfile)
+    lon=np.array(ds['longitude'][:])
+    lat=np.array(ds['latitude'][:])
+    dep=np.array(ds['depth'][:])
+    val=np.array(ds[var][:])
+
+    if metadata:
+        md=ds.__dict__
+        return lat,lon,val,md
+    else:
+        return lat,lon,val
+#
+#
+def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False):
+    """
+    Extract seismic model within polygons from 3d or 2d model in netCDF format.
+
+    ===PARAMETERS===
+    dfile - Data file name.
+    var - variable name.
+    vmax - maximum value, above which will be set to numpy nan.
+    allstats - If True, returns all statistics (mean, median, min, max, std) of
+                the model within the polygon. If False, only returns the mean 1d model.
+                Default False.
+    ===RETURNS===
+    dep - Depth grid. Returns only when surface is False.
+    val_mean - Average model value (1d profile in case of 3d ncmodel). Returns in all cases.
+    val_median,val_min,val_max,val_std - Only returns these when allstats is True.
+    """
+    if surface: #read in 2d surfaces
+        lat,lon,val=read_ncmodel2d(dfile,var)
+        val[val>=vmax]=np.nan
+
+        val_mean=np.ndarray((len(outlines)))
+        if allstats:
+            val_median=np.ndarray((len(outlines)))
+            val_min=np.ndarray((len(outlines)))
+            val_max=np.ndarray((len(outlines)))
+            val_std=np.ndarray((len(outlines)))
+        for idx,d in enumerate(outlines):
+            ix,iy=points_in_polygon(d,lon,lat)
+            val_mean[idx]=np.nanmean(np.nanmean(val[iy,ix]))
+            if allstats:
+                val_median[idx]=np.nanmedian(np.nanmedian(val[iy,ix]))
+                val_min[idx]=np.nanmin(np.nanmin(val[iy,ix]))
+                val_max[idx]=np.nanmax(np.nanmax(val[iy,ix]))
+                val_std[idx]=np.nanstd(np.nanstd(val[iy,ix]))
+        #
+        if allstats:
+            return val_mean,val_median,val_min,val_max,val_std
+        else:
+            return val_mean
+    else:
+        dep,lat,lon,val=read_ncmodel3d(dfile,var)
+        val[val>=vmax]=np.nan
+
+        val_mean=np.ndarray((len(outlines),val.shape[0]))
+        if allstats:
+            val_median=np.ndarray((len(outlines),val.shape[0]))
+            val_min=np.ndarray((len(outlines),val.shape[0]))
+            val_max=np.ndarray((len(outlines),val.shape[0]))
+            val_std=np.ndarray((len(outlines),val.shape[0]))
+        for idx,d in enumerate(outlines):
+            ix,iy=points_in_polygon(d,lon,lat)
+            for k in range(val_mean.shape[1]):
+                val_mean[idx,k]=np.nanmean(np.nanmean(val[k,iy,ix]))
+                if allstats:
+                    val_median[idx,k]=np.nanmedian(np.nanmedian(val[k,iy,ix]))
+                    val_min[idx,k]=np.nanmin(np.nanmin(val[k,iy,ix]))
+                    val_max[idx,k]=np.nanmax(np.nanmax(val[k,iy,ix]))
+                    val_std[idx,k]=np.nanstd(np.nanstd(val[k,iy,ix]))
+        #
+        if allstats:
+            return dep,val_mean,val_median,val_min,val_max,val_std
+        else:
+            return dep,val_mean
 # ##################### qml_to_event_list #####################################
 # modified from obspyDMT.utils.event_handler.py
 def qml_to_event_list(events_QML):
