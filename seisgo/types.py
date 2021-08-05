@@ -521,7 +521,7 @@ class CorrData(object):
 
         self.substack=True
 
-    def stack(self,method='linear',overwrite=True,ampcut=20):
+    def stack(self,method='linear',overwrite=False,ampcut=20):
         '''
         this function stacks the cross correlation data. This method will overwrite the
         data attribute with the stacked trace. Substack will be turned to False.
@@ -529,8 +529,8 @@ class CorrData(object):
         PARAMETERS:
         ----------------------
         method: stacking method, could be: linear, robust, pws, acf, or nroot.
-        overwrite: if True (default), it replaces the data attribute in CorrData. Otherwise,
-                    it returns the stacked data as a vector.
+        overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
+                    it returns the stacked data as a vector. Default: False.
         ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax))
         '''
         if isinstance(method,list):method=method[0]
@@ -565,6 +565,9 @@ class CorrData(object):
                 else:
                     return dstack
             print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
+        else:
+            print('substack is set to: False. No stacking applicable.')
+            pass
 
     #convert to EGF by taking the netagive time derivative of the noise correlation functions.
     def to_egf(self,taper_frac=0.01,taper_maxlen=10):
