@@ -22,5 +22,9 @@ UTILS
 5. Added read_ncmodel2d to read 2-D model files in netCDF format.
 6. Added ncmodel_in_polygon to extract seismic model within polygons.
 
+TYPES
+1. Pushed cc_len and cc_step in CorrData.
+2. Added in CorrData.stack() the option to stack over segmented time windows.
+
 SETUP
 1. Added requirement for shapely and netCDF4 packages.
