@@ -189,7 +189,8 @@ def read_ncmodel2d(dfile,var,metadata=False):
         return lat,lon,val
 #
 #
-def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False):
+def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False,
+                        lon_correction=0.0):
     """
     Extract seismic model within polygons from 3d or 2d model in netCDF format.
 
@@ -200,6 +201,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
     allstats - If True, returns all statistics (mean, median, min, max, std) of
                 the model within the polygon. If False, only returns the mean 1d model.
                 Default False.
+    lon_correction - add correction to model longitude. Default 0.0.
     ===RETURNS===
     dep - Depth grid. Returns only when surface is False.
     val_mean - Average model value (1d profile in case of 3d ncmodel). Returns in all cases.
@@ -207,6 +209,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
     """
     if surface: #read in 2d surfaces
         lat,lon,val=read_ncmodel2d(dfile,var)
+        lon += lon_correction
         val[val>=vmax]=np.nan
 
         val_mean=np.ndarray((len(outlines)))
@@ -230,6 +233,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
             return val_mean
     else:
         dep,lat,lon,val=read_ncmodel3d(dfile,var)
+        lon += lon_correction
         val[val>=vmax]=np.nan
 
         val_mean=np.ndarray((len(outlines),val.shape[0]))

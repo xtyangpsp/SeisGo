@@ -242,6 +242,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     #----load paramters----
     dt      = fftdata1.dt
     cc_len  = fftdata1.win_len
+    cc_step = fftdata1.step
     if substack_len is None: substack_len=cc_len
 
     Nfft = fftdata1.Nfft
@@ -351,8 +352,9 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                     loc=[fftdata1.loc,fftdata2.loc],chan=[fftdata1.chan,fftdata2.chan],\
                     lon=[fftdata1.lon,fftdata2.lon],lat=[fftdata1.lat,fftdata2.lat],\
                     ele=[fftdata1.ele,fftdata2.ele],cc_comp=cc_comp,lag=maxlag,\
-                    dt=fftdata1.dt,dist=dist/1000,az=azi,baz=baz,ngood=n_corr,time=t_corr,data=s_corr,\
-                    substack=substack,misc={"cc_method":method,"dist_unit":"km"})
+                    dt=fftdata1.dt,cc_len=cc_len,cc_step=cc_step,dist=dist/1000,az=azi,\
+                    baz=baz,ngood=n_corr,time=t_corr,data=s_corr,substack=substack,\
+                    misc={"cc_method":method,"dist_unit":"km"})
     return corrdata
 
 def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
@@ -1153,7 +1155,14 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                         rele = para['eleR']
                     else:
                         rele = 0.0
-
+                    if "cc_len" in  list(para.keys()):
+                        cc_len = para['cc_len']
+                    else:
+                        cc_len = None
+                    if "cc_step" in  list(para.keys()):
+                        cc_step = para['cc_step']
+                    else:
+                        cc_step = None
                     if flag:
                         data = ds.auxiliary_data[spair][ipath].data[:,:]
                     else:
@@ -1164,8 +1173,9 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                 corrdict[spair][cc_comp]=CorrData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
                                                 chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
-                                                dist=dist,az=az,baz=baz,ngood=ngood,time=ttime,
-                                                data=data,substack=flag,misc=para)
+                                                cc_len=cc_len,cc_step=cc_step,dist=dist,az=az,
+                                                baz=baz,ngood=ngood,time=ttime,data=data,
+                                                substack=flag,misc=para)
                 if "type" in  list(para.keys()): corrdict[spair][cc_comp].type=para['type']
 
     return corrdict

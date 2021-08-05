@@ -389,8 +389,8 @@ class CorrData(object):
     """
     def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',lag=0.0,\
-                    dt=0.0,dist=0.0,az=0.0,baz=0.0,ngood=[],time=[],data=None,\
-                    substack:bool=False,misc=dict()):
+                    dt=0.0,cc_len=None,cc_step=None,dist=0.0,az=0.0,baz=0.0,ngood=[],\
+                    time=[],data=None,substack:bool=False,misc=dict()):
         self.type='Correlation Data'
         self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
         self.net=net
@@ -406,6 +406,8 @@ class CorrData(object):
             self.cc_comp=cc_comp
         self.lag=lag
         self.dt=dt
+        self.cc_len=cc_len
+        self.cc_step=cc_step
         self.dist=dist
         self.az=az
         self.baz=baz
@@ -431,6 +433,8 @@ class CorrData(object):
         print("cc_comp  :   "+str(self.cc_comp))
         print("lag      :   "+str(self.lag))
         print("dt       :   "+str(self.dt))
+        print("cc_len   :   "+str(self.cc_len))
+        print("cc_step  :   "+str(self.cc_step))
         print("dist     :   "+str(self.dist))
         print("ngood    :   "+str(self.ngood))
         if self.time is not None:
@@ -483,7 +487,8 @@ class CorrData(object):
         data=np.concatenate((data1,data2),axis=0)
 
         return CorrData(net=c1.net,sta=c1.sta,loc=c1.loc,chan=c1.chan,lon=c1.lon,lat=c1.lat,ele=c1.ele,\
-                    cc_comp=c1.cc_comp,lag=c1.lag,dt=c1.dt,dist=c1.dist,az=c1.az,baz=c1.baz,misc=c1.misc,\
+                    cc_comp=c1.cc_comp,lag=c1.lag,dt=c1.dt,cc_len=c1.cc_len,cc_step=c1.cc_step,\
+                    dist=c1.dist,az=c1.az,baz=c1.baz,misc=c1.misc,\
                     ngood=ngood,time=time,substack=True,data=data)
 
     def merge(self,c):
@@ -649,6 +654,8 @@ class CorrData(object):
             'eleR':np.float32(eleR),
             'ngood':self.ngood,
             'cc_method':cc_method,
+            'cc_len':self.cc_len,
+            'cc_step':self.cc_step,
             'time':self.time,
             'substack':self.substack,
             'comp':self.cc_comp,
