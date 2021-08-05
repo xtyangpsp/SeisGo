@@ -521,114 +521,114 @@ class CorrData(object):
 
         self.substack=True
 
-    def stack(self,method='linear',overwrite=True,ampcut=20):
+    def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20):
         '''
         This function stacks the cross correlation data. It will overwrite the
         [data] attribute with the stacked trace, if overwrite is True. Substack will
-        be set to False.
+        be set to False if win_len is None or there is only one trace left.
 
         PARAMETERS:
         ----------------------
+        in_len: windown length in seconds for the substack, over which all the
+                corrdata.data subset will be stacked. If None [default],it stacks
+                all data into one single trace.
         method: stacking method, could be: linear, robust, pws, acf, or nroot.
         overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
                     it returns the stacked data as a vector. Default: True.
         ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax)).
                 Default: 20.
+
+        RETURNS:
+        -----------------------
+        Only returns when overwrite is False.
+
+        ds: stacked data.
+        ts: timeflag of the substacks, only returns when win_len is NOT None.
         '''
         if isinstance(method,list):method=method[0]
-        # remove abnormal data
-        if self.substack:
-            ampmax = np.max(self.data,axis=1)
-            tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
-            nstacks=len(tindx)
-            if nstacks >0:
-                cc_array = utils.demean(self.data[tindx,:])
-
-                # do stacking
-                dstack = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
-                if nstacks==1: dstack=cc_array
-                else:
-                    if method == 'linear':
-                        dstack = np.mean(cc_array,axis=0)
-                    elif method == 'pws':
-                        dstack = stacking.pws(cc_array,1.0/self.dt)
-                    elif method == 'robust':
-                        dstack = stacking.robust_stack(cc_array)[0]
-                    elif method == 'acf':
-                        dstack = stacking.adaptive_filter(cc_array,1)
-                    elif method == 'nroot':
-                        dstack = stacking.nroot_stack(cc_array,2)
-                if overwrite:
-                    #overwrite the data attribute.
-                    self.substack=False
-                    self.time  = self.time[tindx[0]]
-                    self.ngood = nstacks
-                    self.data=dstack
-                else:
-                    return dstack
-            print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
-        else:
-            print('substack is set to: False. No stacking applicable.')
-            pass
-    ####
-    def substack(self,win_len,method='linear',ampcut=20,overwrite=True):
-        """
-        Substack CorrData.data over segments with the given windown length (win_len).
-        It will overwrite the [data] attribute with the stacked trace, if overwrite
-        is True. Substack will be set to False is there is only one trace left.
-
-        PARAMETERS:
-        ----------------------
-        win_len: windown length in seconds for the substack, over which all the
-                corrdata.data subset will be stacked.
-        method: stacking method, could be: linear, robust, pws, acf, or nroot.
-        overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
-                    it returns the stacked data as a vector. Default: True.
-        ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax))
-                Default: 20.
-        """
-        win=np.arange(self.time[0],self.time[-1],win_len)  #all time chunks
-        ts_temp=[]
-        ds=np.ndarray((len(win),self.data.shape[1]),dtype=self.data.dtype)
-        ngood=[]
-        for i in range(len(win)):
-            widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
-            if len(widx) >0:
-                cc0 = utils.demean(self.data[widx,:])
-                ampmax = np.max(cc0,axis=1)
+        if win_len is None:
+            if self.substack:
+                cc_temp = utils.demean(self.data,axis=1)
+                ampmax = np.max(cc_temp,axis=1)
                 tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
                 nstacks=len(tindx)
-                dstack = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
-                if nstacks>0:
-                    cc_array = cc0[tindx,:]
+                if nstacks >0:
+                    cc_array = cc_temp[tindx,:]
 
                     # do stacking
-                    if nstacks==1: dstack=cc_array
+                    ds = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
+                    if nstacks==1: ds=cc_array
                     else:
                         if method == 'linear':
-                            dstack = np.mean(cc_array,axis=0)
+                            ds = np.mean(cc_array,axis=0)
                         elif method == 'pws':
-                            dstack = stacking.pws(cc_array,1.0/self.dt)
+                            ds = stacking.pws(cc_array,1.0/self.dt)
                         elif method == 'robust':
-                            dstack = stacking.robust_stack(cc_array)[0]
+                            ds = stacking.robust_stack(cc_array)[0]
                         elif method == 'acf':
-                            dstack = stacking.adaptive_filter(cc_array,1)
+                            ds = stacking.adaptive_filter(cc_array,1)
                         elif method == 'nroot':
-                            dstack = stacking.nroot_stack(cc_array,2)
+                            ds = stacking.nroot_stack(cc_array,2)
+                    if overwrite:
+                        #overwrite the data attribute.
+                        self.substack=False
+                        self.time  = self.time[tindx[0]]
+                        self.ngood = nstacks
+                        self.data=ds
+                    else:
+                        return ds
+                print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
+            else:
+                print('substack is set to: False. No stacking applicable.')
+                pass
+        else: #### stacking over segments of time windows.
+            print('Stacking with given windown len %f'%(win_len))
 
-                    ds[i,:]=dstack
-                    ngood.append(i)
-                    ts_temp.append(self.time[widx[0]])
+            win=np.arange(self.time[0],self.time[-1],win_len)  #all time chunks
+            ts_temp=[]
+            ds=np.ndarray((len(win),self.data.shape[1]),dtype=self.data.dtype)
+            ngood=[]
+            for i in range(len(win)):
+                widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
+                if len(widx) >0:
+                    cc0 = utils.demean(self.data[widx,:])
+                    ampmax = np.max(cc0,axis=1)
+                    tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
+                    nstacks=len(tindx)
+                    dstack = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
+                    if nstacks>0:
+                        cc_array = cc0[tindx,:]
 
-        #
-        ts=np.array(ts_temp)
-        ds=ds[ngood,:]
+                        # do stacking
+                        if nstacks==1: dstack=cc_array
+                        else:
+                            if method == 'linear':
+                                dstack = np.mean(cc_array,axis=0)
+                            elif method == 'pws':
+                                dstack = stacking.pws(cc_array,1.0/self.dt)
+                            elif method == 'robust':
+                                dstack = stacking.robust_stack(cc_array)[0]
+                            elif method == 'acf':
+                                dstack = stacking.adaptive_filter(cc_array,1)
+                            elif method == 'nroot':
+                                dstack = stacking.nroot_stack(cc_array,2)
 
-        if overwrite:
-            self.data=ds
-            self.time=ts
-        else:
-            return ts,ds
+                        ds[i,:]=dstack
+                        ngood.append(i)
+                        ts_temp.append(self.time[widx[0]])
+
+            #
+            ts=np.array(ts_temp)
+            ds=ds[ngood,:]
+
+            if overwrite:
+                self.data=ds
+                self.time=ts
+                self.ngood=len(ngood)
+                if len(ngood) ==1: self.substack = False
+            else:
+                return ts,ds
+
     #convert to EGF by taking the netagive time derivative of the noise correlation functions.
     def to_egf(self,taper_frac=0.01,taper_maxlen=10):
         """
