@@ -573,7 +573,7 @@ class CorrData(object):
                         #overwrite the data attribute.
                         self.substack=False
                         self.time  = self.time[tindx[0]]
-                        self.ngood = np.ones((len(ngood)))
+                        self.ngood = np.ones((nstacks))
                         self.data=ds
                     else:
                         return ds
