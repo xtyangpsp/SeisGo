@@ -548,7 +548,7 @@ class CorrData(object):
         if isinstance(method,list):method=method[0]
         if win_len is None:
             if self.substack:
-                cc_temp = utils.demean(self.data,axis=1)
+                cc_temp = utils.demean(self.data)
                 ampmax = np.max(cc_temp,axis=1)
                 tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
                 nstacks=len(tindx)
@@ -573,7 +573,7 @@ class CorrData(object):
                         #overwrite the data attribute.
                         self.substack=False
                         self.time  = self.time[tindx[0]]
-                        self.ngood = nstacks
+                        self.ngood = np.ones((len(ngood)))
                         self.data=ds
                     else:
                         return ds
@@ -624,7 +624,7 @@ class CorrData(object):
             if overwrite:
                 self.data=ds
                 self.time=ts
-                self.ngood=len(ngood)
+                self.ngood=np.ones((len(ngood)))
                 if len(ngood) ==1: self.substack = False
             else:
                 return ts,ds

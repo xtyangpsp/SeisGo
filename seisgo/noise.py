@@ -248,8 +248,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     Nfft = fftdata1.Nfft
     Nfft2 = Nfft//2
 
-    fft1=fftdata1.data[bb_data1,:Nfft2]
-    fft1=np.conj(fft1) #get the conjugate of fft1
+    fft1=np.conj(fftdata1.data[bb_data1,:Nfft2]) #get the conjugate of fft1
     nwin  = fft1.shape[0]
     fft2=fftdata2.data[bb_data2,:Nfft2]
 
@@ -912,6 +911,20 @@ def rotation(bigstack,parameters,locs,flag):
 
 ####
 def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False):
+    """
+    This is a wrapper function that merges all data for the same station pair
+    to a single CorrData object. It calls CorrData.merge() to assemble all CorrData.
+
+    PARAMETERS
+    ----------------------
+    ccfiles: a list of correlation functions in ASDF format, saved to *.h5 file.
+    pairlist: a list of station pairs to merge. If None (default), it will merge all
+            station pairs.
+    outdir: directory to save the data. Defautl is ./Merged.
+    flag: verbose flag. Default is False.
+    to_egf: whether to convert the data to empirical Green's functions (EGF) before
+            saving. Default is False.
+    """
     # source folder
     if pairlist is None:
         pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
