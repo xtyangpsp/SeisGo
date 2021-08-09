@@ -137,10 +137,10 @@ def smooth_source_spect(fft1,cc_method,sn):
 
     return sfft1.reshape(N,Nfft2)
 #
-def do_correlation(sfile,ncomp,win_len,step,maxlag,cc_method='xcorr',
-                    acorr_only=False,xcorr_only=True,substack=False,substack_len=None,
-                    smoothspect_N=20,maxstd=10,freqmin=None,freqmax=None,time_norm='no',
-                    freq_norm='no',smooth_N=20,exclude_chan=[None],outdir='.',v=True):
+def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
+                    xcorr_only=False,substack=False,substack_len=None,smoothspect_N=20,
+                    maxstd=10,freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
+                    smooth_N=20,exclude_chan=[None],outdir='.',v=True):
     """
     Wrapper for computing correlation functions. It includes two key steps: 1) compute and assemble
     the FFT of all data in the sfile, into a list of FFTData objects; 2) loop through the FFTData object
@@ -149,6 +149,12 @@ def do_correlation(sfile,ncomp,win_len,step,maxlag,cc_method='xcorr',
     ====RETURNS====
     ndata: the number of station-component pairs in the sfile, that have been processed.
     """
+    if win_len in [1,2,3]:
+        print("!!!WARNING: you may call do_correlation() in the old way with the 2nd argument as the ncomp info.")
+        print("         This may cause errors with arguments getting the wrong values. In this version and later,")
+        print("         ncomp is deprecated. No change for other arguments. This warning will be removed in")
+        print("         versions v0.7.x and later.")
+
     if acorr_only and xcorr_only:
         raise ValueError('acorr_only and xcorr_only CAN NOT all be True.')
 
@@ -177,20 +183,25 @@ def do_correlation(sfile,ncomp,win_len,step,maxlag,cc_method='xcorr',
 
     #############PERFORM CROSS-CORRELATION##################
     if v: print(tname)
+    iend=ndata
     for iiS in range(ndata):
         # get index right for auto/cross correlation
-        istart=iiS;iend=ndata
-        if acorr_only:iend=np.minimum(iiS+ncomp,ndata)
-        if xcorr_only:istart=np.minimum(iiS+ncomp,ndata)
+        istart=iiS;
+        src=fftdata[iiS].net+"."+fftdata[iiS].sta
+        # if acorr_only:iend=np.minimum(iiS+ncomp,ndata)
+        # if xcorr_only:istart=np.minimum(iiS+ncomp,ndata)
         #-----------now loop III for each receiver B----------
         for iiR in range(istart,iend):
-            if v:print('receiver: %s %s' % (fftdata[iiR].net,fftdata[iiR].sta))
-            if fftdata[iiS].data is not None and fftdata[iiR].data is not None:
-                corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
-                                    smoothspect_N=smoothspect_N,substack_len=substack_len,
-                                    maxstd=maxstd)
+            # if v:print('receiver: %s %s' % (fftdata[iiR].net,fftdata[iiR].sta))
+            rcv=fftdata[iiR].net+"."+fftdata[iiR].sta
+            if (acorr_only and src==rcv) or (xcorr_only and src != rcv) or (not acorr_only and not xcorr_only):
+                if fftdata[iiS].data is not None and fftdata[iiR].data is not None:
+                    if v:print('receiver: %s %s' % (fftdata[iiR].net,fftdata[iiR].sta))
+                    corrdata=correlate(fftdata[iiS],fftdata[iiR],maxlag,method=cc_method,substack=substack,
+                                        smoothspect_N=smoothspect_N,substack_len=substack_len,
+                                        maxstd=maxstd)
 
-                if corrdata.data is not None: corrdata.to_asdf(file=outfile)
+                    if corrdata.data is not None: corrdata.to_asdf(file=outfile)
 
     # create a stamp to show time chunk being done
     ftmp.write('done')

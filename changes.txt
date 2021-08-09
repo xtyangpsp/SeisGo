@@ -1,3 +1,8 @@
+Updates in v0.6.3
+NOISE
+1. Removed ncomp in do_correlation(). Setup a warning message if old usage is used.
+2. Change defaults for acorr_only and xcorr_only both to False in do_correlation().
+
 Updates in v0.6.2
 
 PLOTTING
