@@ -160,7 +160,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
 
     tname = sfile.split('/')[-1]
     tmpfile = os.path.join(outdir,tname.split('.')[0]+'.tmp')
-
+    if not os.path.isdir(outdir):os.makedirs(outdir)
     #file to store CC results.
     outfile=os.path.join(outdir,tname)
     # check whether time chunk been processed or not
