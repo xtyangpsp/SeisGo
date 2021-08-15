@@ -103,7 +103,8 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
 
     # output station list
     dict = {'network': net, 'station': sta, 'channel': chan, 'latitude': lat, 'longitude': lon, 'elevation': elev}
-    locs = pd.DataFrame(dict)
+    locs0 = pd.DataFrame(dict)
+    locs=locs0.drop_duplicates(ignore_index=True) #remove duplicate inputs/stations
     if fname is not None:
         fsplit=fname.split('/')[:-1]
         fdir=os.path.join(*fsplit)
@@ -583,7 +584,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         return Stream(tr_all)
 
 
-def get_events(start,end,minlon,maxlon,minlat,maxlat,minmag,maxmag,
+def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,maxmag=10,
                     magstep=1.0,source="USGS",v=False):
     #elist is a list of panda dataframes
     t0=time.time()
@@ -650,6 +651,7 @@ def get_event_waveforms(event,stainfo,window=150,offset=-50,arrival_type='first'
     except Exception as e:
         channel = ['*']*len(station)
     trall=[]
+    invall=[]
     # Download for each station
     for i in range(len(network)):
         sta_lat = stainfo.latitude[i]
@@ -658,14 +660,34 @@ def get_event_waveforms(event,stainfo,window=150,offset=-50,arrival_type='first'
         travel_time = utils.get_tt(event_lat, event_long, sta_lat, sta_long, depth_km,type='first')[0]
         sta_start = event_t + travel_time + offset
         sta_end = sta_start + window
-        tr=download(sta_start,sta_end,network=network[i],station=station[i],channel=channel[i],
+        if getstainv:
+            tr,inv=download(sta_start,sta_end,network=network[i],station=station[i],channel=channel[i],
                                 source=source,rawdatadir=rawdatadir,sacheader=sacheader,
                                 getstainv=getstainv, max_tries=maxtry,savetofile=savetofile,
                                 pressure_chan=pressure_chan,samp_freq=samp_freq,freqmin=freqmin,
                                 freqmax=freqmax,rmresp=rmresp, rmresp_out=rmresp_out,
-                                respdir=respdir,qc=qc,event=event)[0]
+                                respdir=respdir,qc=qc,event=event)
 
-        if not savetofile:
-            if len(tr)>0: trall.append(tr[0])
+            if not savetofile:
+                if len(tr)>0:
+                    trall.append(tr[0])
+                    invall.append(inv)
+        else:
+            tr=download(sta_start,sta_end,network=network[i],station=station[i],channel=channel[i],
+                                source=source,rawdatadir=rawdatadir,sacheader=sacheader,
+                                getstainv=getstainv, max_tries=maxtry,savetofile=savetofile,
+                                pressure_chan=pressure_chan,samp_freq=samp_freq,freqmin=freqmin,
+                                freqmax=freqmax,rmresp=rmresp, rmresp_out=rmresp_out,
+                                respdir=respdir,qc=qc,event=event)
 
-    return Stream(trall)
+            if not savetofile:
+                if len(tr)>0:
+                    trall.append(tr[0])
+
+    ###
+    ###
+    if not savetofile:
+        if getstainv:
+            return Stream(trall),invall
+        else:
+            return Stream(trall)

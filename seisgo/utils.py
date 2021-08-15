@@ -13,6 +13,7 @@ import pyasdf
 import datetime
 import os, glob
 import numpy as np
+import pandas as pd
 from numba import jit
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
@@ -257,12 +258,21 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
         else:
             return dep,val_mean
 # ##################### qml_to_event_list #####################################
-# modified from obspyDMT.utils.event_handler.py
-def qml_to_event_list(events_QML):
+def qml_to_event_list(events_QML,to_pd=False):
+    print("WARNING: this function has been renamed to qml2list. This warning will be removed in v0.7.x.")
+    return qml2list(events_QML,to_pd=to_pd)
+
+# modified from qml_to_event_list in obspyDMT.utils.event_handler.py
+def qml2list(events_QML,to_pd=False):
     """
     convert QML to event list
-    :param events_QML:
-    :return:
+
+    ===PARAMETERS===
+    events_QML: event qml (OBSPY CATALOG object)
+    to_pd: convert to Pandas DataFrame object. Default: False.
+
+    ====return====
+    events: a list of event information or a pandas dataframe object.
     """
     events = []
     for i in range(len(events_QML)):
@@ -392,8 +402,35 @@ def qml_to_event_list(events_QML):
         except Exception as error:
             print(error)
             continue
-    return events
+    if to_pd:
+        return pd.DataFrame(events)
+    else:
+        return events
 
+# ##################### mag_duration ###################################
+# modified from the same function in obspyDMT.utils.event_handler.py
+def mag_duration(mag, type_curve=1):
+    """
+    calculate the source duration out of magnitude
+    type_curve can be 1, 2, 3:
+    1: 2005-2014
+    2: 1976-1990
+    3: 1976-2014
+    :param mag:
+    :param type_curve:
+    :return:
+    """
+    if type_curve == 1:
+        half_duration = 0.00272*np.exp(1.134*mag)
+    elif type_curve == 2:
+        half_duration = 0.00804*np.exp(1.025*mag)
+    elif type_curve == 3:
+        half_duration = 0.00392*np.exp(1.101*mag)
+    else:
+        sys.exit('%s Type for magnitude to source duration conversion is not '
+                 'implemented' % type_curve)
+    source_duration = round(half_duration, 3)*2
+    return ['triangle', source_duration]
 # sta_info_from_inv(inv) is modified from noise_module (with the same name)
 #Check NoisePy: https://github.com/mdenolle/NoisePy
 # added functionality to process an array of inventory
@@ -726,9 +763,9 @@ def get_tracetag(tr):
 # 3. Added mode with option to plot overlapping figures.
 def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                title=[],outfile='test.ps',xlimit=[],subplotpar=[],              \
-               mode="subplot",spacing=2.0,colors=[]):
+               mode="subplot",spacing=2.0,colors=[],verbose=False):
     """
-    mode: subplot OR overlap
+    mode: subplot, overlap, or gather. In gather mode, traces will be offset and normalized.
     """
     plt.figure(figsize=size)
     ntr=len(tr_list)
@@ -738,24 +775,26 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
     myymin=[]
     myymax=[]
     for itr,tr in enumerate(tr_list,1):
-        tt=tr.times()
+        if isinstance(tr,obspy.core.stream.Stream) or isinstance(tr,list):
+            if len(tr) >0:
+                tc=tr[0].copy()
+            else:
+                continue
+        else:
+            tc=tr.copy()
+        tt=tc.times()
         if len(xlimit)==0:
             xlimit=[np.min(tt),np.max(tt)]
 
         imin = np.searchsorted(tt,xlimit[0],side="left")
         imax = np.searchsorted(tt,xlimit[1],side="left")
 
-        tc=tr.copy()
-
-#         if freqmax==[]:
-#             freqmax=0.4999*tr.stats.sampling_rate #slightly lower than the Nyquist frequency
-
-
         if len(freq)>0:
-            print("station %s.%s, filtered at [%6.3f, %6.3f]" % (tc.stats.network,                                                             tr.stats.station,freq[0],freq[1]))
+            if verbose:print("station %s.%s, filtered at [%6.3f, %6.3f]" % (tc.stats.network,
+                                                            tc.stats.station,freq[0],freq[1]))
             tc.filter('bandpass',freqmin=freq[0],freqmax=freq[1],zerophase=True)
         else:
-            print("station %s.%s" % (tc.stats.network,tc.stats.station))
+            if verbose:print("station %s.%s" % (tc.stats.network,tc.stats.station))
 
         if mode=="subplot":
             ax=plt.subplot(subplotpar[0],subplotpar[1],itr)
@@ -768,7 +807,8 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                 plt.plot(tt,tc.data,colors[itr-1])
             plt.xlabel("time (s)")
             ax.ticklabel_format(axis='x',style='plain')
-            if np.max(np.abs(tc.data[imin:imax])) >= 1e+4 or np.max(np.abs(tc.data[imin:imax])) <= 1e-4:
+            if np.max(np.abs(tc.data[imin:imax])) >= 1e+4 or \
+                            np.max(np.abs(tc.data[imin:imax])) <= 1e-4:
                 ax.ticklabel_format(axis='both',style='sci')
             if len(ylabels)>0:
                 plt.ylabel(ylabels[itr-1])
@@ -778,9 +818,10 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                 plt.xlim(xlimit)
             plt.ylim(0.9*np.min(tc.data[imin:imax]),1.1*np.max(tc.data[imin:imax]))
             if len(freq)>0:
-                plt.text(np.mean(xlimit),0.9*np.max(tc.data[imin:imax]),"["+str(freq[0])+", "+str(freq[1])+"] Hz", \
+                plt.text(np.mean(xlimit),0.9*np.max(tc.data[imin:imax]),\
+                        "["+str(freq[0])+", "+str(freq[1])+"] Hz", \
                          horizontalalignment='center',verticalalignment='center',fontsize=12)
-        else:
+        elif mode=="overlap":
             if itr==1:ax=plt.subplot(1,1,1)
             if len(colors)==0:
                 plt.plot(tt,tc.data)
@@ -793,7 +834,7 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
             myymax.append(1.1*np.max(tc.data[imin:imax]))
             if itr==ntr:
                 ax.ticklabel_format(axis='x',style='plain')
-                ax.legend(datalabels)
+                if len(datalabels)>0: ax.legend(datalabels)
                 if len(ylabels)>0:
                     plt.ylabel(ylabels[0])
                 if len(title)>0:
@@ -804,6 +845,32 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                 if len(freq)>0:
                     plt.text(np.mean(xlimit),0.85*np.max(myymax),"["+str(freq[0])+", "+str(freq[1])+"] Hz",\
                              horizontalalignment='center',verticalalignment='center',fontsize=14)
+        elif mode=="gather":
+            if itr==1:ax=plt.subplot(1,1,1)
+            if len(colors)==0:
+                plt.plot(tt,itr-1+0.5*tc.data/np.max(np.abs(tc.data)))
+            elif len(colors)==1:
+                plt.plot(tt,itr-1+0.5*tc.data/np.max(np.abs(tc.data)),colors[0])
+            else:
+                plt.plot(tt,itr-1+0.5*tc.data/np.max(np.abs(tc.data)),colors[itr-1])
+            plt.xlabel("time (s)")
+            plt.text(xlimit[0]+10,itr-1+0.2,tc.stats.network+"."+tc.stats.station,
+                    horizontalalignment='left',verticalalignment='center',fontsize=11)
+            if itr==ntr:
+                ax.ticklabel_format(axis='x',style='plain')
+                if len(datalabels)>0: ax.legend(datalabels)
+                if len(ylabels)>0:
+                    plt.ylabel(ylabels[0])
+                if len(title)>0:
+                    plt.title(title)
+                if len(xlimit)>0:
+                    plt.xlim(xlimit)
+                plt.ylim([-0.7,ntr-0.3])
+                if len(freq)>0:
+                    plt.text(np.mean(xlimit),0.85*np.max(myymax),"["+str(freq[0])+", "+str(freq[1])+"] Hz",\
+                             horizontalalignment='center',verticalalignment='center',fontsize=14)
+        else:
+            raise ValueError("mode: %s is not recoganized. Can ONLY be: subplot, overlap, or gather."%(mode))
 
     plt.savefig(outfile,orientation='landscape')
     plt.show()

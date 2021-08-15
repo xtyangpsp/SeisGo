@@ -3,6 +3,20 @@ NOISE
 1. Removed ncomp in do_correlation(). Setup a warning message if old usage is used.
 2. Change defaults for acorr_only and xcorr_only both to False in do_correlation().
 
+DOWNLOADERS
+1. Return inventory in get_event_waveforms()
+2. Drop duplicates in get_sta_list().
+3. Change default region to globe in get_events()
+
+UTILS
+1. Added mag_duration(), modified from obspyDMT.utils.event_handler.py
+2. Renamed qml_to_event_list() to qml2list(). Added option to conver to pandas dataframe.
+
+PLOTTING
+1. Added plot_eventsequence() to plot event with time.
+
+==================================================================================
+==================================================================================
 Updates in v0.6.2
 
 PLOTTING

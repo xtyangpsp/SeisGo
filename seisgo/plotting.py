@@ -11,6 +11,49 @@ from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
 from seisgo import noise, stacking
 import pygmt as gmt
+from obspy import UTCDateTime
+
+def plot_eventsequence(cat,figsize=(12,4),minmag=None,figname=None,
+                       yrange=None,save=False):
+    if isinstance(cat,obspy.core.event.catalog.Catalog):
+        cat=pd.DataFrame(utils.qml2list(cat))
+    elif isinstance(cat,list):
+        cat=pd.DataFrame(cat)
+    #All magnitudes greater than or equal to the limit will be plotted
+
+    plt.figure(figsize=figsize)
+    plt.title("Mag. vs Time")
+    plt.xlabel("Date (UTC)")
+    plt.ylabel("Magnitude")
+
+    if minmag is not None:
+        cat2=cat[cat.magnitude>=minmag]
+    else:
+        cat2=cat
+    t=[]
+    for i in range(len(cat2)):
+        tTime=UTCDateTime(cat2.datetime[i])
+        t.append(tTime.datetime)
+    if yrange is None:
+        ymin=np.min(cat2.magnitude)*0.9
+        ymax=np.max(cat2.magnitude)*1.1
+    else:
+        ymin,ymax=yrange
+    markerline, stemlines, baseline=plt.stem(t,cat2.magnitude,linefmt='k-',markerfmt="o",
+                                             bottom=ymin)
+    markerline.set_markerfacecolor('r')
+    markerline.set_markeredgecolor('r')
+        #
+    plt.grid(axis="both")
+    plt.ylim([ymin,ymax])
+
+    if save:
+        if figname is not None:
+            plt.savefig(figname)
+        else:
+            plt.savefig("MagVsTime.png")
+    else:
+        plt.show()
 
 def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="fancy",figname=None,
                   format='png',distance=None,projection="M5i", xshift="6i",frame="af"):
