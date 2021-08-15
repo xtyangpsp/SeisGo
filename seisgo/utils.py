@@ -948,7 +948,6 @@ def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
     indx1 = 0
     for iseg in range(nseg):
         indx2 = indx1+npts
-        print(npts,indx1,indx2)
         dataS[iseg] = data[indx1:indx2]
         trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
         dataS_t[iseg]    = starttime+step_secs*iseg
