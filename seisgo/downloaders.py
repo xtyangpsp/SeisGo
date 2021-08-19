@@ -84,7 +84,9 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
                                     location.append('*')
                                 if pressure_chan != None:
                                     if ichan not in pressure_chan:
-                                        chanhistory[netsta].append(chan_this)
+                                    chanhistory[netsta].append(chan_this)
+                                else:
+                                    chanhistory[netsta].append(chan_this)
                             elif len(chanhistory[netsta]) < maxseischan or chan_this in pressure_chan:
                                 sta.append(tsta.code)
                                 net.append(K.code)
@@ -100,6 +102,8 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
                                 if pressure_chan != None:
                                     if ichan not in pressure_chan:
                                         chanhistory[netsta].append(chan_this)
+                                else:
+                                    chanhistory[netsta].append(chan_this)
 
     # output station list
     dict = {'network': net, 'station': sta, 'channel': chan, 'latitude': lat, 'longitude': lon, 'elevation': elev}
