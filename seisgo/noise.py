@@ -364,7 +364,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                     ele=[fftdata1.ele,fftdata2.ele],cc_comp=cc_comp,lag=maxlag,\
                     dt=fftdata1.dt,cc_len=cc_len,cc_step=cc_step,dist=dist/1000,az=azi,\
                     baz=baz,ngood=n_corr,time=t_corr,data=s_corr,substack=substack,\
-                    misc={"cc_method":method,"dist_unit":"km"})
+                    side="A",misc={"cc_method":method,"dist_unit":"km"})
     return corrdata
 
 def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
