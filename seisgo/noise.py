@@ -1191,6 +1191,10 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                         cc_step = para['cc_step']
                     else:
                         cc_step = None
+                    if "side" in  list(para.keys()):
+                        side = para['side']
+                    else:
+                        side = "A"
                     if flag:
                         data = ds.auxiliary_data[spair][ipath].data[:,:]
                     else:
@@ -1203,7 +1207,7 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
                                                 cc_len=cc_len,cc_step=cc_step,dist=dist,az=az,
                                                 baz=baz,ngood=ngood,time=ttime,data=data,
-                                                substack=flag,misc=para)
+                                                substack=flag,side=side,misc=para)
                 if "type" in  list(para.keys()): corrdict[spair][cc_comp].type=para['type']
 
     return corrdict

@@ -747,38 +747,39 @@ class CorrData(object):
         if verbose: print("Converting to empirical Green's functions.")
 
         dt=self.dt
+        try:
+            side=self.side
+        except Exception as e:
+            side="A"
         #
         #initiate as zeros
         egf=np.zeros(self.data.shape,dtype=self.data.dtype)
         if self.substack:
-            nhalfpoint=np.int(self.data.shape[1]/2)
-            t=np.arange(-nhalfpoint,nhalfpoint+0.5)*dt
-            ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
-
-            #positive side
-            egf[:,ind_zero:]=utils.taper(-1.0*np.gradient(self.data[:,ind_zero:],axis=1)/dt,
-                                            fraction=taper_frac,maxlen=taper_maxlen)
-
-            #negative side
-            egf[:,:ind_zero]=utils.taper(np.gradient(self.data[:,:ind_zero],axis=1)/dt,
-                                            fraction=taper_frac,maxlen=taper_maxlen)
-
-            egf[:,[0,ind_zero,-1]]=0
+            if side.lower()=="a":
+                nhalfpoint=np.int(self.data.shape[1]/2)
+                #positive side
+                egf[:,nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[:,nhalfpoint:],axis=1)/dt,
+                                                fraction=taper_frac,maxlen=taper_maxlen)
+                #negative side
+                egf[:,:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:,:nhalfpoint+1],axis=1),
+                                                axis=1)/dt,fraction=taper_frac,maxlen=taper_maxlen),axis=1)
+                egf[:,[0,nhalfpoint,-1]]=0
+            else:
+                egf=utils.taper(-1.0*np.gradient(self.data,axis=1)/dt,
+                                                fraction=taper_frac,maxlen=taper_maxlen)
         else:
-            nhalfpoint=np.int(self.data.shape[0]/2)
-            t=np.arange(-nhalfpoint,nhalfpoint+0.5)*dt
-            ind_zero=np.int(np.where((t>-dt) & (t<dt))[0])
-
-            #positive side
-            egf[ind_zero:]=utils.taper(-1.0*np.gradient(self.data[ind_zero:])/dt,
-                                        fraction=taper_frac,maxlen=taper_maxlen)
-
-            #negative side
-            egf[:ind_zero]=utils.taper(np.gradient(self.data[:ind_zero])/dt,
-                                        fraction=taper_frac,maxlen=taper_maxlen)
-
-            egf[[0,ind_zero,-1]]=0
-
+            if side.lower()=="a":
+                nhalfpoint=np.int(self.data.shape[0]/2)
+                #positive side
+                egf[nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[nhalfpoint:])/dt,
+                                            fraction=taper_frac,maxlen=taper_maxlen)
+                #negative side
+                egf[:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
+                                            fraction=taper_frac,maxlen=taper_maxlen))
+                egf[[0,nhalfpoint,-1]]=0
+            else:
+                egf=utils.taper(-1.0*np.gradient(self.data)/dt,
+                                            fraction=taper_frac,maxlen=taper_maxlen)
         self.data=egf
         self.type="Empirical Green's Functions"
 
@@ -825,7 +826,8 @@ class CorrData(object):
             'time':self.time,
             'substack':self.substack,
             'comp':self.cc_comp,
-            'type':self.type}
+            'type':self.type,
+            'side':self.side}
 
         with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
             ccf_ds.add_auxiliary_data(data=self.data, data_type=netsta_pair, path=chan_pair, parameters=parameters)
@@ -846,10 +848,17 @@ class CorrData(object):
         except Exception as e:
             print(e)
 
+        try:
+            side=self.side
+        except Exception as e:
+            side="A"
         slon,rlon=self.lon
         slat,rlat=self.lat
         sele,rele=self.ele
-
+        if side.lower()=="a":
+            b=-self.lag
+        else:
+            b=0.0
         if not self.substack:
             corrtime=obspy.UTCDateTime(self.time)
             nzyear=corrtime.year
@@ -858,10 +867,11 @@ class CorrData(object):
             nzmin=corrtime.minute
             nzsec=corrtime.second
             nzmsec=corrtime.microsecond
+
             if file is None:
                 file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'.sac'
             sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
-                           b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
+                           b=b,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                            evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data)
 
             sacfile  = os.path.join(outdir,file)
@@ -883,7 +893,7 @@ class CorrData(object):
                 else:
                     sacfile  = os.path.join(outdir,file)
                 sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
-                               b=-self.lag,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
+                               b=b,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                                evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data[i,:])
 
                 sac.write(sacfile,byteorder='big')
