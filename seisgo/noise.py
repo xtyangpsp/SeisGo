@@ -921,7 +921,8 @@ def rotation(bigstack,parameters,locs,flag):
     return tcorr
 
 ####
-def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False):
+def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False,
+            stack=False,stack_method='linear',stack_win_len=None):
     """
     This is a wrapper function that merges all data for the same station pair
     to a single CorrData object. It calls CorrData.merge() to assemble all CorrData.
@@ -935,12 +936,17 @@ def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False):
     flag: verbose flag. Default is False.
     to_egf: whether to convert the data to empirical Green's functions (EGF) before
             saving. Default is False.
+    stack: whether to stack all merged data before saving. Default: False.
+    stack_method: when stack is True, this is the method for stacking.
+    stack_win_len: window length in seconds for stacking, only used when stack is True.
+            When stack_win_len is not None, the stacking will be done over the specified
+            windown lengths, instead of the entire data set.
     """
     # source folder
     if pairlist is None:
         pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
         if len(ccfiles)==0:
-            raise IOError('Abort! no available CCF data for stacking')
+            raise IOError('Abort! no available CCF data for merging')
         for s in netsta_all:
             tmp = os.path.join(outdir,s)
             if not os.path.isdir(tmp):os.mkdir(tmp)
@@ -957,8 +963,7 @@ def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False):
         # continue when file is done
         ioutdir=os.path.join(outdir,idir)
         if not os.path.isdir(ioutdir):os.makedirs(ioutdir)
-        toutfn = os.path.join(ioutdir,pair+'.tmp')
-        if os.path.isfile(toutfn):continue
+
         if flag:print('assembling all corrdata ...')
         t0=time.time()
         corrdict_all=dict() #all components for the single station pair
@@ -1002,10 +1007,9 @@ def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False):
             #taking the negative time derivative. See types.CorrData.to_egf() for details.
             if to_egf:
                 corrdict_all[ic].to_egf()
+            if stack:
+                corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len)
             corrdict_all[ic].to_asdf(file=merged_h5)
-
-        # write file stamps
-        ftmp = open(toutfn,'w');ftmp.write('done');ftmp.close()
 
         del corrdict_all
 ########################################################
