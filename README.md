@@ -10,6 +10,7 @@ This package is currently heavily dependent on **obspy** (www.obspy.org) to hand
 
 ## Available modules
 This package is under active development. The currently available modules are listed here.
+
 1.  `utils`: This module contains frequently used utility functions not readily available in `obspy`.
 
 2. `downloaders`: This module contains functions used to download earthquake waveforms, earthquake catalogs, station information, continous waveforms, and read data from local files.
