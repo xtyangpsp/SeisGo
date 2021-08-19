@@ -12,15 +12,17 @@ This package is currently heavily dependent on **obspy** (www.obspy.org) to hand
 This package is under active development. The currently available modules are listed here.
 1.  `utils`: This module contains frequently used utility functions not readily available in `obspy`.
 
-2. `downloaders`: This module contains functions used to downloading earthquake waveforms and earthquake catalogs.
+2. `downloaders`: This module contains functions used to download earthquake waveforms, earthquake catalogs, station information, continous waveforms, and read data from local files.
 
 3. `obsmaster`: This module contains functions to get and processing Ocean Bottom Seismometer (OBS) data. The functions and main processing modules for removing the tilt and compliance noises are inspired and modified from `OBStools` (https://github.com/nfsi-canada/OBStools) developed by Pascal Audet & Helen Janiszewski. The main tilt and compliance removal method is based on Janiszewski et al. (2019).
 
-4. `noise`: This module contains functions used in ambient noise processing, including cross-correlations and monitoring. The key functions were converted from `NoisePy` (https://github.com/mdenolle/NoisePy) with heavy modifications. Inspired by `SeisNoise.jl` (https://github.com/tclements/SeisNoise.jl), We modified the cross-correlation workflow with FFTData and CorrData (defined in `types` module) objects. The original NoisePy script for cross-correlations have been disassembled and wrapped in functions, primarily in this module.
+4. `noise`: This module contains functions used in ambient noise processing, including cross-correlations and monitoring. The key functions were converted from `NoisePy` (https://github.com/mdenolle/NoisePy) with heavy modifications. Inspired by `SeisNoise.jl` (https://github.com/tclements/SeisNoise.jl), We modified the cross-correlation workflow with FFTData and CorrData (defined in `types` module) objects. The original NoisePy script for cross-correlations have been disassembled and wrapped in functions, primarily in this module. We also changed the way NoisePy handles timestamps when cross-correlating. This change results in more data, even with gaps. The xcorr functionality in SeisGo also has the minimum requirement on knowledge about the downloading step. We try to optimize and minimize inputs from the user. We added functionality to better manipulate the temporal resolution of xcorr results.
 
 5. `plotting`: This module contains major plotting functions for raw waveforms, cross-correlation results, and station maps.
 
 6. `monitoring`: This module contains functions for ambient noise seismic monitoring, adapted from functions by Yuan et al. (2021).
+
+7. `types`: This module contains the definition of major data types and classes.
 
 ## Installation
 1. Create and activate the **conda** `seisgo` environment
