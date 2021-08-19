@@ -417,7 +417,7 @@ class CorrData(object):
         self.ngood=ngood
         self.time=time
         self.data=data
-        if side not in ["A","P","N"]:
+        if side.lower() not in ["a","p","n"]:
             raise ValueError("Wrong side attribute value [%s], which has to be one of A, N, P."%(side))
         else:
             self.side=side
@@ -678,7 +678,11 @@ class CorrData(object):
         cout: the list of two CorrData objects.
         """
         cout=[]
-        if self.side=="A" or self.side=="a":
+        try: #older version didn't have "side" attribute.
+            side=self.side
+        except Exception as e:
+            side="A"
+        if side.lower()=="A" or side.lower()=="a":
             if verbose: print("Splitting negative and positive sides.")
         else:
             print("side attribute is %s. Only splits when side is A."%(self.side))
