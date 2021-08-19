@@ -11,9 +11,18 @@ DOWNLOADERS
 UTILS
 1. Added mag_duration(), modified from obspyDMT.utils.event_handler.py
 2. Renamed qml_to_event_list() to qml2list(). Added option to conver to pandas dataframe.
+3. Fixed a bug in slicing_trace(), where the index was float instead of integer.
 
 PLOTTING
 1. Added plot_eventsequence() to plot event with time.
+
+TYPES
+1. Added "side" attribute in CorrData() to mark whether the corrdata is two-sided or one-side only.
+2. Revised CorrData.plot() to check "side" attribute when plotting.
+3. Added copy() method in CorrData class to allow the user to copy the object, to avoid directly
+  modifying the object values.
+4. Added split() method in CorrData class to split the negative and positive sides of the data. This
+  is needed when the user wants to analyze the two sides separately.
 
 ==================================================================================
 ==================================================================================

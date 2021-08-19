@@ -378,6 +378,9 @@ class CorrData(object):
     net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],lon=[None,None],
     lat=[None,None],ele=[None,None],cc_comp=None,
     lag=None,dt=None,dist=None,ngood=None,time=None,data=None,substack:bool=False
+    cc_len,cc_step: cc parameters.
+    az,baz: azimuth and back-azimuth of the two stations.
+    side: A [Default]- both negative and positive sides, N - negative sides only, P - positive side only.
     misc=dict().
 
     misc is a dictionary that stores additional parameters.
@@ -390,7 +393,7 @@ class CorrData(object):
     def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',lag=0.0,\
                     dt=0.0,cc_len=None,cc_step=None,dist=0.0,az=0.0,baz=0.0,ngood=[],\
-                    time=[],data=None,substack:bool=False,misc=dict()):
+                    time=[],data=None,substack:bool=False,side="A",misc=dict()):
         self.type='Correlation Data'
         self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
         self.net=net
@@ -414,6 +417,10 @@ class CorrData(object):
         self.ngood=ngood
         self.time=time
         self.data=data
+        if side not in ["A","P","N"]:
+            raise ValueError("Wrong side attribute value [%s], which has to be one of A, N, P."%(side))
+        else:
+            self.side=side
         self.substack=substack
         self.misc=misc
 
@@ -436,6 +443,7 @@ class CorrData(object):
         print("cc_len   :   "+str(self.cc_len))
         print("cc_step  :   "+str(self.cc_step))
         print("dist     :   "+str(self.dist))
+        print("side     :   "+str(self.side))
         print("ngood    :   "+str(self.ngood))
         if self.time is not None:
             if self.substack:
@@ -465,6 +473,8 @@ class CorrData(object):
         #sanity check: stop merging and raise error if the two objects have different IDs.
         if c1.id != c2.id:
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+        if c1.side != c2.side:
+            raise ValueError('The object to be merged has a different side values. Cannot merge!')
         if not c1.substack:
             ngood1=np.reshape(c1.ngood,(1))
             time1=np.reshape(c1.time,(1))
@@ -486,10 +496,13 @@ class CorrData(object):
         time=np.concatenate((time1,time2))
         data=np.concatenate((data1,data2),axis=0)
 
-        return CorrData(net=c1.net,sta=c1.sta,loc=c1.loc,chan=c1.chan,lon=c1.lon,lat=c1.lat,ele=c1.ele,\
-                    cc_comp=c1.cc_comp,lag=c1.lag,dt=c1.dt,cc_len=c1.cc_len,cc_step=c1.cc_step,\
-                    dist=c1.dist,az=c1.az,baz=c1.baz,misc=c1.misc,\
-                    ngood=ngood,time=time,substack=True,data=data)
+        cout=c1.copy(dataless=True)
+        cout.ngood=ngood
+        cout.time=time
+        cout.substack=True
+        cout.data=data
+
+        return cout
 
     def merge(self,c):
         """
@@ -521,7 +534,29 @@ class CorrData(object):
 
         self.substack=True
 
-    def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20):
+    #copy method.
+    def copy(self,dataless=False):
+        """
+        This method returns a copy of the object.
+
+        ====PARAMETER====
+        dataless: only copies the metadata if True. Default is False.
+
+        ====RETURN===
+        cout: a copy of the object.
+        """
+
+        cout=CorrData(net=self.net,sta=self.sta,loc=self.loc,chan=self.chan,\
+                        lon=self.lon,lat=self.lat,ele=self.ele,cc_comp=self.cc_comp,lag=self.lag,\
+                        dt=self.dt,cc_len=self.cc_len,cc_step=self.cc_step,dist=self.dist,az=self.az,\
+                        baz=self.baz,ngood=self.ngood,time=self.time,substack=self.substack,\
+                        side=self.side,misc=self.misc)
+        if not dataless:
+            cout.data=self.data
+
+        return cout
+
+    def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20,verbose=False):
         '''
         This function stacks the cross correlation data. It will overwrite the
         [data] attribute with the stacked trace, if overwrite is True. Substack will
@@ -577,12 +612,12 @@ class CorrData(object):
                         self.data=ds
                     else:
                         return ds
-                print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
+                if verbose: print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
             else:
                 print('substack is set to: False. No stacking applicable.')
                 pass
         else: #### stacking over segments of time windows.
-            print('Stacking with given windown len %f'%(win_len))
+            if verbose: print('Stacking with given windown len %f'%(win_len))
 
             win=np.arange(self.time[0],self.time[-1],win_len)  #all time chunks
             ts_temp=[]
@@ -629,8 +664,72 @@ class CorrData(object):
             else:
                 return ts,ds
 
+    #split the negative and positive sides
+    def split(self,taper=False,taper_frac=0.01,taper_maxlen=10,verbose=False):
+        """
+        This method splits the positive and negative sides of the <data> attribute in CorrData object.
+        This method will assign the <side> attribute for each side.
+
+        ========PARAMETERS===========
+        taper: if True, applies taper to the data after splitting. Default False.
+        taper_frac=0.01,taper_maxlen=10: taper parameters.
+
+        ========RETURNS==============
+        cout: the list of two CorrData objects.
+        """
+        cout=[]
+        if self.side=="A" or self.side=="a":
+            if verbose: print("Splitting negative and positive sides.")
+        else:
+            print("side attribute is %s. Only splits when side is A."%(self.side))
+            return cout
+
+        dt=self.dt
+        #
+        #initiate as zeros
+
+        if self.substack:
+            nhalfpoint=np.int(self.data.shape[1]/2)
+
+            d_p=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
+            d_n=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
+
+            if taper:
+                d_p=utils.taper(self.data[:,nhalfpoint:],
+                                            fraction=taper_frac,maxlen=taper_maxlen)
+                d_n=np.flip(utils.taper(self.data[:,:nhalfpoint+1],
+                                            fraction=taper_frac,maxlen=taper_maxlen),axis=1)
+            else:
+                d_p=self.data[:,nhalfpoint:]
+                d_n=np.flip(self.data[:,:nhalfpoint+1],axis=1)
+        else:
+            nhalfpoint=np.int(self.data.shape[0]/2)
+            d_p=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
+            d_n=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
+
+            if taper:
+                d_p=utils.taper(self.data[nhalfpoint:],
+                                            fraction=taper_frac,maxlen=taper_maxlen)
+                d_n=np.flip(utils.taper(self.data[:nhalfpoint+1],
+                                            fraction=taper_frac,maxlen=taper_maxlen),axis=1)
+            else:
+                d_p=self.data[nhalfpoint:]
+                d_n=np.flip(self.data[:nhalfpoint+1],axis=1)
+
+        c_n=self.copy()
+        c_n.side="N"
+        c_n.data=d_n
+        cout.append(c_n)
+
+        c_p=self.copy()
+        c_p.side="P"
+        c_p.data=d_p
+        cout.append(c_p)
+
+        return cout
+
     #convert to EGF by taking the netagive time derivative of the noise correlation functions.
-    def to_egf(self,taper_frac=0.01,taper_maxlen=10):
+    def to_egf(self,taper_frac=0.01,taper_maxlen=10,verbose=False):
         """
         This function converts the CorrData correlaiton results to EGF by taking
         the netagive time derivative of the noise correlation functions.
@@ -641,7 +740,7 @@ class CorrData(object):
         taper_frac: default 0.01. taper fraction when process the two sides seperatedly.
         taper_maxlen: default 10. taper maximum number of points.
         """
-        print("Converting to empirical Green's functions.")
+        if verbose: print("Converting to empirical Green's functions.")
 
         dt=self.dt
         #
@@ -809,7 +908,12 @@ class CorrData(object):
         netstachan1 = self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.'+self.chan[0]
         netstachan2 = self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.'+self.chan[1]
 
-        dt,maxlag,dist,ngood,ttime,substack = [self.dt,self.lag,self.dist,self.ngood,self.time,self.substack]
+        dt,maxlag,dist,ngood,ttime,substack = [self.dt,self.lag,self.dist,self.ngood,\
+                                                self.time,self.substack]
+        try:
+            side=self.side
+        except Exception as e:
+            side="A"
 
         dreturn=[]
        # lags for display
@@ -820,14 +924,25 @@ class CorrData(object):
         # t is the time labels for plotting
         if lag>=5:
             tstep=int(int(lag)/5)
-            t1=np.arange(-int(lag),0,step=tstep);t2=np.arange(0,int(lag+0.5*tstep),step=tstep)
-            t=np.concatenate((t1,t2))
+            if side.lower()=="a":
+                t1=np.arange(-int(lag),0,step=tstep);t2=np.arange(0,int(lag+0.5*tstep),step=tstep)
+                t=np.concatenate((t1,t2))
+            else:
+                t=np.arange(0,int(lag+0.5*tstep),step=tstep)
         else:
             tstep=lag/5
-            t1=np.arange(-lag,0,step=tstep);t2=np.arange(0,lag+0.5*tstep,step=tstep)
-            t=np.concatenate((t1,t2))
+            if side.lower()=="a":
+                t1=np.arange(-lag,0,step=tstep);t2=np.arange(0,lag+0.5*tstep,step=tstep)
+                t=np.concatenate((t1,t2))
+            else:
+                t=np.arange(0,lag+0.5*tstep,step=tstep)
 
-        indx1 = int((maxlag-lag0)/dt);indx2 = indx1+2*int(lag0/dt)+1
+        if side.lower()=="a":
+            indx1 = int((maxlag-lag0)/dt);indx2 = indx1+2*int(lag0/dt)+1
+        else:
+            indx1 = 0
+            indx2 = int(lag0/dt)+1
+
 
         # cc matrix
         if substack:
@@ -874,32 +989,45 @@ class CorrData(object):
 
             fig = plt.figure(figsize=figsize)
             ax = fig.add_subplot(6,1,(1,4))
-            ax.matshow(data_normalizd,cmap='seismic',extent=[-lag0,lag0,nwin,0],aspect='auto')
+            if side.lower()=="a":
+                extent=[-lag0,lag0,nwin,0]
+            else:
+                extent=[0,lag0,nwin,0]
+            ax.matshow(data_normalizd,cmap='seismic',extent=extent,aspect='auto')
             ax.plot((0,0),(nwin,0),'k-')
             if freqmin is not None and freqmax is not None:
-                ax.set_title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz' % (netstachan1,netstachan2,
-                                                                           dist,freqmin,freqmax))
+                ax.set_title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz: %s' % (netstachan1,netstachan2,
+                                                                           dist,freqmin,freqmax,side))
             else:
-                ax.set_title('%s-%s: dist=%5.2f km: unfiltered' % (netstachan1,netstachan2,dist))
+                ax.set_title('%s-%s: dist=%5.2f km: unfiltered: %s' % (netstachan1,netstachan2,dist,side))
             ax.set_xlabel('time [s]')
             ax.set_xticks(t)
             ax.set_yticks(np.arange(0,nwin,step=tick_inc))
             ax.set_yticklabels(tmarks[0:nwin:tick_inc])
-            ax.set_xlim([-lag,lag])
+            if side.lower()=="a":
+                ax.set_xlim([-lag,lag])
+            else:
+                ax.set_xlim([0,lag])
             ax.xaxis.set_ticks_position('bottom')
 
             ax1 = fig.add_subplot(6,1,(5,6))
             if freqmin is not None and freqmax is not None:
-                ax1.set_title('stack at %4.2f-%4.2f Hz'%(freqmin,freqmax))
+                ax1.set_title('stack at %4.2f-%4.2f Hz: %s'%(freqmin,freqmax,side))
             else:
-                ax1.set_title('stack: unfiltered')
-            tstack=np.arange(-lag0,lag0+0.5*dt,dt)
+                ax1.set_title('stack: unfiltered: %s'%(side))
+            if side.lower()=="a":
+                tstack=np.arange(-lag0,lag0+0.5*dt,dt)
+            else:
+                tstack=np.arange(0,lag0+0.5*dt,dt)
             if len(tstack)>len(dstack):tstack=tstack[:-2]
             ax1.plot(tstack,dstack,'b-',linewidth=1,label=stack_method)
     #         ax1.plot(tstack,dstack_robust,'r-',linewidth=1,label='robust')
             ax1.set_xlabel('time [s]')
             ax1.set_xticks(t)
-            ax1.set_xlim([-lag,lag])
+            if side.lower()=="a":
+                ax1.set_xlim([-lag,lag])
+            else:
+                ax1.set_xlim([0,lag])
             ylim=ax1.get_ylim()
             ax1.plot((0,0),ylim,'k-')
 
@@ -924,26 +1052,33 @@ class CorrData(object):
             timestamp = obspy.UTCDateTime(ttime)
             tmarks=obspy.UTCDateTime(ttime).strftime('%Y-%m-%dT%H:%M:%S')
 
-            tx=np.arange(-lag0,lag0+0.5*dt,dt)
+            if side.lower()=="a":
+                tx=np.arange(-lag0,lag0+0.5*dt,dt)
+            else:
+                tx=np.arange(0,lag0+0.5*dt,dt)
             if len(tx)>len(data):tx=tx[:-1]
             plt.figure(figsize=figsize)
             ax=plt.gca()
             plt.plot(tx,data,'k-',linewidth=1)
             if freqmin is not None and freqmax is not None:
-                plt.title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz: %s' % (netstachan1,netstachan2,
-                                                                           dist,freqmin,freqmax,tmarks))
+                plt.title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz: %s: %s' % (netstachan1,netstachan2,
+                                                                           dist,freqmin,freqmax,tmarks,side))
             else:
-                plt.title('%s-%s: dist=%5.2f km: unfiltered: %s' % (netstachan1,netstachan2,dist,tmarks))
+                plt.title('%s-%s: dist=%5.2f km: unfiltered: %s: %s' % (netstachan1,netstachan2,dist,tmarks,side))
             plt.xlabel('time [s]')
             plt.xticks(t)
             ylim=ax.get_ylim()
             plt.plot((0,0),ylim,'k-')
 
             plt.ylim(ylim)
-            plt.xlim([-lag,lag])
+            if side.lower()=="a":
+                plt.xlim([-lag,lag])
+            else:
+                plt.xlim([0,lag])
             ax.grid()
 
             dreturn=data
+            tstack=tx
             tmark_figname=obspy.UTCDateTime(ttime).strftime('%Y-%m-%dT%H-%M-%S')
 
         # save figure or just show
@@ -965,7 +1100,7 @@ class CorrData(object):
 
         ##
         if get_stack:
-            return dreturn
+            return tstack,dreturn
 
 class Power(object):
     """
