@@ -617,52 +617,58 @@ class CorrData(object):
                 print('substack is set to: False. No stacking applicable.')
                 pass
         else: #### stacking over segments of time windows.
-            if verbose: print('Stacking with given windown len %f'%(win_len))
+            if np.ndim(self.data)>1:
+                if verbose: print('Stacking with given windown len %f'%(win_len))
 
-            win=np.arange(self.time[0],self.time[-1],win_len)  #all time chunks
-            ts_temp=[]
-            ds=np.ndarray((len(win),self.data.shape[1]),dtype=self.data.dtype)
-            ngood=[]
-            for i in range(len(win)):
-                widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
-                if len(widx) >0:
-                    cc0 = utils.demean(self.data[widx,:])
-                    ampmax = np.max(cc0,axis=1)
-                    tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
-                    nstacks=len(tindx)
-                    dstack = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
-                    if nstacks>0:
-                        cc_array = cc0[tindx,:]
+                win=np.arange(self.time[0],self.time[-1],win_len)  #all time chunks
+                ts_temp=[]
+                ds=np.ndarray((len(win),self.data.shape[1]),dtype=self.data.dtype)
+                ngood=[]
+                for i in range(len(win)):
+                    widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
+                    if len(widx) >0:
+                        cc0 = utils.demean(self.data[widx,:])
+                        ampmax = np.max(cc0,axis=1)
+                        tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
+                        nstacks=len(tindx)
+                        dstack = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
+                        if nstacks>0:
+                            cc_array = cc0[tindx,:]
 
-                        # do stacking
-                        if nstacks==1: dstack=cc_array
-                        else:
-                            if method == 'linear':
-                                dstack = np.mean(cc_array,axis=0)
-                            elif method == 'pws':
-                                dstack = stacking.pws(cc_array,1.0/self.dt)
-                            elif method == 'robust':
-                                dstack = stacking.robust_stack(cc_array)[0]
-                            elif method == 'acf':
-                                dstack = stacking.adaptive_filter(cc_array,1)
-                            elif method == 'nroot':
-                                dstack = stacking.nroot_stack(cc_array,2)
+                            # do stacking
+                            if nstacks==1: dstack=cc_array
+                            else:
+                                if method == 'linear':
+                                    dstack = np.mean(cc_array,axis=0)
+                                elif method == 'pws':
+                                    dstack = stacking.pws(cc_array,1.0/self.dt)
+                                elif method == 'robust':
+                                    dstack = stacking.robust_stack(cc_array)[0]
+                                elif method == 'acf':
+                                    dstack = stacking.adaptive_filter(cc_array,1)
+                                elif method == 'nroot':
+                                    dstack = stacking.nroot_stack(cc_array,2)
 
-                        ds[i,:]=dstack
-                        ngood.append(i)
-                        ts_temp.append(self.time[widx[0]])
+                            ds[i,:]=dstack
+                            ngood.append(i)
+                            ts_temp.append(self.time[widx[0]])
 
-            #
-            ts=np.array(ts_temp)
-            ds=ds[ngood,:]
+                #
+                ts=np.array(ts_temp)
+                ds=ds[ngood,:]
 
-            if overwrite:
-                self.data=ds
-                self.time=ts
-                self.ngood=np.ones((len(ngood)))
-                if len(ngood) ==1: self.substack = False
+                if overwrite:
+                    self.data=ds
+                    self.time=ts
+                    self.ngood=np.ones((len(ngood)))
+                    if len(ngood) ==1: self.substack = False
+                else:
+                    return ts,ds
             else:
-                return ts,ds
+                self.substack = False
+                if overwrite: pass
+                else:
+                    return [],[] 
 
     #split the negative and positive sides
     def split(self,taper=False,taper_frac=0.01,taper_maxlen=10,verbose=False):
