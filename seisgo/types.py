@@ -526,7 +526,7 @@ class CorrData(object):
         if not c.substack:
             c.ngood=np.reshape(c.ngood,(1))
             c.time=np.reshape(c.time,(1))
-            if np.ndim(c.data)==1
+            if np.ndim(c.data)==1:
                 c.data=np.reshape(c.data,(1,c.data.shape[0]))
 
         self.ngood =np.concatenate((self.ngood,c.ngood))
