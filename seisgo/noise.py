@@ -992,6 +992,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                     if c in list(corrdict_all.keys()):
                         corrdict_all[c].merge(corrdict[pair][c])
                     else:corrdict_all[c]=corrdict[pair][c]
+            del corrdict
                 # tmerge[i]=time.time()-tt11
         #
         # if flag:print('extract time:'+str(np.sum(txtract)))
@@ -1073,7 +1074,7 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
                     else:
                         corrdict_all[p][c]=corrdict[p][c]
         count += 1
-        corrdict=dict()
+        del corrdict
 
     #set end time
     if np.ndim(corrdict_all[p][c].time)==0:te=corrdict_all[p][c].time
@@ -1095,6 +1096,7 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
                     if to_egf:
                         corrdict_all[p][c].to_egf()
                     corrdict_all[p][c].to_asdf(file=outfile,v=False)
+    del corrdict_all
 
 ########################################################
 ################ XCORR ANALYSIS FUNCTIONS ##################
