@@ -43,6 +43,54 @@ def subsetindex(full,subset):
 
     return idx
 #
+def get_filelist(dir,extension,sort=True):
+    """
+    Get list of files with absolute path, by specifying the format extension.
+
+    ===========PARAMETERS=============
+    dir: directory containing the files.
+    extension: file extension (the ending format tag), for example "h5" for asdf file.
+    sort: (optional) to sort the list, default is True.
+
+    ============RETURN=============
+    flist: the list of file names with paths.
+    """
+    flist=[os.path.join(dir,f) for f in os.listdir(dir) if f[-len(extension):].lower()==extension]
+    if sort:
+        return  sorted(flist)
+    else:
+        return  flist
+
+def slice_list(flist,step,preserve_end=True):
+    """
+    Slice a lit of values, with given step. Different from utils.sliding_window(), this function
+    provides unique segments with NO overlaps. It works with generic Python list object.
+
+    ========PARAMETERS============
+    flist: list to be sliced.
+    step: step or length of each segment.
+    preserve_end: if True the end element will be included, the last segment may have different length.
+                    Default is True.
+    """
+
+    step=int(step)
+    outlist=[]
+    if len(flist)<step:
+        outlist.append(flist)
+    else:
+        idxall=np.arange(0,len(ccfiles),step)
+
+        if idxall[-1]<len(flist)-1 and preserve_end:
+            idxall=np.append(idxall,len(flist)-1) #make sure all files are considered.
+
+        if len(idxall)==1:
+            outlist=[flist[:step]]
+        else:
+            for i in range(len(idxall)-1):
+                idx=idxall[i:i+1]
+                outlist.append(flist[idx])
+    #
+    return outlist
 #
 def generate_points_in_polygon(outline,spacing):
     """

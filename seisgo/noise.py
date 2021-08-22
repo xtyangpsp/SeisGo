@@ -921,7 +921,14 @@ def rotation(bigstack,parameters,locs,flag):
     return tcorr
 
 ####
-def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False,
+def merging(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
+            stack=False,stack_method='linear',stack_win_len=None):
+    print("WARNING: Old function call, will be deprecated in v0.7.x. Function has been renamed to: merge_pairs() with the same options.")
+    merge_pairs(ccfiles,pairlist=pairlist,outdir=outdir,verbose=verbose,to_egf=to_egf,
+                stack=stack,stack_method=stack_method,stack_win_len=stack_win_len)
+
+###
+def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
             stack=False,stack_method='linear',stack_win_len=None):
     """
     This is a wrapper function that merges all data for the same station pair
@@ -932,8 +939,8 @@ def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False,
     ccfiles: a list of correlation functions in ASDF format, saved to *.h5 file.
     pairlist: a list of station pairs to merge. If None (default), it will merge all
             station pairs.
-    outdir: directory to save the data. Defautl is ./Merged.
-    flag: verbose flag. Default is False.
+    outdir: directory to save the data. Defautl is ./MERGED_PAIRS.
+    verbose: verbose flag. Default is False.
     to_egf: whether to convert the data to empirical Green's functions (EGF) before
             saving. Default is False.
     stack: whether to stack all merged data before saving. Default: False.
@@ -964,7 +971,7 @@ def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False,
         ioutdir=os.path.join(outdir,idir)
         if not os.path.isdir(ioutdir):os.makedirs(ioutdir)
 
-        if flag:print('assembling all corrdata ...')
+        if verbose:print('assembling all corrdata ...')
         t0=time.time()
         corrdict_all=dict() #all components for the single station pair
         # txtract=np.zeros(len(ccfiles),dtype=np.float32)
@@ -990,28 +997,105 @@ def merging(ccfiles,pairlist=None,outdir='./Merged',flag=False,to_egf=False,
         # if flag:print('extract time:'+str(np.sum(txtract)))
         # if flag:print('merge time:'+str(np.sum(tmerge)))
         t1=time.time()
-        if flag:print('finished assembling in %6.2fs ...'%(t1-t0))
+        if verbose:print('finished assembling in %6.2fs ...'%(t1-t0))
         #get length info from anyone of the corrdata, assuming all corrdata having the same length.
         cc_comp=list(corrdict_all.keys()) #final check on number of keys after merging all data.
         if len(cc_comp)==0:
-            if flag:print('continue! no cross components for %s'%(pair))
+            if verbose:print('continue! no cross components for %s'%(pair))
             continue
 
         #save data.
         outfn = pair+'.h5'
-        if flag:print('save to %s'%(outfn))
+        if verbose:print('save to %s'%(outfn))
         merged_h5 = os.path.join(ioutdir,outfn)
         for ic in cc_comp:
             #save components.
             #convert corrdata to empirical Green's functions by
             #taking the negative time derivative. See types.CorrData.to_egf() for details.
-            if to_egf:
-                corrdict_all[ic].to_egf()
             if stack:
                 corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len)
+            if to_egf:
+                corrdict_all[ic].to_egf()
             corrdict_all[ic].to_asdf(file=merged_h5)
 
         del corrdict_all
+
+###
+def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
+            stack=False,stack_method='linear',stack_win_len=None):
+    """
+    This is a wrapper function that merges all data in the given list of correlation files.
+    It calls CorrData.merge() to assemble all CorrData for the same station and component pairs.
+    The functionality is similar with noise.merge_pairs(). This is particularly useful when the
+    number of chunks is too large to be handled. At the same time, it provides the option to further
+    reduce the data size by stacking. Please note that the stacking here works for the given
+    list of files.
+
+    PARAMETERS
+    ----------------------
+    ccfiles: a list of correlation functions in ASDF format, saved to *.h5 file.
+    outdir: directory to save the data. Defautl is ./MERGED_PAIRS.
+    verbose: verbose flag. Default is False.
+    to_egf: whether to convert the data to empirical Green's functions (EGF) before
+            saving. Default is False.
+    stack: whether to stack all merged data before saving. Default: False.
+    stack_method: when stack is True, this is the method for stacking.
+    stack_win_len: window length in seconds for stacking, only used when stack is True.
+            When stack_win_len is not None, the stacking will be done over the specified
+            windown lengths, instead of the entire data set. The function stacks all data if "stack_win_len"
+            > the time duration of the whole list of correlation files.
+    """
+    corrdict_all=dict()
+    count=0
+    ts_set=False
+    for ifile in ccfiles:
+        # print("---> "+ifile)
+        corrdict=extract_corrdata(ifile)
+        # txtract[i]=time.time()-tt00
+        if len(list(corrdict.keys()))>0:
+            pair_list=list(corrdict.keys())
+            for p in pair_list:
+                comp_list=list(corrdict[p].keys())
+
+                if len(comp_list)==0:
+                    continue
+                ### merge same pair and component corrdata.
+                # tt11=time.time()
+                if p not in list(corrdict_all.keys()):
+                    corrdict_all[p]=corrdict[p]
+                for c in comp_list:
+                    if count==0 and not ts_set:
+                        if np.ndim(corrdict[p][c].time)==0:ts=corrdict[p][c].time
+                        else:ts=corrdict[p][c].time[0]
+                        ts_set=True
+                    if c in list(corrdict_all[p].keys()):
+                        corrdict_all[p][c].merge(corrdict[p][c])
+                    else:
+                        corrdict_all[p][c]=corrdict[p][c]
+        count += 1
+        corrdict=dict()
+
+    #set end time
+    if np.ndim(corrdict_all[p][c].time)==0:te=corrdict_all[p][c].time
+    else:te=corrdict_all[p][c].time[-1]
+
+    ##save to files
+    outfile = os.path.join(outdir,str(obspy.UTCDateTime(ts)).replace(':', '-') + \
+                                'T' + str(obspy.UTCDateTime(te)).replace(':', '-') + '.h5')
+    if len(list(corrdict_all.keys()))>0:
+        pair_list=list(corrdict_all.keys())
+        for p in pair_list:
+            comp_list=list(corrdict_all[p].keys())
+            if len(comp_list)==0:
+                continue
+            for c in comp_list:
+                if corrdict_all[p][c].data is not None:
+                    if stack:
+                        corrdict_all[p][c].stack(method=stack_method,win_len=stack_win_len)
+                    if to_egf:
+                        corrdict_all[p][c].to_egf()
+                    corrdict_all[p][c].to_asdf(file=outfile,v=False)
+
 ########################################################
 ################ XCORR ANALYSIS FUNCTIONS ##################
 ########################################################

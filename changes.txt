@@ -3,8 +3,11 @@ NOISE
 1. Removed ncomp in do_correlation(). Setup a warning message if old usage is used.
 2. Change defaults for acorr_only and xcorr_only both to False in do_correlation().
 3. Added option to stack in merging(). This option could replace do_stacking() if no
-  rotation.
+  rotation. Renamed merging() to merge_pairs(). The old name is kept for compatibility.
 4. Updated extract_corrdata() to read "side" attribute if available.
+5. Added merge_chunks() to merge correlation files, to reduce the number of files, with
+  the option for stacking.
+
 
 DOWNLOADERS
 1. Return inventory in get_event_waveforms()
@@ -15,6 +18,7 @@ UTILS
 1. Added mag_duration(), modified from obspyDMT.utils.event_handler.py
 2. Renamed qml_to_event_list() to qml2list(). Added option to convert to pandas dataframe.
 3. Fixed a bug in slicing_trace(), where the index was float instead of integer.
+4. Added get_filelist() and slice_list().
 
 PLOTTING
 1. Added plot_eventsequence() to plot event with time.
