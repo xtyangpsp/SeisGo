@@ -78,17 +78,17 @@ def slice_list(flist,step,preserve_end=True):
     if len(flist)<step:
         outlist.append(flist)
     else:
-        idxall=np.arange(0,len(ccfiles),step)
+        idxall=np.arange(0,len(flist),step)
 
         if idxall[-1]<len(flist)-1 and preserve_end:
             idxall=np.append(idxall,len(flist)-1) #make sure all files are considered.
 
         if len(idxall)==1:
-            outlist=[flist[:step]]
+            outlist=[flist[:idxall[0]]]
         else:
             for i in range(len(idxall)-1):
-                idx=idxall[i:i+1]
-                outlist.append(flist[idx])
+                sublist=[flist[j] for j in np.arange(idxall[i],idxall[i+1])]
+                outlist.append(sublist)
     #
     return outlist
 #
