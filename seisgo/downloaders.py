@@ -87,7 +87,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
                                         chanhistory[netsta].append(chan_this)
                                 else:
                                     chanhistory[netsta].append(chan_this)
-                            elif len(chanhistory[netsta]) < maxseischan or chan_this in pressure_chan:
+                            elif len(chanhistory[netsta]) < maxseischan or (pressure_chan !=None and chan_this in pressure_chan):
                                 sta.append(tsta.code)
                                 net.append(K.code)
                                 chan.append(chan_this)
