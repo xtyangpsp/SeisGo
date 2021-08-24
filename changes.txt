@@ -30,6 +30,8 @@ TYPES
   modifying the object values.
 4. Added split() method in CorrData class to split the negative and positive sides of the data. This
   is needed when the user wants to analyze the two sides separately.
+5. Removed ngood attribute from CorrData, corresponding changes have been implemented for other
+  functions in "noise".
 
 ==================================================================================
 ==================================================================================

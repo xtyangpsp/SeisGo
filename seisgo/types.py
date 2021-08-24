@@ -377,7 +377,7 @@ class CorrData(object):
     ======= Attributes ======
     net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],lon=[None,None],
     lat=[None,None],ele=[None,None],cc_comp=None,
-    lag=None,dt=None,dist=None,ngood=None,time=None,data=None,substack:bool=False
+    lag=None,dt=None,dist=None,time=None,data=None,substack:bool=False
     cc_len,cc_step: cc parameters.
     az,baz: azimuth and back-azimuth of the two stations.
     side: A [Default]- both negative and positive sides, N - negative sides only, P - positive side only.
@@ -392,7 +392,7 @@ class CorrData(object):
     """
     def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',lag=0.0,\
-                    dt=0.0,cc_len=None,cc_step=None,dist=0.0,az=0.0,baz=0.0,ngood=[],\
+                    dt=0.0,cc_len=None,cc_step=None,dist=0.0,az=0.0,baz=0.0,\
                     time=[],data=None,substack:bool=False,side="A",misc=dict()):
         self.type='Correlation Data'
         self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
@@ -414,7 +414,6 @@ class CorrData(object):
         self.dist=dist
         self.az=az
         self.baz=baz
-        self.ngood=ngood
         self.time=time
         self.data=data
         if side.lower() not in ["a","p","n"]:
@@ -444,7 +443,6 @@ class CorrData(object):
         print("cc_step  :   "+str(self.cc_step))
         print("dist     :   "+str(self.dist))
         print("side     :   "+str(self.side))
-        print("ngood    :   "+str(self.ngood))
         if self.time is not None:
             if self.substack:
                 print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
@@ -466,7 +464,7 @@ class CorrData(object):
         """
         Merge with another object for the same station pair. The idea is to merge multiple sets
         of CorrData at different time chunks. Therefore, this function will merge the following
-        attributes only: <ngood>,<time>,<data>
+        attributes only: <time>,<data>
 
         **Note: substack will be set to True after merging, regardless the value in the original object.**
         """
@@ -476,28 +474,22 @@ class CorrData(object):
         if c1.side != c2.side:
             raise ValueError('The object to be merged has a different side values. Cannot merge!')
         if not c1.substack:
-            ngood1=np.reshape(c1.ngood,(1))
             time1=np.reshape(c1.time,(1))
             data1=np.reshape(c1.data,(1,c1.data.shape[0]))
         else:
-            ngood1=c1.ngood
             time1=c1.time
             data1=c1.data
         if not c2.substack:
-            ngood2=np.reshape(c2.ngood,(1))
             time2=np.reshape(c2.time,(1))
             data2=np.reshape(c2.data,(1,c2.data.shape[0]))
         else:
-            ngood2=c2.ngood
             time2=c2.time
             data2=c2.data
 
-        ngood =np.concatenate((ngood1,ngood2))
         time=np.concatenate((time1,time2))
         data=np.concatenate((data1,data2),axis=0)
 
         cout=c1.copy(dataless=True)
-        cout.ngood=ngood
         cout.time=time
         cout.substack=True
         cout.data=data
@@ -508,7 +500,7 @@ class CorrData(object):
         """
         Merge with another object for the same station pair. The idea is to merge multiple sets
         of CorrData at different time chunks. Therefore, this function will merge the following
-        attributes only: <ngood>,<time>,<data>
+        attributes only: <time>,<data>
 
         **Note: substack will be set to True after merging, regardless the value in the original object.**
 
@@ -519,17 +511,14 @@ class CorrData(object):
         if self.id != c.id:
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
         if not self.substack:
-            self.ngood=np.reshape(self.ngood,(1))
             self.time=np.reshape(self.time,(1))
             self.data=np.reshape(self.data,(1,self.data.shape[0]))
 
         if not c.substack:
-            c.ngood=np.reshape(c.ngood,(1))
             c.time=np.reshape(c.time,(1))
             if np.ndim(c.data)==1:
                 c.data=np.reshape(c.data,(1,c.data.shape[0]))
 
-        self.ngood =np.concatenate((self.ngood,c.ngood))
         self.time=np.concatenate((self.time,c.time))
         self.data=np.concatenate((self.data,c.data),axis=0)
 
@@ -550,7 +539,7 @@ class CorrData(object):
         cout=CorrData(net=self.net,sta=self.sta,loc=self.loc,chan=self.chan,\
                         lon=self.lon,lat=self.lat,ele=self.ele,cc_comp=self.cc_comp,lag=self.lag,\
                         dt=self.dt,cc_len=self.cc_len,cc_step=self.cc_step,dist=self.dist,az=self.az,\
-                        baz=self.baz,ngood=self.ngood,time=self.time,substack=self.substack,\
+                        baz=self.baz,time=self.time,substack=self.substack,\
                         side=self.side,misc=self.misc)
         if not dataless:
             cout.data=self.data
@@ -609,7 +598,6 @@ class CorrData(object):
                         #overwrite the data attribute.
                         self.substack=False
                         self.time  = self.time[tindx[0]]
-                        self.ngood = np.ones((nstacks))
                         self.data=ds
                     else:
                         return ds
@@ -661,8 +649,8 @@ class CorrData(object):
                 if overwrite:
                     self.data=ds
                     self.time=ts
-                    self.ngood=np.ones((len(ngood)))
                     if len(ngood) ==1: self.substack = False
+                    else: self.substack=True
                 else:
                     return ts,ds
             else:
@@ -826,7 +814,6 @@ class CorrData(object):
             'lonR':np.float32(lonR),
             'latR':np.float32(latR),
             'eleR':np.float32(eleR),
-            'ngood':self.ngood,
             'cc_method':cc_method,
             'cc_len':self.cc_len,
             'cc_step':self.cc_step,
@@ -929,7 +916,7 @@ class CorrData(object):
         netstachan1 = self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.'+self.chan[0]
         netstachan2 = self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.'+self.chan[1]
 
-        dt,maxlag,dist,ngood,ttime,substack = [self.dt,self.lag,self.dist,self.ngood,\
+        dt,maxlag,dist,ttime,substack = [self.dt,self.lag,self.dist,\
                                                 self.time,self.substack]
         try:
             side=self.side
@@ -972,7 +959,7 @@ class CorrData(object):
             # print(data.shape)
             nwin = data.shape[0]
             amax = np.zeros(nwin,dtype=np.float32)
-            if nwin==0 or len(ngood)==1:
+            if nwin==0:
                 print('continue! no enough trace to plot!')
                 return
 

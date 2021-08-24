@@ -363,193 +363,9 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                     lon=[fftdata1.lon,fftdata2.lon],lat=[fftdata1.lat,fftdata2.lat],\
                     ele=[fftdata1.ele,fftdata2.ele],cc_comp=cc_comp,lag=maxlag,\
                     dt=fftdata1.dt,cc_len=cc_len,cc_step=cc_step,dist=dist/1000,az=azi,\
-                    baz=baz,ngood=n_corr,time=t_corr,data=s_corr,substack=substack,\
+                    baz=baz,time=t_corr,data=s_corr,substack=substack,\
                     side="A",misc={"cc_method":method,"dist_unit":"km"})
     return corrdata
-
-def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
-    '''
-    this function does the cross-correlation in freq domain and has the option to keep sub-stacks of
-    the cross-correlation if needed. it takes advantage of the linear relationship of ifft, so that
-    stacking is performed in spectrum domain first to reduce the total number of ifft. (used in S1)
-    PARAMETERS:
-    ---------------------
-    fft1_smoothed_abs: smoothed power spectral density of the FFT for the source station
-    fft2: raw FFT spectrum of the receiver station
-    D: dictionary containing following parameters:
-        maxlag:  maximum lags to keep in the cross correlation
-        dt:      sampling rate (in s)
-        nwin:    number of segments in the 2D matrix
-        method:  cross-correlation methods selected by the user
-        freqmin: minimum frequency (Hz)
-        freqmax: maximum frequency (Hz)
-    Nfft:    number of frequency points for ifft
-    dataS_t: matrix of datetime object.
-    RETURNS:
-    ---------------------
-    s_corr: 1D or 2D matrix of the averaged or sub-stacks of cross-correlation functions in time domain
-    t_corr: timestamp for each sub-stack or averaged function
-    n_corr: number of included segments for each sub-stack or averaged function
-    '''
-    #----load paramters----
-    dt      = D['dt']
-    maxlag  = D['maxlag']
-    method  = D['cc_method']
-    cc_len  = D['cc_len']
-    substack= D['substack']
-    stack_method  = D['stack_method']
-    substack_len  = D['substack_len']
-    smoothspect_N = D['smoothspect_N']
-
-    nwin  = fft1_smoothed_abs.shape[0]
-    Nfft2 = fft1_smoothed_abs.shape[1]
-
-    #------convert all 2D arrays into 1D to speed up--------
-    corr = np.zeros(nwin*Nfft2,dtype=np.complex64)
-    corr = fft1_smoothed_abs.reshape(fft1_smoothed_abs.size,)*fft2.reshape(fft2.size,)
-
-    # normalize by receiver spectral for coherency
-    if method == "coherency":
-        temp = utils.moving_ave(np.abs(fft2.reshape(fft2.size,)),smoothspect_N)
-        corr /= temp
-    corr  = corr.reshape(nwin,Nfft2)
-
-    # transform back to time domain waveforms
-    s_corr = np.zeros(shape=(nwin,Nfft),dtype=np.float32)   # stacked correlation
-    ampmax = np.zeros(nwin,dtype=np.float32)
-    n_corr = np.zeros(nwin,dtype=np.int16)                  # number of correlations for each substack
-    t_corr = dataS_t                                        # timestamp
-    crap   = np.zeros(Nfft,dtype=np.complex64)
-    for i in range(nwin):
-        n_corr[i]= 1
-        crap[:Nfft2] = corr[i,:]
-        crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
-        crap[-(Nfft2)+1:] = np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
-        crap[0]=complex(0,0)
-        s_corr[i,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
-
-    ns_corr = s_corr
-    for iii in range(ns_corr.shape[0]):
-        ns_corr[iii] /= np.max(np.abs(ns_corr[iii]))
-
-    if substack:
-        if substack_len == cc_len:
-
-            # remove abnormal data
-            ampmax = np.max(s_corr,axis=1)
-            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-            s_corr = s_corr[tindx,:]
-            t_corr = t_corr[tindx]
-            n_corr = n_corr[tindx]
-
-        else:
-            # get time information
-            Ttotal = dataS_t[-1]-dataS_t[0]             # total duration of what we have now
-            tstart = dataS_t[0]
-
-            nstack = int(np.round(Ttotal/substack_len))
-            ampmax = np.zeros(nstack,dtype=np.float32)
-            s_corr = np.zeros(shape=(nstack,Nfft),dtype=np.float32)
-            n_corr = np.zeros(nstack,dtype=np.int)
-            t_corr = np.zeros(nstack,dtype=np.float)
-            crap   = np.zeros(Nfft,dtype=np.complex64)
-
-            for istack in range(nstack):
-                # find the indexes of all of the windows that start or end within
-                itime = np.where( (dataS_t >= tstart) & (dataS_t < tstart+substack_len) )[0]
-                if len(itime)==0:tstart+=substack_len;continue
-
-                crap[:Nfft2] = np.mean(corr[itime,:],axis=0)   # linear average of the correlation
-                crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
-                crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
-                crap[0]=complex(0,0)
-                s_corr[istack,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
-                n_corr[istack] = len(itime)               # number of windows stacks
-                t_corr[istack] = tstart                   # save the time stamps
-                tstart += substack_len
-                #print('correlation done and stacked at time %s' % str(t_corr[istack]))
-
-            # remove abnormal data
-            ampmax = np.max(s_corr,axis=1)
-            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-            s_corr = s_corr[tindx,:]
-            t_corr = t_corr[tindx]
-            n_corr = n_corr[tindx]
-
-    else:
-        # average daily cross correlation functions
-        if stack_method == 'linear':
-            ampmax = np.max(s_corr,axis=1)
-            tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-            s_corr = np.mean(s_corr[tindx],axis=0)
-            t_corr = dataS_t[0]
-            n_corr = len(tindx)
-        elif stack_method == 'robust':
-            print('do robust substacking')
-            s_corr = stack.robust_stack(s_corr,0.001)
-            t_corr = dataS_t[0]
-            n_corr = nwin
-      #  elif stack_method == 'selective':
-      #      print('do selective substacking')
-      #      s_corr = selective_stack(s_corr,0.001)
-      #      t_corr = dataS_t[0]
-      #      n_corr = nwin
-
-    # trim the CCFs in [-maxlag maxlag]
-    t = np.arange(-Nfft2+1, Nfft2)*dt
-    ind = np.where(np.abs(t) <= maxlag)[0]
-    if s_corr.ndim==1:
-        s_corr = s_corr[ind]
-    elif s_corr.ndim==2:
-        s_corr = s_corr[:,ind]
-    return s_corr,t_corr,n_corr,ns_corr[:,ind]
-
-def cc_parameters(cc_para,coor,tcorr,ncorr,comp):
-    '''
-    this function assembles the parameters for the cc function, which is used
-    when writing them into ASDF files
-    PARAMETERS:
-    ---------------------
-    cc_para: dict containing parameters used in the fft_cc step
-    coor:    dict containing coordinates info of the source and receiver stations
-    tcorr:   timestamp matrix
-    ncorr:   matrix of number of good segments for each sub-stack/final stack
-    comp:    2 character strings for the cross correlation component
-    RETURNS:
-    ------------------
-    parameters: dict containing above info used for later stacking/plotting
-    '''
-    latS = coor['latS']
-    lonS = coor['lonS']
-    eles = 0.0
-    if 'eleS' in list(coor.keys()):eleS=coor['eleS']
-    latR = coor['latR']
-    lonR = coor['lonR']
-    eleR = 0.0
-    if 'eleR' in list(coor.keys()):eleS=coor['eleR']
-    dt        = cc_para['dt']
-    maxlag    = cc_para['maxlag']
-    substack  = cc_para['substack']
-    cc_method = cc_para['cc_method']
-
-    dist,azi,baz = obspy.geodetics.base.gps2dist_azimuth(latS,lonS,latR,lonR)
-    parameters = {'dt':dt,
-        'maxlag':int(maxlag),
-        'dist':np.float32(dist/1000),
-        'azi':np.float32(azi),
-        'baz':np.float32(baz),
-        'lonS':np.float32(lonS),
-        'latS':np.float32(latS),
-        'eleS':np.float32(eleS),
-        'lonR':np.float32(lonR),
-        'latR':np.float32(latR),
-        'eleR':np.float32(eleR),
-        'ngood':ncorr,
-        'cc_method':cc_method,
-        'time':tcorr,
-        'substack':substack,
-        'comp':comp}
-    return parameters
 
 def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                 rotation=False,correctionfile=None,flag=False,keep_substack=False,
@@ -655,7 +471,6 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                     dstack,stamps_final=stacking(corrdict_all[cc_comp[indx[0]]],method=m)
                     bigstack[icomp]=dstack
                     tparameters['time']  = stamps_final[0]
-                    tparameters['ngood'] = len(stamps_final)
                     ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp,
                                             parameters=tparameters)
                 # start rotation
@@ -675,7 +490,6 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                     for ii in range(corrdict_all[ic].data.shape[0]):
                         tparameters2=tparameters
                         tparameters2['time']  = corrdict_all[ic].time[ii]
-                        tparameters2['ngood'] = corrdict_all[ic].ngood[ii]
                         data_type = 'T'+str(int(corrdict_all[ic].time[ii]))
                         ds.add_auxiliary_data(data=corrdict_all[ic].data[ii], data_type=data_type,
                                             path=ic, parameters=tparameters2)
@@ -688,7 +502,6 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                 # write stacked data into ASDF file
                 dstack,stamps_final=stacking(corrdict_all[ic],method=method)
                 tparameters['time']  = stamps_final[0]
-                tparameters['ngood'] = len(stamps_final)
                 for i in range(len(method)):
                     m=method[i]
                     ds.add_auxiliary_data(data=dstack[i,:], data_type='Allstack_'+m, path=ic,
@@ -698,7 +511,6 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                     for ii in range(corrdict_all[ic].data.shape[0]):
                         tparameters2=tparameters
                         tparameters2['time']  = corrdict_all[ic].time[ii]
-                        tparameters2['ngood'] = corrdict_all[ic].ngood[ii]
                         data_type = 'T'+str(int(corrdict_all[ic].time[ii]))
                         ds.add_auxiliary_data(data=corrdict_all[ic].data[ii], data_type=data_type,
                                             path=ic, parameters=tparameters2)
@@ -764,102 +576,6 @@ def stacking(corrdata,method='linear'):
 
     # good to return
     return dstack,cc_time
-
-
-def stacking_rma(cc_array,cc_time,cc_ngood,stack_para):
-    '''
-    this function stacks the cross correlation data according to the user-defined substack_len parameter
-    PARAMETERS:
-    ----------------------
-    cc_array: 2D numpy float32 matrix containing all segmented cross-correlation data
-    cc_time:  1D numpy array of timestamps for each segment of cc_array
-    cc_ngood: 1D numpy int16 matrix showing the number of segments for each sub-stack and/or full stack
-    stack_para: a dict containing all stacking parameters
-    RETURNS:
-    ----------------------
-    cc_array, cc_ngood, cc_time: same to the input parameters but with abnormal cross-correaltions removed
-    allstacks1: 1D matrix of stacked cross-correlation functions over all the segments
-    nstacks:    number of overall segments for the final stacks
-    '''
-    # load useful parameters from dict
-    samp_freq = stack_para['samp_freq']
-    smethod   = stack_para['stack_method']
-    rma_substack = stack_para['rma_substack']
-    rma_step     = stack_para['rma_step']
-    start_date   = stack_para['start_date']
-    end_date     = stack_para['end_date']
-    npts = cc_array.shape[1]
-
-    # remove abnormal data
-    ampmax = np.max(cc_array,axis=1)
-    tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-    if not len(tindx):
-        allstacks1=[];allstacks2=[];nstacks=0
-        cc_array=[];cc_ngood=[];cc_time=[]
-        return cc_array,cc_ngood,cc_time,allstacks1,allstacks2,nstacks
-    else:
-
-        # remove ones with bad amplitude
-        cc_array = cc_array[tindx,:]
-        cc_time  = cc_time[tindx]
-        cc_ngood = cc_ngood[tindx]
-
-        # do substacks
-        if rma_substack:
-            tstart = obspy.UTCDateTime(start_date)-obspy.UTCDateTime(1970,1,1)
-            tend   = obspy.UTCDateTime(end_date)-obspy.UTCDateTime(1970,1,1)
-            ttime  = tstart
-            nstack = int(np.round((tend-tstart)/(rma_step*3600)))
-            ncc_array = np.zeros(shape=(nstack,npts),dtype=np.float32)
-            ncc_time  = np.zeros(nstack,dtype=np.float)
-            ncc_ngood = np.zeros(nstack,dtype=np.int)
-
-            # loop through each time
-            for ii in range(nstack):
-                sindx = np.where((cc_time>=ttime) & (cc_time<ttime+rma_substack*3600))[0]
-
-                # when there are data in the time window
-                if len(sindx):
-                    ncc_array[ii] = np.mean(cc_array[sindx],axis=0)
-                    ncc_time[ii]  = ttime
-                    ncc_ngood[ii] = np.sum(cc_ngood[sindx],axis=0)
-                ttime += rma_step*3600
-
-            # remove bad ones
-            tindx = np.where(ncc_ngood>0)[0]
-            ncc_array = ncc_array[tindx]
-            ncc_time  = ncc_time[tindx]
-            ncc_ngood  = ncc_ngood[tindx]
-
-        # do stacking
-        allstacks1 = np.zeros(npts,dtype=np.float32)
-        allstacks2 = np.zeros(npts,dtype=np.float32)
-        allstacks3 = np.zeros(npts,dtype=np.float32)
-        allstacks4 = np.zeros(npts,dtype=np.float32)
-
-        if smethod == 'linear':
-            allstacks1 = np.mean(cc_array,axis=0)
-        elif smethod == 'pws':
-            allstacks1 = stack.pws(cc_array,samp_freq)
-        elif smethod == 'robust':
-            allstacks1,w, = stack.robust_stack(cc_array,0.001)
-        #elif smethod == 'selective':
-        #    allstacks1 = selective_stack(cc_array,0.001)
-        elif smethod == 'all':
-            allstacks1 = np.mean(cc_array,axis=0)
-            allstacks2 = stack.pws(cc_array,samp_freq)
-            allstacks3 = stack.robust_stack(cc_array,0.001)
-            allstacks4 = stack.selective_stack(cc_array,0.001)
-        nstacks = np.sum(cc_ngood)
-
-    # replace the array for substacks
-    if rma_substack:
-        cc_array = ncc_array
-        cc_time  = ncc_time
-        cc_ngood = ncc_ngood
-
-    # good to return
-    return cc_array,cc_ngood,cc_time,allstacks1,allstacks2,allstacks3,allstacks4,nstacks
 
 def rotation(bigstack,parameters,locs,flag):
     '''
@@ -1256,8 +972,8 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
             if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
                 try:
                     para=ds.auxiliary_data[spair][ipath].parameters
-                    flag,ngood,ttime,dt,maxlag,az,baz,cc_method,dist,slat,slon,rlat,rlon = \
-                                [para['substack'],para['ngood'],para['time'],\
+                    substack,ttime,dt,maxlag,az,baz,cc_method,dist,slat,slon,rlat,rlon = \
+                                [para['substack'],para['time'],\
                                 para['dt'],para['maxlag'],para['azi'],para['baz'],\
                                 para['cc_method'],para['dist'],para['latS'],para['lonS'],\
                                 para['latR'],para['lonR']]
@@ -1281,7 +997,7 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                         side = para['side']
                     else:
                         side = "A"
-                    if flag:
+                    if substack:
                         data = ds.auxiliary_data[spair][ipath].data[:,:]
                     else:
                         data = ds.auxiliary_data[spair][ipath].data[:]
@@ -1292,8 +1008,8 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                                                 chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
                                                 cc_len=cc_len,cc_step=cc_step,dist=dist,az=az,
-                                                baz=baz,ngood=ngood,time=ttime,data=data,
-                                                substack=flag,side=side,misc=para)
+                                                baz=baz,time=ttime,data=data,
+                                                substack=substack,side=side,misc=para)
                 if "type" in  list(para.keys()): corrdict[spair][cc_comp].type=para['type']
 
     return corrdict
