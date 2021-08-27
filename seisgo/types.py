@@ -393,7 +393,7 @@ class CorrData(object):
     def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',lag=0.0,\
                     dt=0.0,cc_len=None,cc_step=None,dist=0.0,az=0.0,baz=0.0,\
-                    time=[],data=None,substack:bool=False,side="A",misc=dict()):
+                    time=[],data=None,stack_method=None,substack:bool=False,side="A",misc=dict()):
         self.type='Correlation Data'
         self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
         self.net=net
@@ -416,6 +416,7 @@ class CorrData(object):
         self.baz=baz
         self.time=time
         self.data=data
+        self.stack_method=stack_method
         if side.lower() not in ["a","p","n"]:
             raise ValueError("Wrong side attribute value [%s], which has to be one of A, N, P."%(side))
         else:
@@ -451,6 +452,8 @@ class CorrData(object):
         else:
             print("time     :   none")
         print("substack :   "+str(self.substack))
+        if self.stack_method is not None:
+            print("stack_method:"+str(self.stack_method))
         if self.data is not None:
             print("data     :   "+str(self.data.shape))
             print(str(self.data))
@@ -599,6 +602,7 @@ class CorrData(object):
                         self.substack=False
                         self.time  = self.time[tindx[0]]
                         self.data=ds
+                        self.stack_method=method
                     else:
                         return ds
                 if verbose: print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
@@ -651,6 +655,7 @@ class CorrData(object):
                     self.time=ts
                     if len(ngood) ==1: self.substack = False
                     else: self.substack=True
+                    self.stack_method=method
                 else:
                     return ts,ds
             else:
