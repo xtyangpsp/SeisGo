@@ -1114,6 +1114,95 @@ class CorrData(object):
         ##
         if get_stack:
             return tstack,dreturn
+class DVVData(object):
+    """
+    Object to store dv/v (seismic velocity change) data.
+    ======= Attributes ======
+    STATION INFORMATION:
+    net=['',''],sta=['',''],loc=['',''],chan=['',''],
+    lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',
+    dist=0.0,az=0.0,baz=0.0: parameters specifying the stations.
+    
+    DVV PARAMETERS:
+    method=None,window=None,dt=None,time=None,freq=None,misc=dict()
+
+    misc is a dictionary that stores additional parameters.
+
+    DVV DATA:
+    data1=None,data2=None: data1 is for dvv measurement using negative side correlation data. data2 is for the positive side.
+
+    ======= Methods ======
+    to_asdf(): save to asdf file.
+    plot(): simple plotting function to display the cross-correlation data.
+    """
+    def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
+                    lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,\
+                    method=None,window=None,dt=None,az=0.0,baz=0.0,time=[],freq=None,\
+                    data1=None,data2=None,misc=dict()):
+        self.type='dv/v Data'
+        self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
+        self.net=net
+        self.sta=sta
+        self.loc=loc
+        self.chan=chan
+        self.lon=lon
+        self.lat=lat
+        self.ele=ele
+        if cc_comp is None:
+            self.cc_comp=chan[0][-1]+chan[1][-1]
+        else:
+            self.cc_comp=cc_comp
+        self.freq=freq
+        self.dt=dt
+        self.dist=dist
+        self.az=az
+        self.baz=baz
+        self.time=time
+        self.data1=data1
+        self.data2=data2
+        self.method=method
+        self.window=window
+        self.misc=misc
+
+    def __str__(self):
+        """
+        Display key content of the object.
+        """
+        print("type     :   "+str(self.type))
+        print("id       :   "+str(self.id))
+        print("net      :   "+str(self.net))
+        print("sta      :   "+str(self.sta))
+        print("loc      :   "+str(self.loc))
+        print("chan     :   "+str(self.chan))
+        print("lon      :   "+str(self.lon))
+        print("lat      :   "+str(self.lat))
+        print("ele      :   "+str(self.ele))
+        print("cc_comp  :   "+str(self.cc_comp))
+        print("dt       :   "+str(self.dt))
+        print("dist     :   "+str(self.dist))
+        if self.time is not None:
+            if self.substack:
+                print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+            else:
+                print("time     :   "+str(obspy.UTCDateTime(self.time)))
+        else:
+            print("time     :   none")
+        print("substack :   "+str(self.substack))
+        if self.method is not None:
+            print("method:"+str(self.stack_method))
+        if self.data1 is not None:
+            print("data1 [N]:   "+str(self.data1.shape))
+            print(str(self.data1))
+        else:
+            print("data1 [N]:   none")
+        if self.data2 is not None:
+            print("data2 [P]:   "+str(self.data2.shape))
+            print(str(self.data2))
+        else:
+            print("data2 [P]:   none")
+        print("")
+
+        return "<DVVData object>"
 
 class Power(object):
     """
