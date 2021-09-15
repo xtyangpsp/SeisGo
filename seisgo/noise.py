@@ -372,7 +372,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                 to_egf=False):
     # source folder
     if pairlist is None:
-        pairlist,netsta_all=noise.get_stationpairs(ccfiles,False)
+        pairlist,netsta_all=get_stationpairs(ccfiles,False)
         if len(ccfiles)==0:
             raise IOError('Abort! no available CCF data for stacking')
         for s in netsta_all:

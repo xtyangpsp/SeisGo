@@ -967,7 +967,7 @@ def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
 
     if isinstance(source,Trace):source=Stream([source])
     # useful parameters for trace sliding
-    sps  = int(source[0].stats.sampling_rate)
+    sps  = source[0].stats.sampling_rate
     starttime = source[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
     duration = source[0].stats.endtime-obspy.UTCDateTime(1970,1,1) - starttime
 
