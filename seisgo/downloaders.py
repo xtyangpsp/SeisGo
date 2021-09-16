@@ -230,7 +230,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     c. Plot raw data before removing responses.
     """
     if debug:
-        plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
+        utils.plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
                         outfile=net+"."+sta+"_"+tstamp+"_raw.png")
 
     """
