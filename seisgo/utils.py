@@ -945,7 +945,7 @@ def check_overlap(t1,t2,error=0):
 
     return ind1,ind2
 #Modified from noisepy function cut_trace_make_statis().
-def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
+def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     '''
     this function cuts continous noise data into user-defined segments, estimate the statistics of
     each segment and keep timestamp of each segment for later use.
@@ -954,7 +954,7 @@ def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
     source: obspy stream object
     exp_len_hours: expected length of the data (source) in hours
     win_len_secs: length of the slicing segments in seconds
-    step_secs: step of slicing in seconds.
+    step_secs: step of slicing in seconds. When None (default) or 0.0, only returns one window.
 
     RETURNS:
     ----------------------
@@ -974,7 +974,19 @@ def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
     if duration < win_len_secs:
         print("return empty! data duration is < slice length." % source)
         return temp,dataS_t,dataS
-    nseg = int(np.floor((duration-win_len_secs)/step_secs))
+    if step_secs is None or step_secs == 0.0:
+        nseg=1
+        npts_step = 0
+    else:
+        nseg = int(np.floor((duration-win_len_secs)/step_secs))
+        npts_step = int(step_secs*sps)
+    
+    # initialize variables
+    npts = int(win_len_secs*sps)
+    trace_stdS = np.zeros(nseg,dtype=np.float32)
+    dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
+    dataS_t  = np.zeros(nseg,dtype=np.float)
+
     print('slicing trace into ['+str(nseg)+'] segments.')
     # copy data into array
     data = source[0].data
@@ -985,13 +997,6 @@ def slicing_trace(source,win_len_secs,step_secs,taper_frac=0.02):
     if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
         print("return empty! madS or stdS equals to 0 for %s" % source)
         return temp,dataS_t,dataS
-
-    # initialize variables
-    npts = int(win_len_secs*sps)
-    npts_step = int(step_secs*sps)
-    trace_stdS = np.zeros(nseg,dtype=np.float32)
-    dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
-    dataS_t  = np.zeros(nseg,dtype=np.float)
 
     indx1 = 0
     for iseg in range(nseg):
