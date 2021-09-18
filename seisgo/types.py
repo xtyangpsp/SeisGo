@@ -1131,8 +1131,10 @@ class DvvData(object):
     misc is a dictionary that stores additional parameters.
 
     DVV DATA:
+    cc1=None,cc2=None: cc1 and cc2 are the correlation coefficients arrays for negative measureemts
+            and positive measurements, respectively.
     data1=None,data2=None: data1 is for dvv measurement using negative side correlation data. 
-    data2 is for the positive side.
+            data2 is for the positive side.
 
     ======= Methods ======
     to_asdf(): save to asdf file.
@@ -1141,7 +1143,7 @@ class DvvData(object):
     def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,\
                     method=None,window=None,dt=None,az=0.0,baz=0.0,time=[],freq=None,\
-                    data1=None,data2=None,misc=dict()):
+                    normalize=False,cc1=None,cc2=None,data1=None,data2=None,misc=dict()):
         self.type='dv/v Data'
         self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
         self.net=net
@@ -1161,10 +1163,13 @@ class DvvData(object):
         self.az=az
         self.baz=baz
         self.time=time
-        self.data1=data1
-        self.data2=data2
         self.method=method
         self.window=window
+        self.normalize=normalize
+        self.cc1=cc1
+        self.cc2=cc2
+        self.data1=data1
+        self.data2=data2
         self.misc=misc
 
     def __str__(self):
