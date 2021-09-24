@@ -1158,7 +1158,10 @@ class CorrData(object):
             return tstack,dreturn
 class DvvData(object):
     """
-    Object to store dv/v (seismic velocity change) data.
+    Object to store dv/v (seismic velocity change) data. This object can be initiated by directly assigning 
+    values to each attributes OR by giving a CorrData object, in which case some attributes will be cloned
+    from the CorrData object. In the latter case, you can still assign attributes that are unique to DvvData.
+
     ======= Attributes ======
     STATION INFORMATION:
     net=['',''],sta=['',''],loc=['',''],chan=['',''],
@@ -1180,29 +1183,53 @@ class DvvData(object):
     to_asdf(): save to asdf file.
     plot(): simple plotting function to display the cross-correlation data.
     """
-    def __init__(self,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
+    def __init__(self,corrdata=None,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,\
-                    method=None,window=None,dt=None,az=0.0,baz=0.0,time=[],freq=None,\
+                    method=None,stack_method=None,window=None,dt=None,az=0.0,baz=0.0,time=None,freq=None,\
                     normalize=False,cc1=None,cc2=None,data1=None,data2=None,misc=dict()):
         self.type='dv/v Data'
-        self.id=net[0]+'.'+sta[0]+'.'+loc[0]+'.'+chan[0]+'_'+net[1]+'.'+sta[1]+'.'+loc[1]+'.'+chan[1]
-        self.net=net
-        self.sta=sta
-        self.loc=loc
-        self.chan=chan
-        self.lon=lon
-        self.lat=lat
-        self.ele=ele
-        if cc_comp is None:
-            self.cc_comp=chan[0][-1]+chan[1][-1]
-        else:
-            self.cc_comp=cc_comp
+        if corrdata is None: #
+            self.net=net
+            self.sta=sta
+            self.loc=loc
+            self.chan=chan
+            self.lon=lon
+            self.lat=lat
+            self.ele=ele
+            if cc_comp is None:
+                self.cc_comp=chan[0][-1]+chan[1][-1]
+            else:
+                self.cc_comp=cc_comp
+            self.dt=dt
+            self.dist=dist
+            self.az=az
+            self.baz=baz
+            self.time=time
+            self.stack_method=stack_method
+        else: ### use CorrData metadata when possible. only extract needed attributes.
+            self.net=corrdata.net
+            self.sta=corrdata.sta
+            self.loc=corrdata.loc
+            self.chan=corrdata.chan
+            self.lon=corrdata.lon
+            self.lat=corrdata.lat
+            self.ele=corrdata.ele
+            if cc_comp is None:
+                self.cc_comp=corrdata.chan[0][-1]+corrdata.chan[1][-1]
+            else:
+                self.cc_comp=corrdata.cc_comp
+            self.dt=corrdata.dt
+            self.dist=corrdata.dist
+            self.az=corrdata.az
+            self.baz=corrdata.baz
+            self.time=corrdata.time
+            
+        ##
+        self.id=self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.'+self.chan[0]+'_'+\
+            self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.'+self.chan[1]
+        
         self.freq=freq
-        self.dt=dt
-        self.dist=dist
-        self.az=az
-        self.baz=baz
-        self.time=time
+        self.stack_method=stack_method
         self.method=method
         self.window=window
         self.normalize=normalize
@@ -1228,29 +1255,46 @@ class DvvData(object):
         print("cc_comp  :   "+str(self.cc_comp))
         print("dt       :   "+str(self.dt))
         print("dist     :   "+str(self.dist))
-        print("freq     :   "+str(self.freq))
-        if self.time is not None:
-            if self.substack:
-                print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
-            else:
-                print("time     :   "+str(obspy.UTCDateTime(self.time)))
-        else:
-            print("time     :   none")
+        print("az       :   "+str(self.az))
+        print("baz      :   "+str(self.baz))
+        
         if self.method is not None:
-            print("method:"+str(self.stack_method))
+            print("method   :  "+str(self.method))
+        print("freq     :   "+str(self.freq))
+        try:
+            print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        except Exception as e:
+            print("time     :   None")
+        if self.cc1 is not None:
+            print("cc1 [N]  :  ")
+            print(self.cc1)
+        else:
+            print("cc1 [N]:   none")
+        if self.cc2 is not None:
+            print("cc2 [P]  :  ")
+            print(self.cc2)
+        else:
+            print("cc2 [P]:   none")
         if self.data1 is not None:
             print("data1 [N]:   "+str(self.data1.shape))
-            print(str(self.data1))
+            print(self.data1)
         else:
             print("data1 [N]:   none")
         if self.data2 is not None:
             print("data2 [P]:   "+str(self.data2.shape))
-            print(str(self.data2))
+            print(self.data2)
         else:
             print("data2 [P]:   none")
         print("")
 
         return "<DvvData object>"
+
+    ##plot
+    def plot(self,cc_min=None):
+        """
+        Plot DvvData.
+        """
+        print("To-be-implemeted.")
 
 class Power(object):
     """
