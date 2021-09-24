@@ -528,6 +528,46 @@ class CorrData(object):
         self.data=np.concatenate((self.data,c.data),axis=0)
 
         self.substack=True
+    
+    #subset method
+    def subset(self,starttime=None,endtime=None,overwrite=True):
+        """
+        Subset the xcorr data by time.
+        starttime: Start time in string, with the format of "2021_09_05_0_0_0" or an obspy UTCDateTime object.
+        endtime: End time in the same format as the "starttime"
+        overwrite: overwrite the data (default) or return the new subset CorrData object. Default: True.
+
+
+        """
+        if isinstance(starttime,str):
+            sdatetime = obspy.UTCDateTime(starttime)
+        else:
+            sdatetime = starttime
+        if isinstance(endtime,str):
+            edatetime = obspy.UTCDateTime(endtime)
+        else:
+            edatetime = endtime
+        if not self.substack:
+            pass
+        else:
+            if sdatetime is None and edatetime is None:
+                print("starttime and endtime are both None. Nothing to do with subset.")
+            elif sdatetime is None:
+                sdatetime=self.time[0]
+            elif edatetime is None:
+                edatetime=self.time[-1]
+            idx=np.where((self.time >= sdatetime) & (self.time<= edatetime))[0]
+            subtime=self.time[idx]
+            subdata=self.data[idx,:]
+
+            if overwrite:
+                self.time=subtime
+                self.data=subdata
+            else:
+                cdata=self.copy()
+                cdata.time=subtime
+                cdata.data=subdata
+                return cdata
 
     #copy method.
     def copy(self,dataless=False):
