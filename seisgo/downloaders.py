@@ -356,9 +356,13 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
         if not os.path.isdir(rawdatadir):os.makedirs(rawdatadir)
 
     if event is None:
-        type="continuous"
+        type = "continuous"
     else:
-        type="earthquake"
+        if event.event_type == "earthquake":
+            type = "earthquake"
+        else:
+            type = "other event"
+
     # if user passes a string instead of a list, make a list of one string
     # if station is None: station = ['*']*len(network)
     if isinstance(station, str): station = [station]
@@ -386,6 +390,8 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                                  str(sdatetime).replace(':', '-') + 'T' + str(edatetime).replace(':', '-') + '.h5')
         elif type == 'earthquake':
             fname = os.path.join(rawdatadir, str(event.origins[0].time) + "_M" + str(event.magnitudes[0].mag) + '.h5')
+        else:
+            fname = os.path.join(rawdatadir, str(event.origins[0].time) + '.h5')
 
     """
     Start downloading.
