@@ -29,7 +29,7 @@ def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
                 sacheader=sacheader,getstainv=getstainv)
 
 
-def getobsdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
+def getobsdata(net,sta,starttime,endtime,pchan='HDH',source='IRIS',samp_freq=None,
             rmresp=True,pre_filt=None,plot=False,debug=False,
             sacheader=False,getstainv=False):
     """
@@ -42,6 +42,7 @@ def getobsdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
             network and station names for the request.
     starttime, endtime : UTCDateTime
             Starting and ending date time for the request.
+    pchan: pressure channel name, default is "HDH".
     source : string
             Client names.
             To get a list of available clients:
@@ -65,7 +66,7 @@ def getobsdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
     """
     client = Client(source)
     tr1, tr2, trZ, trP=[None for _ in range(4)]
-    pchan='*H'
+
     sac=dict() #place holder to save some sac headers.
     #check arguments
     if rmresp:

@@ -6,9 +6,10 @@ from obspy.core import Trace,Stream
 import numpy as np
 import matplotlib.pyplot as plt
 from obspy.io.sac.sactrace import SACTrace
-from obspy.signal.filter import bandpass
+from obspy.signal.filter import bandpass,highpass,lowpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
 from seisgo import utils,stacking
+from obspy import UTCDateTime
 ######
 class SeismicEngine(object):
     """
@@ -528,7 +529,7 @@ class CorrData(object):
         self.data=np.concatenate((self.data,c.data),axis=0)
 
         self.substack=True
-    
+
     #subset method
     def subset(self,starttime=None,endtime=None,overwrite=True):
         """
@@ -824,6 +825,35 @@ class CorrData(object):
                                             fraction=taper_frac,maxlen=taper_maxlen)
         self.data=egf
         self.type="Empirical Green's Functions"
+
+    #
+    def filter(self,fmin=None,fmax=None,corners=4,zerophase=True):
+        """
+        Apply filter to CorrData.data. The parameters are same as for obspy.signal.filter filters.
+
+        ==PARAMETERS==
+        fmin, fmax: frequency range. if fmin is None, it will apply a lowpass filter.
+                    if fmax is None, it will apply a highpass filter.
+        corners: number of corners, default is 4.
+        zerophase: default is True.
+        """
+        if fmin is None and fmax is None:
+            raise ValueError("fmin and fmax CAN NOT all be None.")
+        if self.substack:
+            for i in range(self.data.shape[0]):
+                if fmin is not None and fmax is not None:
+                    self.data[i,:]=bandpass(self.data[i],fmin,fmax,1/self.dt,corners=corners, zerophase=zerophase)
+                elif fmin is None:
+                    self.data[i,:]=lowpass(self.data[i],fmax,1/self.dt,corners=corners, zerophase=zerophase)
+                elif fmax is None:
+                    self.data[i,:]=lhighpass(self.data[i],fmin,1/self.dt,corners=corners, zerophase=zerophase)
+        else:
+            if fmin is not None and fmax is not None:
+                self.data=bandpass(self.data,fmin,fmax,1/self.dt,corners=corners, zerophase=zerophase)
+            elif fmin is None:
+                self.data=lowpass(self.data,fmax,1/self.dt,corners=corners, zerophase=zerophase)
+            elif fmax is None:
+                self.data=lhighpass(self.data,fmin,1/self.dt,corners=corners, zerophase=zerophase)
 
     def to_asdf(self,file,v=True):
         """
@@ -1158,7 +1188,7 @@ class CorrData(object):
             return tstack,dreturn
 class DvvData(object):
     """
-    Object to store dv/v (seismic velocity change) data. This object can be initiated by directly assigning 
+    Object to store dv/v (seismic velocity change) data. This object can be initiated by directly assigning
     values to each attributes OR by giving a CorrData object, in which case some attributes will be cloned
     from the CorrData object. In the latter case, you can still assign attributes that are unique to DvvData.
 
@@ -1167,7 +1197,7 @@ class DvvData(object):
     net=['',''],sta=['',''],loc=['',''],chan=['',''],
     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',
     dist=0.0,az=0.0,baz=0.0: parameters specifying the stations.
-    
+
     DVV PARAMETERS:
     method=None,window=None,dt=None,time=None,freq=None,misc=dict()
 
@@ -1175,8 +1205,10 @@ class DvvData(object):
 
     DVV DATA:
     cc1=None,cc2=None: cc1 and cc2 are the correlation coefficients arrays for negative measureemts
-            and positive measurements, respectively.
-    data1=None,data2=None: data1 is for dvv measurement using negative side correlation data. 
+            and positive measurements, respectively. These are for the entire traces.
+    maxcc1=None, maxcc2=None: maximum correlation coefficients when stretching for measuring dv/v.
+    error1=None, error2=None: errors when measuring the dv/v.
+    data1=None,data2=None: data1 is for dvv measurement using negative side correlation data.
             data2 is for the positive side.
 
     ======= Methods ======
@@ -1186,7 +1218,8 @@ class DvvData(object):
     def __init__(self,corrdata=None,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,\
                     method=None,stack_method=None,window=None,dt=None,az=0.0,baz=0.0,time=None,freq=None,\
-                    normalize=False,cc1=None,cc2=None,data1=None,data2=None,misc=dict()):
+                    normalize=False,cc1=None,cc2=None,maxcc1=None,maxcc2=None,\
+                    error1=None,error2=None,data1=None,data2=None,misc=dict()):
         self.type='dv/v Data'
         if corrdata is None: #
             self.net=net
@@ -1223,11 +1256,11 @@ class DvvData(object):
             self.az=corrdata.az
             self.baz=corrdata.baz
             self.time=corrdata.time
-            
+
         ##
         self.id=self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.'+self.chan[0]+'_'+\
             self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.'+self.chan[1]
-        
+
         self.freq=freq
         self.stack_method=stack_method
         self.method=method
@@ -1235,6 +1268,10 @@ class DvvData(object):
         self.normalize=normalize
         self.cc1=cc1
         self.cc2=cc2
+        self.maxcc1=maxcc1
+        self.maxcc2=maxcc2
+        self.error1=error1
+        self.error2=error2
         self.data1=data1
         self.data2=data2
         self.misc=misc
@@ -1257,7 +1294,7 @@ class DvvData(object):
         print("dist     :   "+str(self.dist))
         print("az       :   "+str(self.az))
         print("baz      :   "+str(self.baz))
-        
+
         if self.method is not None:
             print("method   :  "+str(self.method))
         print("freq     :   "+str(self.freq))
@@ -1266,23 +1303,27 @@ class DvvData(object):
         except Exception as e:
             print("time     :   None")
         if self.cc1 is not None:
-            print("cc1 [N]  :  ")
-            print(self.cc1)
+            print("cc1 [N]  :  "+str(self.cc2.shape))
         else:
             print("cc1 [N]:   none")
         if self.cc2 is not None:
-            print("cc2 [P]  :  ")
-            print(self.cc2)
+            print("cc2 [P]  :  "+str(self.cc2.shape))
         else:
             print("cc2 [P]:   none")
+        if self.maxcc1 is not None:
+            print("maxcc1 [N]  :  "+str(self.maxcc1.shape))
+        else:
+            print("maxcc1 [N]:   none")
+        if self.maxcc2 is not None:
+            print("maxcc2 [P]  :  "+str(self.maxcc2.shape))
+        else:
+            print("maxcc2 [P]:   none")
         if self.data1 is not None:
             print("data1 [N]:   "+str(self.data1.shape))
-            print(self.data1)
         else:
             print("data1 [N]:   none")
         if self.data2 is not None:
             print("data2 [P]:   "+str(self.data2.shape))
-            print(self.data2)
         else:
             print("data2 [P]:   none")
         print("")
@@ -1290,11 +1331,78 @@ class DvvData(object):
         return "<DvvData object>"
 
     ##plot
-    def plot(self,cc_min=None):
+    def plot(self,cc_min=None,figsize=(8,5),save=False,figdir='.',figname=None):
         """
         Plot DvvData.
         """
-        print("To-be-implemeted.")
+        nvdata=self.data1
+        pvdata=self.data2
+        if cc_min is None:
+            cc_min=-1.0
+        idx1=np.where((self.maxcc1<cc_min))
+        nvdata[idx1]=np.nan
+
+        idx2=np.where((self.maxcc2<cc_min))
+        pvdata[idx2]=np.nan
+        nwin=nvdata.shape[0]
+        # tick inc for plotting
+        if nwin>100:
+            tick_inc = int(nwin/10)
+        elif nwin>10:
+            tick_inc = int(nwin/5)
+        else:
+            tick_inc = 2
+
+        plt.figure(figsize=figsize, facecolor = 'white')
+        # the cross-correlation coefficient
+        xticks=np.int16(np.linspace(0,nwin-1,6))
+        xticklabel=[]
+        for x in xticks:
+            xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
+        # dv/v at each filtered frequency band
+        dvv_array = pvdata.T
+        extent=(0,nwin,np.log10(self.freq[-1]),np.log10(self.freq[0]))
+        ax3 = plt.subplot(211)
+        plt.imshow(dvv_array,cmap='seismic_r',aspect='auto',extent=extent)
+        plt.ylim(np.log10([np.min(self.freq),np.max(self.freq)]))
+        plt.ylabel('frequency (Hz)',fontsize=12)
+
+        ax3.set_xticks(xticks)
+        ax3.set_xticklabels(xticklabel,fontsize=12)
+        yticklabel=[]
+        yticks=np.logspace(-1,1,8)
+        for y in yticks:
+            yticklabel.append("%4.1f"%(y))
+        ax3.set_yticks(np.log10(yticks))
+        ax3.set_yticklabels(yticklabel,fontsize=12)
+        plt.colorbar(label='dv/v (%)')
+        ax3.set_title('Seismic velocity change: positive',fontsize=14)
+
+        dvv_array = nvdata.T
+        ax4 = plt.subplot(212)
+        plt.imshow(dvv_array,cmap='seismic_r',aspect='auto',extent=extent)
+        plt.ylim(np.log10([np.min(self.freq),np.max(self.freq)]))
+        plt.ylabel('frequency (Hz)',fontsize=12)
+        ax4.set_xticks(xticks)
+        ax4.set_xticklabels(xticklabel,fontsize=12)
+        ax4.set_yticks(np.log10(yticks))
+        ax4.set_yticklabels(yticklabel,fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.colorbar(label='dv/v (%)')
+        ax4.set_title('Seismic velocity change: negative',fontsize=14)
+
+        plt.tight_layout()
+
+        ###################
+        ##### SAVING ######
+        if save:
+            if not os.path.isdir(figdir):os.mkdir(figdir)
+
+            if figname is None: figname = figdir+'/'+'dvv_'+self.id+'_'+self.cc_comp
+            plt.savefig(figname+'.'+format, format=format, dpi=300, facecolor = 'white')
+            plt.close()
+        else:
+            plt.show()
 
 class Power(object):
     """

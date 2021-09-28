@@ -33,7 +33,8 @@ TYPES
 5. Removed ngood attribute from CorrData, corresponding changes have been implemented for other
   functions in "noise".
 6. Added subset() method in CorrData() to subset data by time range.
-7. Added DvvData class to store dvv monitoring data.
+7. Added filter() method in CorrData() to filter corrdata.data.
+8. Added DvvData class to store dvv monitoring data.
 
 ==================================================================================
 ==================================================================================

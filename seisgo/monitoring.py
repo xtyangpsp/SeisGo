@@ -1,11 +1,12 @@
-import obspy
-import scipy
-import time
-import pycwt
+import obspy,scipy,time,pycwt
 import numpy as np
 from obspy.signal.invsim import cosine_taper
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.regression import linear_regression
+from obspy.signal.filter import bandpass
+from obspy import UTCDateTime
+from seisgo import types
+import matplotlib.pyplot as plt
 
 '''
 This dvv module is written to realize the measurements of velocity perturbation dv/v. In general,
@@ -41,6 +42,195 @@ quick index of dv/v methods:
 7) wdw_dvv (Wavelet Dynamic Warping; Yuan et al., in prep)
 '''
 
+####
+def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
+            vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
+            plot=False,savefig=False):
+    # load stacked and sub-stacked waveforms
+    cdata=corrdata.copy()
+
+    cdata.stack(resolution)
+    ref=cdata.stack(method=stack_method,overwrite=False)
+
+    nwin=cdata.data.shape[0]
+
+    # make conda window based on vmin
+    if cdata.sta[0]==cdata.sta[1]: #autocorr
+        tmin=1
+        twin = [tmin,tmin+win]
+    else: #xcorr
+        tmin=cdata.dist/vmin #latest time for the slowest main phase.
+        twin = [tmin,tmin+win]
+    if twin[1] > cdata.lag:
+        raise ValueError('proposed window exceeds limit! reduce %d'%win)
+
+    # ref and tvec
+    tvec_all = np.arange(-cdata.lag,cdata.lag+cdata.dt,cdata.dt)
+    zero_indx0 = np.where((tvec_all> -cdata.dt)&(tvec_all<cdata.dt))[0]
+    zero_indx = zero_indx0[np.argmin(np.abs(tvec_all[zero_indx0]))]
+    tvec_half=tvec_all[zero_indx:]
+    # casual and acasual coda window
+    pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<np.max(twin)))[0]
+    nwin_indx = np.where((tvec_all<=-np.min(twin))&(tvec_all>=-np.max(twin)))[0]
+    pcor_cc = np.zeros(shape=(nwin),dtype=np.float32)
+    ncor_cc = np.zeros(shape=(nwin),dtype=np.float32)
+    pcur=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
+    ncur=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
+    pref=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
+    nref=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
+    # allocate matrix for cur and ref waveforms and corr coefficient
+    cur  = cdata.data #cdata.data
+    # load all current waveforms and get corr-coeff
+    if normalize:
+        ref /= np.max(np.abs(ref))
+        # loop through each cur waveforms
+        for ii in range(nwin):
+            cur[ii] /= np.max(np.abs(cur[ii]))
+    for ii in range(nwin):
+        # get cc coeffient
+        pcor_cc[ii] = np.corrcoef(ref[pwin_indx],cur[ii,pwin_indx])[0,1]
+        ncor_cc[ii] = np.corrcoef(ref[nwin_indx],cur[ii,nwin_indx])[0,1]
+
+        pcur[ii] = cur[ii,zero_indx:]
+        ncur[ii] = np.flip(cur[ii,:zero_indx+1])
+        pref[ii] = ref[zero_indx:]
+        nref[ii] = np.flip(ref[:zero_indx+1])
+    #######################
+    ##### MONITORING #####
+    dvv_pos,dvv_neg,freqall_n,freqall_p,maxcc_p,maxcc_n=[],[],[],[],[],[]
+    # loop through each win again
+    for ii in range(nwin):
+        # casual and acasual lags for both ref and cur waveforms
+        print('working on window: '+str(UTCDateTime(cdata.time[ii]))+" ... "+str(ii+1)+"/"+str(nwin))
+        if method.lower()=="wts":
+            freq_p,dvv_p,dvv_error_p,cc_p,cdp_p = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                                                                     allfreq=subfreq,dvmax=dvmax)
+            freq_n,dvv_n,dvv_error_n,cc_n,cdp_n = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                                                                     allfreq=subfreq,dvmax=dvmax)
+        else:
+            raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
+        freqall_p.append(freq_p)
+        freqall_n.append(freq_n)
+        dvv_pos.append(dvv_p)
+        dvv_neg.append(dvv_n)
+        maxcc_p.append(cc_p)
+        maxcc_n.append(cc_n)
+    #
+    del pcur,ncur,pref,nref
+    #
+    maxcc_p=np.array(maxcc_p)
+    maxcc_n=np.array(maxcc_n)
+    dvvdata=types.DvvData(cdata,freq=freq_p,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
+                        method=method,stack_method=stack_method,data1=np.array(dvv_neg),
+                        data2=np.array(dvv_pos))
+
+    ######plotting
+    if plot:
+        cc_min=0.7
+        disp_indx = np.where(np.abs(tvec_all)<=np.max(twin)+10)[0]
+        tvec_disp=tvec_all[disp_indx]
+        # tick inc for plotting
+        if nwin>100:
+            tick_inc = int(nwin/10)
+        elif nwin>10:
+            tick_inc = int(nwin/5)
+        else:
+            tick_inc = 2
+        #filter corrdata:
+        for i in range(nwin):
+            if freq[1]==0.5/cdata.dt:
+                cur[i,:]=bandpass(cur[i,:],freq[0],0.995*freq[1],df=1/cdata.dt,corners=4,zerophase=True)
+            else:
+                cur[i,:]=bandpass(cur[i,:],freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
+
+
+        plt.figure(figsize=(11,16), facecolor = 'white')
+        ax0= plt.subplot(411)
+        # 2D waveform matrix
+        ax0.matshow(cur[:,disp_indx],cmap='seismic',extent=[tvec_disp[0],tvec_disp[-1],nwin,0],
+                    aspect='auto')
+        ax0.plot([0,0],[0,nwin],'k--',linewidth=2)
+        ax0.set_title('%s, dist:%5.2fkm, %4.2f-%4.2f Hz' % (cdata.id,cdata.dist,freq[0],freq[1]))
+        ax0.set_xlabel('time [s]')
+        ax0.set_ylabel('waveforms')
+        ax0.set_yticks(np.arange(0,nwin,step=tick_inc))
+        # shade the coda part
+        ax0.fill(np.concatenate((tvec_all[nwin_indx],np.flip(tvec_all[nwin_indx],axis=0)),axis=0), \
+            np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'c', alpha=0.3,linewidth=1)
+        ax0.fill(np.concatenate((tvec_all[pwin_indx],np.flip(tvec_all[pwin_indx],axis=0)),axis=0), \
+            np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'y', alpha=0.3)
+        ax0.xaxis.set_ticks_position('bottom')
+        # reference waveform
+        ax1 = plt.subplot(813)
+        ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
+        ax1.autoscale(enable=True, axis='x', tight=True)
+        ax1.grid(True)
+        ax1.legend(['reference'],loc='upper right')
+        # the cross-correlation coefficient
+        xticks=np.int16(np.linspace(0,nwin-1,6))
+        xticklabel=[]
+        for x in xticks:
+            xticklabel.append(str(UTCDateTime(timestamp[x]))[:10])
+        ax2 = plt.subplot(814)
+        ax2.plot(timestamp,pcor_cc,'yo-',markersize=2,linewidth=1)
+        ax2.plot(timestamp,ncor_cc,'co-',markersize=2,linewidth=1)
+        ax2.set_xticks(timestamp[xticks])
+        ax2.set_xticklabels(xticklabel,fontsize=12)
+        # ax2.set_xticks(timestamp[0:nwin:tick_inc])
+        ax2.set_xlim([min(timestamp),max(timestamp)])
+        ax2.set_ylabel('cc coeff')
+        ax2.legend(['positive','negative'],loc='upper right')
+
+        # dv/v at each filtered frequency band
+        cc_cut=np.where(np.abs(pcor_cc)>=cc_min)[0]
+        dvv_array = np.array(dvv_pos).T
+        extent=(0,nwin,np.log10(freqall_p[0][-1]),np.log10(freqall_p[0][0]))
+        ax3 = plt.subplot(413)
+        plt.imshow(dvv_array[:,cc_cut],cmap='seismic_r',aspect='auto',extent=extent)
+        plt.ylim(np.log10(freq))
+        plt.ylabel('frequency (Hz)',fontsize=12)
+
+        ax3.set_xticks(xticks)
+        ax3.set_xticklabels(xticklabel,fontsize=12)
+        yticklabel=[]
+        yticks=np.logspace(-1,1,8)
+        for y in yticks:
+            yticklabel.append("%4.1f"%(y))
+        ax3.set_yticks(np.log10(yticks))
+        ax3.set_yticklabels(yticklabel,fontsize=12)
+        plt.colorbar(label='dv/v (%)', orientation="horizontal", pad=0.2)
+        ax3.set_title('Seismic velocity change: positive',fontsize=14)
+
+        cc_cut=np.where(np.abs(ncor_cc)>=cc_min)[0]
+
+        dvv_array = np.array(dvv_neg).T
+        ax4 = plt.subplot(414)
+        plt.imshow(dvv_array[:,cc_cut],cmap='seismic_r',aspect='auto',extent=extent)
+        plt.ylim(np.log10(freq))
+        plt.ylabel('frequency (Hz)',fontsize=12)
+        ax4.set_xticks(xticks)
+        ax4.set_xticklabels(xticklabel,fontsize=12)
+        ax4.set_yticks(np.log10(yticks))
+        ax4.set_yticklabels(yticklabel,fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.colorbar(label='dv/v (%)', orientation="horizontal", pad=0.2)
+        ax4.set_title('Seismic velocity change: negative',fontsize=14)
+
+        plt.tight_layout()
+
+        ###################
+        ##### SAVING ######
+        if savefig:
+            if not os.path.isdir(figdir):os.mkdir(figdir)
+            ccfilebase=ccfile
+            outfname = figdir+'/'+cdata.id
+            plt.savefig(outfname+'_'+cc_comp+'.'+format, format=format, dpi=300, facecolor = 'white')
+            plt.close()
+        else:
+            plt.show()
+
+    return dvvdata
+#
 def wcc_dvv(ref, cur, moving_window_length, slide_step, para):
     """
     Windowed cross correlation (WCC) for dt or dv/v mesurement (Snieder et al. 2012)
@@ -171,7 +361,7 @@ def ts_dvv(ref, cur, dv_max, ndv, para):
     t = para['t']
     twin = para['twin']
     freq = para['freq']
-    dt   = para['dt']
+    dt   = t[1]-t[0]
     tmin = np.min(twin)
     tmax = np.max(twin)
     fmin = np.min(freq)
@@ -557,7 +747,7 @@ def wxs_dvv(ref,cur,allfreq,para,dj=1/12, s0=-1, J=-1, sig=False, wvn='morlet',u
 
         return freq[freq_indin], dvv*100, err*100
 
-def wts_dvv(ref,cur,allfreq,para,dv_max,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet',normalize=True):
+def wts_dvv(ref,cur,t,twin,freq,allfreq=True,dvmax=0.05,normalize=True,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet'):
     """
     Apply stretching method to continuous wavelet transformation (CWT) of signals
     for all frequecies in an interest range
@@ -568,7 +758,7 @@ def wts_dvv(ref,cur,allfreq,para,dv_max,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet',
     cur: The complete "Current" time series (numpy.ndarray)
     allfreq: a boolen variable to make measurements on all frequency range or not
     para: a dict containing freq/time info of the data matrix
-    dv_max: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change (float)
+    dvmax: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change (float)
     ndv: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  (float)
     dj, s0, J, sig, wvn: common parameters used in 'wavelet.wct'. Defaults are dj=1/12,s0=-1,J=-1,wvn='morlet'
     normalize: normalize the wavelet spectrum or not. Default is True
@@ -581,16 +771,13 @@ def wts_dvv(ref,cur,allfreq,para,dv_max,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet',
     Written by Congcong Yuan (30 Jun, 2019)
     """
     # common variables
-    t = para['t']
-    twin = para['twin']
-    freq = para['freq']
-    dt   = para['dt']
+    para={"t":t,"twin":twin,"freq":freq}
+    dt   = t[1]-t[0]
     tmin = np.min(twin)
     tmax = np.max(twin)
     fmin = np.min(freq)
     fmax = np.max(freq)
     itvec = np.arange(np.int((tmin-t.min())/dt)+1, np.int((tmax-t.min())/dt)+1)
-    tvec = t[itvec]
 
     # apply cwt on two traces
     cwt1, sj, f, coi, _, _ = pycwt.cwt(cur, dt, dj, s0, J, wvn)
@@ -624,7 +811,7 @@ def wts_dvv(ref,cur,allfreq,para,dv_max,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet',
             ncwt2 = wcwt2
 
         # run stretching
-        dvv, err, cc, cdp = ts_dvv(ncwt2[itvec], ncwt1[itvec], dv_max, ndv, para)
+        dvv, err, cc, cdp = ts_dvv(ncwt2[itvec], ncwt1[itvec], dvmax, ndv, para)
         return dvv, err, cc, cdp
 
     # directly take advantage of the real-valued parts of wavelet transforms
@@ -649,7 +836,7 @@ def wts_dvv(ref,cur,allfreq,para,dv_max,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet',
                 ncwt2 = wcwt2
 
             # run stretching
-            dv, error, c1, c2 = ts_dvv(ncwt2[itvec], ncwt1[itvec], dv_max, ndv, para)
+            dv, error, c1, c2 = ts_dvv(ncwt2[itvec], ncwt1[itvec], dvmax, ndv, para)
             dvv[ii], cc[ii], cdp[ii], err[ii]=dv, c1, c2, error
 
         return f[f_ind], dvv, err, cc, cdp
