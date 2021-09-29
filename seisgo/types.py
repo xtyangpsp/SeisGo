@@ -1216,7 +1216,7 @@ class DvvData(object):
     plot(): simple plotting function to display the cross-correlation data.
     """
     def __init__(self,corrdata=None,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
-                    lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,\
+                    lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,dist_unit='',\
                     method=None,stack_method=None,window=None,dt=None,az=0.0,baz=0.0,time=None,freq=None,\
                     normalize=False,cc1=None,cc2=None,maxcc1=None,maxcc2=None,\
                     error1=None,error2=None,data1=None,data2=None,misc=dict()):
@@ -1235,6 +1235,7 @@ class DvvData(object):
                 self.cc_comp=cc_comp
             self.dt=dt
             self.dist=dist
+            self.dist_unit=dist_unit
             self.az=az
             self.baz=baz
             self.time=time
@@ -1253,6 +1254,10 @@ class DvvData(object):
                 self.cc_comp=corrdata.cc_comp
             self.dt=corrdata.dt
             self.dist=corrdata.dist
+            if "dist_unit" in list(corrdata.misc.keys()):
+                self.dist_unit=corrdata.misc['dist_unit']
+            else:
+                self.dist_unit=dist_unit
             self.az=corrdata.az
             self.baz=corrdata.baz
             self.time=corrdata.time
