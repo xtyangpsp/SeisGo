@@ -937,11 +937,11 @@ def check_overlap(t1,t2,error=0):
 
     for i in range(len(t1)):
         f1=t1[i]
-        ind_temp=np.where(np.abs(t2-f1)<=error)
+        ind_temp=np.where(np.abs(t2-f1)<=error)[0]
 
-        if len(ind_temp[0])>0:
+        if len(ind_temp)>0:
             ind1.append(i)
-            ind2.append(ind_temp[0][0])
+            ind2.append(ind_temp[0])
 
     return ind1,ind2
 #Modified from noisepy function cut_trace_make_statis().
@@ -980,7 +980,7 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     else:
         nseg = int(np.floor((duration-win_len_secs)/step_secs))
         npts_step = int(step_secs*sps)
-    
+
     # initialize variables
     npts = int(win_len_secs*sps)
     trace_stdS = np.zeros(nseg,dtype=np.float32)
