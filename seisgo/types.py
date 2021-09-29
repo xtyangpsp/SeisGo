@@ -1395,12 +1395,13 @@ class DvvData(object):
             dvv_ds.add_auxiliary_data(data=odata, data_type=netsta_pair, path=chan_pair, parameters=parameters)
         if v: print('DvvData saved to: '+outdir+'/'+file)
     ##plot
-    def plot(self,cc_min=None,figsize=(8,5),save=False,figdir='.',figname=None):
+    def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,figdir='.',figname=None):
         """
         Plot DvvData.
         """
         nvdata=self.data1
         pvdata=self.data2
+        period=1/self.freq
         if cc_min is None:
             cc_min=-1.0
         idx1=np.where((self.maxcc1<cc_min))
@@ -1425,36 +1426,44 @@ class DvvData(object):
             xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
         # dv/v at each filtered frequency band
         dvv_array = pvdata.T
-        extent=(0,nwin,np.log10(self.freq[-1]),np.log10(self.freq[0]))
+        yrange=[np.log2(period.min()),np.log2(period.max())]
+        extent=(0,nwin,yrange[1],yrange[0])
         ax3 = plt.subplot(211)
-        plt.imshow(dvv_array,cmap='seismic_r',aspect='auto',extent=extent)
-        plt.ylim(np.log10([np.min(self.freq),np.max(self.freq)]))
-        plt.ylabel('frequency (Hz)',fontsize=12)
+        plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
 
+        plt.ylabel('frequency (Hz)',fontsize=12)
         ax3.set_xticks(xticks)
         ax3.set_xticklabels(xticklabel,fontsize=12)
-        yticklabel=[]
-        yticks=np.logspace(-1,1,8)
-        for y in yticks:
-            yticklabel.append("%4.1f"%(y))
-        ax3.set_yticks(np.log10(yticks))
-        ax3.set_yticklabels(yticklabel,fontsize=12)
+
+        Yticks = 2 ** np.arange(np.ceil(np.log2(period.min())),
+                           np.ceil(np.log2(period.max())))
+        ax3.set_yticks(np.log2(Yticks))
+        ax3.set_yticklabels(1/Yticks)
+        if ylim is None:
+            plt.ylim(yrange)
+        else:
+            plt.ylim(ylim)
+        plt.yticks(fontsize=12)
         plt.colorbar(label='dv/v (%)')
         ax3.set_title('Seismic velocity change: positive',fontsize=14)
+        ax3.invert_yaxis()
 
         dvv_array = nvdata.T
         ax4 = plt.subplot(212)
-        plt.imshow(dvv_array,cmap='seismic_r',aspect='auto',extent=extent)
-        plt.ylim(np.log10([np.min(self.freq),np.max(self.freq)]))
+        plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
         plt.ylabel('frequency (Hz)',fontsize=12)
         ax4.set_xticks(xticks)
         ax4.set_xticklabels(xticklabel,fontsize=12)
-        ax4.set_yticks(np.log10(yticks))
-        ax4.set_yticklabels(yticklabel,fontsize=12)
+        ax4.set_yticks(np.log2(Yticks))
+        ax4.set_yticklabels(1/Yticks)
+        if ylim is None:
+            plt.ylim(yrange)
+        else:
+            plt.ylim(ylim)
         plt.yticks(fontsize=12)
         plt.colorbar(label='dv/v (%)')
         ax4.set_title('Seismic velocity change: negative',fontsize=14)
-
+        ax4.invert_yaxis()
         plt.tight_layout()
 
         ###################

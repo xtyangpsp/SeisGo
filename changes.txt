@@ -19,6 +19,8 @@ UTILS
 2. Renamed qml_to_event_list() to qml2list(). Added option to convert to pandas dataframe.
 3. Fixed a bug in slicing_trace(), where the index was float instead of integer.
 4. Added get_filelist() and slice_list().
+5. Fixed a bug in sclicing_trace() when returning zeros array with errors. changed to return
+    empty arrays.
 
 PLOTTING
 1. Added plot_eventsequence() to plot event with time.
@@ -35,6 +37,9 @@ TYPES
 6. Added subset() method in CorrData() to subset data by time range.
 7. Added filter() method in CorrData() to filter corrdata.data.
 8. Added DvvData class to store dvv monitoring data.
+
+MONITORING
+1. Added get_dvv() as a wrapper to measure dvv with given CorrData object.
 
 ==================================================================================
 ==================================================================================

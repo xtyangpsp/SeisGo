@@ -43,9 +43,35 @@ quick index of dv/v methods:
 '''
 
 ####
-def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
+def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
             plot=False,savefig=False,figdir='.',save=False,outdir='.'):
+    """
+    Compute dvv with given corrdata object, with options to save dvvdata to file.
+
+    =====PARAMETERS=======
+    corrdata: CorrData object that stores the correlaiton result.
+    freq: minimum and maximum frequencies for dvv measurements.
+    win: window length for dvv measurements.
+    dvmax: maximum dvv searching range. default: 0.05 (5%).
+    vmin: minimum velocity for the main phase, only considered in cross-correlations between
+        two stations. default 1.0 km/s.
+    offset: offset from 0.0 seconds (for autocorr) and from the maximum arrival time of the main
+        phase (for xcorr)
+    resolution: in seconds, specifying the temporal resolution (resampling/substacking) before measuring
+        dvv.
+    stack_method: stacking method to get the reference trace.
+    normalize: Ture or False for data normalization in measuring dvv.
+    method: dvv measuring method.
+    subfreq: keep all frequencies in the dvv result. default is True. Otherwise, only get one dvv result.
+    plot: Default is False. It determines whether plots the corrdata and the measuring time windows.
+        Plotting for dvvdata is currently seperated as a dvvdata.plot() method.
+    savefig: Default False. Save plot or not.
+    figdir: directory to save the figure.
+    save: this flag is for the dvvdata result. if true, the result will be saved to an ASDF file.
+        Othersie, it returns the dvvdata object. Default is False.
+    outdir: this is the directory to save the dvvdata.
+    """
     # load stacked and sub-stacked waveforms
     cdata=corrdata.copy()
 
@@ -55,12 +81,12 @@ def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
     nwin=cdata.data.shape[0]
 
     # make conda window based on vmin
-    if cdata.sta[0]==cdata.sta[1]: #autocorr
-        tmin=1
-        twin = [tmin,tmin+win]
-    else: #xcorr
-        tmin=cdata.dist/vmin #latest time for the slowest main phase.
-        twin = [tmin,tmin+win]
+    if cdata.sta[0]!=cdata.sta[1]: #xcorr
+        tmin = offset+cdata.dist/vmin
+    else:
+        tmin=offset
+
+    twin = [tmin,tmin+win]
     if twin[1] > cdata.lag:
         raise ValueError('proposed window exceeds limit! reduce %d'%win)
 
