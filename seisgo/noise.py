@@ -243,7 +243,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     except Exception as e:
         print(len(ind1))
         print(ind1)
-        raise IOError("index error:"+str(len(ind1))+":"str(e)+":"+str(ind1))
+        raise IOError("index error:"+str(len(ind1))+":"+str(e)+":"+str(ind1))
     sou_ind = np.where((source_std<maxstd)&(source_std>0)&(np.isnan(source_std)==0))[0]
     if not len(sou_ind): return corrdata
 
