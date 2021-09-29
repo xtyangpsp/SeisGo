@@ -238,11 +238,11 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
         return corrdata
 
     #---------- check the existence of earthquakes by std of the data.----------
-    source_std = [fftdata1.std[i] for i in ind1]
+    source_std = np.array([fftdata1.std[i] for i in ind1])
     sou_ind = np.where((source_std<maxstd)&(source_std>0)&(np.isnan(source_std)==0))[0]
     if not len(sou_ind): return corrdata
 
-    receiver_std = [fftdata2.std[i] for i in ind2]
+    receiver_std = np.array([fftdata2.std[i] for i in ind2])
     rec_ind = np.where((receiver_std<maxstd)&(receiver_std>0)&(np.isnan(receiver_std)==0))[0]
     if not len(rec_ind): return corrdata
     bb=np.intersect1d(sou_ind,rec_ind)
