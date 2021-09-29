@@ -1398,6 +1398,13 @@ class DvvData(object):
     def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,figdir='.',figname=None):
         """
         Plot DvvData.
+
+        cc_min: minimum max-correlation-coefficient in measuring dvv.
+        figsize: figure size tuble
+        ylim: y range for Display
+        save: save figure. default False.
+        figdir: directory to save figure. default is current directory.
+        figname: figure name when save is True.
         """
         nvdata=self.data1
         pvdata=self.data2
