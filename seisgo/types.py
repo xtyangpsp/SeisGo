@@ -1335,6 +1335,65 @@ class DvvData(object):
 
         return "<DvvData object>"
 
+    def to_asdf(self,file=None,v=True):
+        """
+        Save CorrData object too asdf file.
+        file: file name, which is required.
+        """
+        if file is None:
+            file="dvv_"+self.id+"_"+self.cc_comp+".h5"
+        # source-receiver pair
+        netsta_pair = self.net[0]+'.'+self.sta[0]+'_'+\
+                        self.net[1]+'.'+self.sta[1]
+        chan_pair = self.chan[0]+'_'+self.chan[1]
+
+        #save to asdf
+        lonS,lonR = self.lon
+        latS,latR = self.lat
+        eleS,eleR = self.ele
+        if self.data1 is not None and self.data2 is not None:
+            side='A'
+            odata=np.array([self.data1,self.data2])
+        elif self.data1 is None:
+            side='P'
+            odata=self.data2
+        else:
+            side='N'
+            odata=self.data1
+
+        parameters = {'dt':self.dt,
+            'dist':np.float32(self.dist),
+            'dist_unit':self.dist_unit,
+            'azi':np.float32(self.az),
+            'baz':np.float32(self.baz),
+            'lonS':np.float32(lonS),
+            'latS':np.float32(latS),
+            'eleS':np.float32(eleS),
+            'lonR':np.float32(lonR),
+            'latR':np.float32(latR),
+            'eleR':np.float32(eleR),
+            'window':np.float32(self.window),
+            'stack_method':self.stack_method,
+            'method':self.method,
+            'normalize':self.normalize,
+            'time':self.time,
+            'comp':self.cc_comp,
+            'type':self.type,
+            'freq':self.freq,
+            'net':self.net,
+            'sta':self.sta,
+            'chan':self.chan,
+            'side':side,
+            'cc1':self.cc1,
+            'cc2':self.cc2,
+            'maxcc1':self.maxcc1,
+            'maxcc2':self.maxcc2,
+            'error1':self.maxcc1,
+            'error2':self.maxcc2}
+
+        with pyasdf.ASDFDataSet(file,mpi=False) as dvv_ds:
+            dvv_ds.add_auxiliary_data(data=odata, data_type=netsta_pair, path=chan_pair, parameters=parameters)
+        if v: print('DvvData saved to: '+file)
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),save=False,figdir='.',figname=None):
         """
