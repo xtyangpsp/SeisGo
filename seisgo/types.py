@@ -185,7 +185,7 @@ class FFTData(object):
                 tr.data=utils.ftn(trace[0].data,self.dt,self.freqmin,self.freqmax,df=self.df)
             else:
                 raise ValueError("freqmin must be specified with ftn normalization.")
-        # cut daily-long data into smaller segments (dataS always in 2D)
+        # cut data into smaller segments (dataS always in 2D)
         trace_stdS,dataS_t,dataS = utils.slicing_trace([tr],win_len,step,
                                                         taper_frac=taper_frac)        # optimized version:3-4 times faster
 

@@ -238,6 +238,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
         return corrdata
 
     #---------- check the existence of earthquakes by std of the data.----------
+    print(fftdata1)
     print(fftdata1.std)
     print(fftdata1.data)
     source_std = fftdata1.std[ind1]
