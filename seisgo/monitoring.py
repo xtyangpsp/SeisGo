@@ -45,7 +45,7 @@ quick index of dv/v methods:
 ####
 def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
             vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
-            plot=False,savefig=False):
+            plot=False,savefig=False,figdir='.',save=False,outdir='.'):
     # load stacked and sub-stacked waveforms
     cdata=corrdata.copy()
 
@@ -123,10 +123,11 @@ def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
     dvvdata=types.DvvData(cdata,freq=freq_p,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
                         method=method,stack_method=stack_method,data1=np.array(dvv_neg),
                         data2=np.array(dvv_pos))
+    if save:
+        dvvdata.to_asdf(outdir=outdir)
 
     ######plotting
     if plot:
-        cc_min=0.7
         disp_indx = np.where(np.abs(tvec_all)<=np.max(twin)+10)[0]
         tvec_disp=tvec_all[disp_indx]
         # tick inc for plotting
@@ -144,8 +145,8 @@ def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
                 cur[i,:]=bandpass(cur[i,:],freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
 
 
-        plt.figure(figsize=(11,16), facecolor = 'white')
-        ax0= plt.subplot(411)
+        plt.figure(figsize=(8,6), facecolor = 'white')
+        ax0= plt.subplot(211)
         # 2D waveform matrix
         ax0.matshow(cur[:,disp_indx],cmap='seismic',extent=[tvec_disp[0],tvec_disp[-1],nwin,0],
                     aspect='auto')
@@ -161,60 +162,11 @@ def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
             np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'y', alpha=0.3)
         ax0.xaxis.set_ticks_position('bottom')
         # reference waveform
-        ax1 = plt.subplot(813)
+        ax1 = plt.subplot(411)
         ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
         ax1.autoscale(enable=True, axis='x', tight=True)
         ax1.grid(True)
         ax1.legend(['reference'],loc='upper right')
-        # the cross-correlation coefficient
-        xticks=np.int16(np.linspace(0,nwin-1,6))
-        xticklabel=[]
-        for x in xticks:
-            xticklabel.append(str(UTCDateTime(timestamp[x]))[:10])
-        ax2 = plt.subplot(814)
-        ax2.plot(timestamp,pcor_cc,'yo-',markersize=2,linewidth=1)
-        ax2.plot(timestamp,ncor_cc,'co-',markersize=2,linewidth=1)
-        ax2.set_xticks(timestamp[xticks])
-        ax2.set_xticklabels(xticklabel,fontsize=12)
-        # ax2.set_xticks(timestamp[0:nwin:tick_inc])
-        ax2.set_xlim([min(timestamp),max(timestamp)])
-        ax2.set_ylabel('cc coeff')
-        ax2.legend(['positive','negative'],loc='upper right')
-
-        # dv/v at each filtered frequency band
-        cc_cut=np.where(np.abs(pcor_cc)>=cc_min)[0]
-        dvv_array = np.array(dvv_pos).T
-        extent=(0,nwin,np.log10(freqall_p[0][-1]),np.log10(freqall_p[0][0]))
-        ax3 = plt.subplot(413)
-        plt.imshow(dvv_array[:,cc_cut],cmap='seismic_r',aspect='auto',extent=extent)
-        plt.ylim(np.log10(freq))
-        plt.ylabel('frequency (Hz)',fontsize=12)
-
-        ax3.set_xticks(xticks)
-        ax3.set_xticklabels(xticklabel,fontsize=12)
-        yticklabel=[]
-        yticks=np.logspace(-1,1,8)
-        for y in yticks:
-            yticklabel.append("%4.1f"%(y))
-        ax3.set_yticks(np.log10(yticks))
-        ax3.set_yticklabels(yticklabel,fontsize=12)
-        plt.colorbar(label='dv/v (%)', orientation="horizontal", pad=0.2)
-        ax3.set_title('Seismic velocity change: positive',fontsize=14)
-
-        cc_cut=np.where(np.abs(ncor_cc)>=cc_min)[0]
-
-        dvv_array = np.array(dvv_neg).T
-        ax4 = plt.subplot(414)
-        plt.imshow(dvv_array[:,cc_cut],cmap='seismic_r',aspect='auto',extent=extent)
-        plt.ylim(np.log10(freq))
-        plt.ylabel('frequency (Hz)',fontsize=12)
-        ax4.set_xticks(xticks)
-        ax4.set_xticklabels(xticklabel,fontsize=12)
-        ax4.set_yticks(np.log10(yticks))
-        ax4.set_yticklabels(yticklabel,fontsize=12)
-        plt.yticks(fontsize=12)
-        plt.colorbar(label='dv/v (%)', orientation="horizontal", pad=0.2)
-        ax4.set_title('Seismic velocity change: negative',fontsize=14)
 
         plt.tight_layout()
 
@@ -223,13 +175,13 @@ def get_dvv(corrdata,freq,win,stack_method='linear',resolution=None,
         if savefig:
             if not os.path.isdir(figdir):os.mkdir(figdir)
             ccfilebase=ccfile
-            outfname = figdir+'/'+cdata.id
+            outfname = figdir+'/xcc_'+cdata.id
             plt.savefig(outfname+'_'+cc_comp+'.'+format, format=format, dpi=300, facecolor = 'white')
             plt.close()
         else:
             plt.show()
 
-    return dvvdata
+    if not save: return dvvdata
 #
 def wcc_dvv(ref, cur, moving_window_length, slide_step, para):
     """

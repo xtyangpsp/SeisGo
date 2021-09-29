@@ -1335,7 +1335,7 @@ class DvvData(object):
 
         return "<DvvData object>"
 
-    def to_asdf(self,file=None,v=True):
+    def to_asdf(self,outdir='.',file=None,v=True):
         """
         Save DvvData object to asdf file.
         file: file name, default is like dvv_AK.CHN..BHE_AK.CHN..BHZ_EZ.h5.
@@ -1391,9 +1391,9 @@ class DvvData(object):
             'error1':self.maxcc1,
             'error2':self.maxcc2}
 
-        with pyasdf.ASDFDataSet(file,mpi=False) as dvv_ds:
+        with pyasdf.ASDFDataSet(outdir+'/'+file,mpi=False) as dvv_ds:
             dvv_ds.add_auxiliary_data(data=odata, data_type=netsta_pair, path=chan_pair, parameters=parameters)
-        if v: print('DvvData saved to: '+file)
+        if v: print('DvvData saved to: '+outdir+'/'+file)
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),save=False,figdir='.',figname=None):
         """
