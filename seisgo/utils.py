@@ -962,8 +962,12 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     dataS_t:    timestamps of each segment
     dataS:      2D matrix of the segmented data
     '''
-    # define return variables first
-    temp=[];dataS_t=[];dataS=[]
+    # statistic to detect segments that may be associated with earthquakes
+    all_madS = mad(source[0].data)	            # median absolute deviation over all noise window
+    all_stdS = np.std(source[0].data)	        # standard deviation over all noise window
+    if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
+        print("return empty! madS or stdS equals to 0 for %s" % source)
+        return [],[],[]
 
     if isinstance(source,Trace):source=Stream([source])
     # useful parameters for trace sliding
@@ -973,7 +977,7 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
 
     if duration < win_len_secs:
         print("return empty! data duration is < slice length." % source)
-        return temp,dataS_t,dataS
+        return [],[],[]
     if step_secs is None or step_secs == 0.0:
         nseg=1
         npts_step = 0
@@ -988,20 +992,11 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     dataS_t  = np.zeros(nseg,dtype=np.float)
 
     print('slicing trace into ['+str(nseg)+'] segments.')
-    # copy data into array
-    data = source[0].data
-
-    # statistic to detect segments that may be associated with earthquakes
-    all_madS = mad(data)	            # median absolute deviation over all noise window
-    all_stdS = np.std(data)	        # standard deviation over all noise window
-    if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
-        print("return empty! madS or stdS equals to 0 for %s" % source)
-        return temp,dataS_t,dataS
 
     indx1 = 0
     for iseg in range(nseg):
         indx2 = indx1+npts
-        dataS[iseg] = data[indx1:indx2]
+        dataS[iseg] = source[0].data[indx1:indx2]
         trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
         dataS_t[iseg]    = starttime+step_secs*iseg
         indx1 += npts_step

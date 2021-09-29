@@ -329,16 +329,16 @@ class FFTData(object):
         print("win_len      :   "+str(self.win_len))
         print("step         :   "+str(self.step))
         if self.std is not None:
-            print("std          :   "+str(self.std.shape))
+            print("std          :   "+str(len(self.std)))
         else:
             print("std          :   none")
-        if self.time is not None:
+        if self.time is not None and len(self.time)>0:
             print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         else:
             print("time         :   none")
         print("Nfft         :   "+str(self.Nfft))
         print("misc         :   "+str(self.misc))
-        if self.data is not None:
+        if self.data is not None and len(self.data)>0:
             print("data         :   "+str(self.data.shape))
         else:
             print("data         :   none")
@@ -857,7 +857,7 @@ class CorrData(object):
 
     def to_asdf(self,file,v=True):
         """
-        Save CorrData object too asdf file.
+        Save CorrData object to asdf file.
         file: file name, which is required.
         """
         cc_comp = self.cc_comp
@@ -1337,8 +1337,8 @@ class DvvData(object):
 
     def to_asdf(self,file=None,v=True):
         """
-        Save CorrData object too asdf file.
-        file: file name, which is required.
+        Save DvvData object to asdf file.
+        file: file name, default is like dvv_AK.CHN..BHE_AK.CHN..BHZ_EZ.h5.
         """
         if file is None:
             file="dvv_"+self.id+"_"+self.cc_comp+".h5"
