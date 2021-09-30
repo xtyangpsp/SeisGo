@@ -11,11 +11,24 @@ from seisgo import utils
 from seisgo.utils import get_tracetag, save2asdf
 import numpy as np
 
-def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,maxseischan=3,source='IRIS',
-                lamin= None, lamax= None, lomin= None, lomax= None, pressure_chan=None):
+def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
+                maxseischan=3,source='IRIS',lamin= None, lamax= None, \
+                lomin= None, lomax= None, pressure_chan=None):
     """
     Function to get station list with given parameters. It is a wrapper of the obspy function "get_stations()".
     it is a practical applicaiton of get_stations() for mass downloading.
+
+    ===PARAMETERS====
+    net_list,sta_list,chan_list: targeted station information, wildcards are accepted.
+    starttime,endtime: could be string (e.g., "2021_09_01_0_0_0") or obspy.UTCDateTime() objects.
+    fname: save station list to file. Not save if None (default). Returns a Pandas dataframe of the list if None.
+    maxseischan: default 3. this is used to avoid duplicates when, for example, both EH* and BH* channels are listed.
+                The funciton will search by order in chan_list, and stop when maximum seismic channels are found.
+                pressure channels are dealt with seperatedly.
+    source: obspy Client source. Check obspy for the list of viable sources. Default is "IRIS"
+    lamin, lamax,lomin,lomax: box region for the search. optional.
+    pressure_chan: list of pressure channels. This is used when counting the number of seismic channels. pressure channels
+                are not counted. we could avoid duplicates but still keep the channels we want.
     """
     sta = [];
     net = [];
@@ -324,10 +337,24 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
             the station information in stationinfo will overwrite the network,station, and channel,
             if specified individually.
     network,station,channel: those will be ignored if stationinfo is NOT None.
-    qc: When True, does QC to clean up the trace.
-    event: ObsPy Event object for earthquake data
+    source: obspy source name. default is "IRIS"
+    rawdatadir: directory to save the downloaded data. only needed when savetofile is True.
+    sacheader: default False. get sacheader or not. this is useful when you want to save data to sac later or check some metadata.
+    getstainv: default True. get station inventory. If true, funciton returns two variables: trlist,invlist
+    max_tries: defautl 10. will try multiple times incase there is server connection issue.
+    savetofile: default is False. Save to ASDF file if True.
+    pressure_chan: this is needed when downloading OBS data with pressure channel. this influences the output of
+            response removal. Use "VEL" for pressure channels to get comparable amplitudes as "DISP" for seismic channels.
+    samp_freq: downsample data to target sampling rate.
+    freqmin,freqmax: frequency range in removing response. default freqmin is 0.001.
+    rmresp: default True. remove response.
+    rmresp_out: default "DISP". use "VEL" for pressure chan.
+    respdir: directory containing response information. currently NOT used in this function.
+    qc: When True, does QC to clean up the trace. default True.
+    event: ObsPy Event object for earthquake data. the event qml data will be saved into ASDF.
     =============RETURNS============
     trlist: Obspy Stream containing all traces. Note that when savetofile is True, the return will be an empty Stream.
+    sta_inv_list: inventory list of the stations. Empty when getstainv is False.
     """
     ######################read in station information first.
     if stationinfo is not None:
@@ -598,6 +625,9 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
 
 def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,maxmag=10,
                     magstep=1.0,source="USGS",v=False):
+    """
+    Download event catalog within a box from USGS or ISC catalogs.
+    """
     #elist is a list of panda dataframes
     t0=time.time()
 
