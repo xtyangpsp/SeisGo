@@ -531,7 +531,11 @@ class CorrData(object):
             cdata=c.data.copy()
 
         self.time=np.concatenate((stime,ctime))
-        self.data=np.concatenate((sdata,cdata),axis=0)
+        try:
+            self.data=np.concatenate((sdata,cdata),axis=0)
+        except Exception as e:
+            print("error in merging. skipped.")
+            print(e)
 
         self.substack=True
 
