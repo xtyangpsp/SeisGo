@@ -15,20 +15,6 @@ from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
 
 ####
-def getdata(net,sta,starttime,endtime,source='IRIS',samp_freq=None,
-            rmresp=True,pre_filt=None,plot=False,debug=False,
-            sacheader=False,getstainv=False):
-    """
-    This is a fundtion designed to make the code compatible to older way of getting obs data.
-    It calls getobsdata().
-    """
-    print("**WARNING**: This is the old (deprecated) way of getting OBS data through calling getobsdata. "+
-        "Please call getobsdata() directly in the future!")
-    getobsdata(net,sta,starttime,endtime,source=source,samp_freq=samp_freq,
-                rmresp=rmresp,pre_filt=pre_filt,plot=plot,debug=debug,
-                sacheader=sacheader,getstainv=getstainv)
-
-
 def getobsdata(net,sta,starttime,endtime,pchan='HDH',source='IRIS',samp_freq=None,
             rmresp=True,pre_filt=None,plot=False,debug=False,
             sacheader=False,getstainv=False):
@@ -64,6 +50,11 @@ def getobsdata(net,sta,starttime,endtime,pchan='HDH',source='IRIS',samp_freq=Non
     sacheader : bool
             Key sacheader information in a dictionary using the SAC header naming convention.
     """
+
+    raise ValueError("This function is deprecated. Please use seisgo.downloaders.download()."+\
+                    "You can first use seisgo.downloaders.get_sta_list() to get a station list that "+\
+                    "can be used by download(). Most options should be the same, though check the "+\
+                    "funciton download() for updates.")
     client = Client(source)
     tr1, tr2, trZ, trP=[None for _ in range(4)]
 
