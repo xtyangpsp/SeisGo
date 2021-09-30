@@ -1299,10 +1299,13 @@ class DvvData(object):
         print("dist     :   "+str(self.dist))
         print("az       :   "+str(self.az))
         print("baz      :   "+str(self.baz))
-
-        if self.method is not None:
-            print("method   :  "+str(self.method))
+        print("window   :   "+str(self.window))
+        print("normalize:   "+str(self.normalize))
+        print("method   :  "+str(self.method))
+        print("stack    :  "+str(self.stack_method))
+        print("misc     :   "+str(self.misc))
         print("freq     :   "+str(self.freq))
+
         try:
             print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         except Exception as e:
@@ -1406,8 +1409,8 @@ class DvvData(object):
         figdir: directory to save figure. default is current directory.
         figname: figure name when save is True.
         """
-        nvdata=self.data1
-        pvdata=self.data2
+        nvdata=self.data1.copy()
+        pvdata=self.data2.copy()
         period=1/self.freq
         if cc_min is None:
             cc_min=-1.0

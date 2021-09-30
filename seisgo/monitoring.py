@@ -7,6 +7,7 @@ from obspy.signal.filter import bandpass
 from obspy import UTCDateTime
 from seisgo import types
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 
 '''
 This dvv module is written to realize the measurements of velocity perturbation dv/v. In general,
@@ -45,7 +46,7 @@ quick index of dv/v methods:
 ####
 def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
-            plot=False,savefig=False,figdir='.',save=False,outdir='.'):
+            plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,outdir='.',nproc=None):
     """
     Compute dvv with given corrdata object, with options to save dvvdata to file.
 
@@ -72,6 +73,8 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
         Othersie, it returns the dvvdata object. Default is False.
     outdir: this is the directory to save the dvvdata.
     """
+    if method.lower()!="wts":
+        raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
     # load stacked and sub-stacked waveforms
     cdata=corrdata.copy()
 
@@ -123,32 +126,52 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
         nref[ii] = np.flip(ref[:zero_indx+1])
     #######################
     ##### MONITORING #####
-    dvv_pos,dvv_neg,freqall_n,freqall_p,maxcc_p,maxcc_n=[],[],[],[],[],[]
-    # loop through each win again
-    for ii in range(nwin):
-        # casual and acasual lags for both ref and cur waveforms
-        print('working on window: '+str(UTCDateTime(cdata.time[ii]))+" ... "+str(ii+1)+"/"+str(nwin))
-        if method.lower()=="wts":
-            freq_p,dvv_p,dvv_error_p,cc_p,cdp_p = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
-                                                                     allfreq=subfreq,dvmax=dvmax)
-            freq_n,dvv_n,dvv_error_n,cc_n,cdp_n = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
-                                                                     allfreq=subfreq,dvmax=dvmax)
-        else:
-            raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
-        freqall_p.append(freq_p)
-        freqall_n.append(freq_n)
-        dvv_pos.append(dvv_p)
-        dvv_neg.append(dvv_n)
-        maxcc_p.append(cc_p)
-        maxcc_n.append(cc_n)
+    dvv_pos,dvv_neg,freqall,maxcc_p,maxcc_n,error_p,error_n=[],[],[],[],[],[],[]
+    if nproc is None or nproc<2: #regular loop
+        # loop through each win again
+        for ii in range(nwin):
+            # casual and acasual lags for both ref and cur waveforms
+            print('working on window: '+str(UTCDateTime(cdata.time[ii]))+" ... "+str(ii+1)+"/"+str(nwin))
+            if method.lower()=="wts":
+                freq_p,dvv_p,dvv_error_p,cc_p,cdp_p = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                                                                         allfreq=subfreq,dvmax=dvmax)
+                freq_n,dvv_n,dvv_error_n,cc_n,cdp_n = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                                                                             allfreq=subfreq,dvmax=dvmax)
+            else:
+                raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
+            if ii==0: freqall=freq_p
+            dvv_pos.append(dvv_p)
+            dvv_neg.append(dvv_n)
+            maxcc_p.append(cc_p)
+            maxcc_n.append(cc_n)
+            error_p.append(dvv_error_p)
+            error_n.append(dvv_error_n)
+    else: #use multiple processor for parallel preprocessing
+        #parallel
+        print('working on %d windows with %d workers.'%(nwin,nproc))
+        p=Pool(int(nproc))
+        presults=p.starmap(wts_dvv,[(pref[ii],pcur[ii],tvec_half,\
+                                    twin,freq,subfreq,dvmax) for ii in range(nwin)])
+        nresults=p.starmap(wts_dvv,[(nref[ii],ncur[ii],tvec_half,\
+                                    twin,freq,subfreq,dvmax) for ii in range(nwin)])
+        p.close()
+        for ii in range(nwin):
+            if ii==0: freqall=presults[ii][0]
+            dvv_pos.append(presults[ii][1])
+            dvv_neg.append(nresults[ii][1])
+            error_p.append(presults[ii][2])
+            error_n.append(nresults[ii][2])
+            maxcc_p.append(presults[ii][3])
+            maxcc_n.append(nresults[ii][3])
     #
     del pcur,ncur,pref,nref
-    #
     maxcc_p=np.array(maxcc_p)
     maxcc_n=np.array(maxcc_n)
-    dvvdata=types.DvvData(cdata,freq=freq_p,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
-                        method=method,stack_method=stack_method,data1=np.array(dvv_neg),
-                        data2=np.array(dvv_pos))
+    error_p=np.array(error_p)
+    error_n=np.array(error_n)
+    dvvdata=types.DvvData(cdata,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
+                        method=method,stack_method=stack_method,error1=error_n,error2=error_p,
+                        window=twin,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
     if save:
         dvvdata.to_asdf(outdir=outdir)
 
@@ -171,8 +194,8 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
                 cur[i,:]=bandpass(cur[i,:],freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
 
 
-        plt.figure(figsize=(8,6), facecolor = 'white')
-        ax0= plt.subplot(211)
+        fig=plt.figure(figsize=figsize, facecolor = 'white')
+        ax0= fig.add_subplot(8,1,(1,4))
         # 2D waveform matrix
         ax0.matshow(cur[:,disp_indx],cmap='seismic',extent=[tvec_disp[0],tvec_disp[-1],nwin,0],
                     aspect='auto')
@@ -188,11 +211,26 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
             np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'y', alpha=0.3)
         ax0.xaxis.set_ticks_position('bottom')
         # reference waveform
-        ax1 = plt.subplot(411)
+        ax1 = fig.add_subplot(8,1,(5,6))
         ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
         ax1.autoscale(enable=True, axis='x', tight=True)
         ax1.grid(True)
         ax1.legend(['reference'],loc='upper right')
+
+        # the cross-correlation coefficient
+        xticks=np.int16(np.linspace(0,nwin-1,6))
+        xticklabel=[]
+        for x in xticks:
+            xticklabel.append(str(UTCDateTime(cdata.time[x]))[:10])
+        ax2 = fig.add_subplot(8,1,(7,8))
+        ax2.plot(cdata.time,pcor_cc,'yo-',markersize=2,linewidth=1)
+        ax2.plot(cdata.time,ncor_cc,'co-',markersize=2,linewidth=1)
+        ax2.set_xticks(cdata.time[xticks])
+        ax2.set_xticklabels(xticklabel,fontsize=12)
+        # ax2.set_xticks(timestamp[0:nwin:tick_inc])
+        ax2.set_xlim([min(cdata.time),max(cdata.time)])
+        ax2.set_ylabel('cc coeff')
+        ax2.legend(['positive','negative'],loc='upper right')
 
         plt.tight_layout()
 
