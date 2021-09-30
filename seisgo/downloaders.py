@@ -43,6 +43,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,m
     if isinstance(net_list,str):net_list=[net_list]
     if isinstance(sta_list,str):sta_list=[sta_list]
     if isinstance(chan_list,str):chan_list=[chan_list]
+    if isinstance(pressure_chan,str):pressure_chan=[pressure_chan]
 
     for inet in net_list:
         for ista in sta_list:
@@ -369,6 +370,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     # if channel is None: channel = ['*']*len(station)
     if isinstance(channel, str): channel = [channel]
     if isinstance(network, str): network = [network]
+    if isinstance(pressure_chan,str):pressure_chan=[pressure_chan]
 
     pre_filt = set_filter(samp_freq, freqmin,freqmax)
 
