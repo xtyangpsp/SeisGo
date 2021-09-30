@@ -517,16 +517,21 @@ class CorrData(object):
         if self.id != c.id:
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
         if not self.substack:
-            self.time=np.reshape(self.time,(1))
-            self.data=np.reshape(self.data,(1,self.data.shape[0]))
-
+            stime=np.reshape(self.time.copy(),(1))
+            sdata=np.reshape(self.data.copy(),(1,self.data.shape[0]))
+        else:
+            stime=self.time.copy()
+            sdata=self.data.copy()
         if not c.substack:
-            c.time=np.reshape(c.time,(1))
+            ctime=np.reshape(c.time.copy(),(1))
             if np.ndim(c.data)==1:
-                c.data=np.reshape(c.data,(1,c.data.shape[0]))
+                cdata=np.reshape(c.data.copy(),(1,c.data.shape[0]))
+        else:
+            ctime=c.time.copy()
+            cdata=c.data.copy()
 
-        self.time=np.concatenate((self.time,c.time))
-        self.data=np.concatenate((self.data,c.data),axis=0)
+        self.time=np.concatenate((stime,ctime))
+        self.data=np.concatenate((sdata,cdata),axis=0)
 
         self.substack=True
 
@@ -585,10 +590,10 @@ class CorrData(object):
         cout=CorrData(net=self.net,sta=self.sta,loc=self.loc,chan=self.chan,\
                         lon=self.lon,lat=self.lat,ele=self.ele,cc_comp=self.cc_comp,lag=self.lag,\
                         dt=self.dt,cc_len=self.cc_len,cc_step=self.cc_step,dist=self.dist,az=self.az,\
-                        baz=self.baz,time=self.time,substack=self.substack,\
+                        baz=self.baz,time=self.time.copy(),substack=self.substack,\
                         side=self.side,misc=self.misc)
         if not dataless:
-            cout.data=self.data
+            cout.data=self.data.copy()
 
         return cout
 
