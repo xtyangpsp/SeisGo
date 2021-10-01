@@ -40,6 +40,10 @@ TYPES
 
 MONITORING
 1. Added get_dvv() as a wrapper to measure dvv with given CorrData object.
+2. Added extract_dvvdata() to extract DvvData object from a ASDF file.
+
+OBSMASTER
+1. Removed getdata() and deprecated getobsdata(). Data downloading is now handled all by downloaders.
 
 ==================================================================================
 ==================================================================================
