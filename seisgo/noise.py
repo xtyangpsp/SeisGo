@@ -998,10 +998,7 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                         side = para['side']
                     else:
                         side = "A"
-                    if substack:
-                        data = ds.auxiliary_data[spair][ipath].data[:,:]
-                    else:
-                        data = ds.auxiliary_data[spair][ipath].data[:]
+                    data = np.array(ds.auxiliary_data[spair][ipath].data)
                 except Exception:
                     print('continue! something wrong with %s %s'%(spair,ipath))
                     continue

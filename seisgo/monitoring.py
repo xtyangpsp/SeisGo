@@ -5,9 +5,10 @@ from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.regression import linear_regression
 from obspy.signal.filter import bandpass
 from obspy import UTCDateTime
-from seisgo import types
+from seisgo.types import DvvData
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
+import pyasdf
 
 '''
 This dvv module is written to realize the measurements of velocity perturbation dv/v. In general,
@@ -169,7 +170,7 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
     maxcc_n=np.array(maxcc_n)
     error_p=np.array(error_p)
     error_n=np.array(error_n)
-    dvvdata=types.DvvData(cdata,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
+    dvvdata=DvvData(cdata,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
                         method=method,stack_method=stack_method,error1=error_n,error2=error_p,
                         window=twin,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
     if save:
@@ -247,6 +248,84 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
 
     if not save: return dvvdata
 #
+def extract_dvvdata(sfile,pair=None,comp=['all']):
+    """
+    Extracts DvvData from ASDF file.
+
+    PARAMETERS:
+    --------------------------
+    dfile: ASDF file containing DvvData saved through DvvData.to_asdf().
+    pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.
+    comp: cross-correlation component or a list of components to extract, default is all components.
+
+    RETURN:
+    --------------------------
+    dvvdict: a dictionary that contains all extracted DvvData objects, which each key as the station
+                pair name. for each station pair, the dvvdata are saved as a list of DvvData objects.
+    USAGE:
+    --------------------------
+    extract_dvvdata('temp.h5',comp='ZZ')
+    """
+    #check help or not at the very beginning
+
+    # open data for read
+    if isinstance(pair,str): pair=[pair]
+    if isinstance(comp,str): comp=[comp]
+    dvvdict=dict()
+
+    try:
+        ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
+        # extract common variables
+        spairs_all = ds.auxiliary_data.list()
+    except Exception:
+        raise IOError("exit! cannot open %s to read"%sfile)
+    if pair is None: pair=spairs_all
+
+    for spair in list(set(pair) & set(spairs_all)):
+        ttr = spair.split('_')
+        snet,ssta = ttr[0].split('.')
+        rnet,rsta = ttr[1].split('.')
+        path_lists = ds.auxiliary_data[spair].list()
+        dvvdict[spair]=dict()
+        for ipath in path_lists:
+            schan,rchan = ipath.split('_')
+            cc_comp=schan[-1]+rchan[-1]
+            if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
+                try:
+                    para=ds.auxiliary_data[spair][ipath].parameters
+                    dt,dist,dist_unit,azi,baz,slon,slat,sele,rlon,rlat,rele,\
+                    window,stack_method,method,normalize,ttime,comp,freq,\
+                    net,sta,chan,side,cc1,cc2,maxcc1,maxcc2,error1,error2=\
+                        para['dt'],para['dist'],para['dist_unit'],para['azi'],para['baz'],\
+                        para['lonS'],para['latS'],para['eleS'],para['lonR'],para['latR'],para['eleR'],\
+                        para['window'],para['stack_method'],para['method'],para['normalize'],\
+                        para['time'],para['comp'],para['freq'],\
+                        para['net'],para['sta'],para['chan'],para['side'],para['cc1'],para['cc2'],\
+                        para['maxcc1'],para['maxcc2'],para['error1'],para['error2']
+
+                    if side.lower() == 'a':
+                        data1 = ds.auxiliary_data[spair][ipath].data[0].copy()
+                        data2 = ds.auxiliary_data[spair][ipath].data[1].copy()
+                    elif side.lower()=='n':
+                        data1 = ds.auxiliary_data[spair][ipath].data.copy()
+                        data2=None
+                    elif side.lower()=='p':
+                        data1=None
+                        data2 = ds.auxiliary_data[spair][ipath].data.copy()
+
+                except Exception:
+                    print('continue! something wrong with %s %s'%(spair,ipath))
+                    continue
+                dvvdict[spair][cc_comp]=DvvData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
+                                                chan=chan,lon=[slon,rlon],lat=[slat,rlat],
+                                                ele=[sele,rele],cc_comp=comp,dt=dt,dist=dist,
+                                                dist_unit=dist_unit,az=azi,baz=baz,time=ttime,normalize=normalize,
+                                                freq=freq,cc1=cc1,cc2=cc2,maxcc1=maxcc1,maxcc2=maxcc2,
+                                                error1=error1,error2=error2,window=window,
+                                                stack_method=stack_method,method=method,
+                                                data1=data1,data2=data2)
+    return dvvdict
+
 def wcc_dvv(ref, cur, moving_window_length, slide_step, para):
     """
     Windowed cross correlation (WCC) for dt or dv/v mesurement (Snieder et al. 2012)
