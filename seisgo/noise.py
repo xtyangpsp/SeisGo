@@ -998,6 +998,11 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                         side = para['side']
                     else:
                         side = "A"
+                    ##special handling of time, in case time_mean is saved to reduce the attribute memory_size
+                    if "time_mean" in list(para.keys()):
+                        tmean=para["time_mean"]
+                        ttime = np.float64(ttime) + tmean
+
                     data = np.array(ds.auxiliary_data[spair][ipath].data)
                 except Exception:
                     print('continue! something wrong with %s %s'%(spair,ipath))

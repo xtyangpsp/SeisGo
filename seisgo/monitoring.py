@@ -303,6 +303,12 @@ def extract_dvvdata(sfile,pair=None,comp=['all']):
                         para['net'],para['sta'],para['chan'],para['side'],para['cc1'],para['cc2'],\
                         para['maxcc1'],para['maxcc2'],para['error1'],para['error2']
 
+                    ##special handling of time, in case time_mean is saved to reduce
+                    #the attribute memory_size
+                    if "time_mean" in list(para.keys()):
+                        tmean=para["time_mean"]
+                        ttime = np.float64(ttime) + tmean
+
                     if side.lower() == 'a':
                         data1 = ds.auxiliary_data[spair][ipath].data[0].copy()
                         data2 = ds.auxiliary_data[spair][ipath].data[1].copy()
