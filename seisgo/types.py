@@ -639,15 +639,15 @@ class CorrData(object):
                     ds = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
                     if nstacks==1: ds=cc_array
                     else:
-                        if method == 'linear':
+                        if method.lower() == 'linear':
                             ds = np.mean(cc_array,axis=0)
-                        elif method == 'pws':
+                        elif method.lower() == 'pws':
                             ds = stacking.pws(cc_array,1.0/self.dt)
-                        elif method == 'robust':
+                        elif method.lower() == 'robust':
                             ds = stacking.robust_stack(cc_array)[0]
-                        elif method == 'acf':
+                        elif method.lower() == 'acf':
                             ds = stacking.adaptive_filter(cc_array,1)
-                        elif method == 'nroot':
+                        elif method.lower() == 'nroot':
                             ds = stacking.nroot_stack(cc_array,2)
                     if overwrite:
                         #overwrite the data attribute.
@@ -683,15 +683,15 @@ class CorrData(object):
                             # do stacking
                             if nstacks==1: dstack=cc_array
                             else:
-                                if method == 'linear':
+                                if method.lower() == 'linear':
                                     dstack = np.mean(cc_array,axis=0)
-                                elif method == 'pws':
+                                elif method.lower() == 'pws':
                                     dstack = stacking.pws(cc_array,1.0/self.dt)
-                                elif method == 'robust':
+                                elif method.lower() == 'robust':
                                     dstack = stacking.robust_stack(cc_array)[0]
-                                elif method == 'acf':
+                                elif method.lower() == 'acf':
                                     dstack = stacking.adaptive_filter(cc_array,1)
-                                elif method == 'nroot':
+                                elif method.lower() == 'nroot':
                                     dstack = stacking.nroot_stack(cc_array,2)
 
                             ds[i,:]=dstack
