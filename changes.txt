@@ -2,6 +2,8 @@ Updates in v0.6.4
 TYPES:
 1. Check lower case only for method in CorrData.stack()
 
+UTILS:
+1. Minor bug fixes in read_gmtlines()
 
 ==================================================================
 Updates in v0.6.3.1

@@ -163,11 +163,11 @@ def read_gmtlines(file,comment="#",segment=">"):
                 if len(data)>0:dall.append(np.array(data))
                 data=[]
             else:
-                if line.find("\t"):
+                if line.find("\t") >0:
                     cols = line.split("\t")
                 else:
                     cols = line.split(" ")
-                data.append([float(i) for i in cols])
+                data.append([float(i) for i in cols if len(i)>0 ])
         dall.append(np.array(data))
 
     return dall,tags
