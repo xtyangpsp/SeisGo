@@ -172,7 +172,7 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
     error_n=np.array(error_n)
     dvvdata=DvvData(cdata,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
                         method=method,stack_method=stack_method,error1=error_n,error2=error_p,
-                        window=twin,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
+                        window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
     if save:
         dvvdata.to_asdf(outdir=outdir)
 

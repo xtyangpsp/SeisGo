@@ -1418,7 +1418,7 @@ class DvvData(object):
             dvv_ds.add_auxiliary_data(data=odata, data_type=netsta_pair, path=chan_pair, parameters=parameters)
         if v: print('DvvData saved to: '+outdir+'/'+file)
     ##plot
-    def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,figdir='.',figname=None):
+    def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,figdir='.',format='png',figname=None):
         """
         Plot DvvData.
 
@@ -1475,7 +1475,7 @@ class DvvData(object):
             plt.ylim(ylim)
         plt.yticks(fontsize=12)
         plt.colorbar(label='dv/v (%)')
-        ax3.set_title('Seismic velocity change: positive',fontsize=14)
+        ax3.set_title('dv/v:'+self.id+':'+':negative:'+str(cc_min),fontsize=14)
         ax3.invert_yaxis()
 
         dvv_array = nvdata.T
@@ -1492,7 +1492,7 @@ class DvvData(object):
             plt.ylim(ylim)
         plt.yticks(fontsize=12)
         plt.colorbar(label='dv/v (%)')
-        ax4.set_title('Seismic velocity change: negative',fontsize=14)
+        ax4.set_title('dv/v:'+self.id+':'+':negative:'+str(cc_min),fontsize=14)
         ax4.invert_yaxis()
         plt.tight_layout()
 
