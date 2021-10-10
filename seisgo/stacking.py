@@ -7,15 +7,21 @@ import time
 import numpy as np
 from scipy.signal import hilbert
 from scipy.fftpack import fft,ifft,next_fast_len
+"""
+Modified from NoisePy stacking functions. Originally written by Chengxin Jiang and Marine Donolle.
 
-def robust_stack(cc_array,epsilon=1E-5):
+Adapted for SeisGo by Xiaotao Yang
+TO-DO: add time window indices option.
+"""
+def robust_stack(cc_array,epsilon=1E-5,maxstep=10):
     """
     this is a robust stacking algorithm described in Palvis and Vernon 2010
 
     PARAMETERS:
     ----------------------
     cc_array: numpy.ndarray contains the 2D cross correlation matrix
-    epsilon: residual threhold to quit the iteration
+    epsilon: residual threhold to quit the iteration (a small number). Default 1E-5
+    maxstep: maximum iterations. default 10.
     RETURNS:
     ----------------------
     newstack: numpy vector contains the stacked cross correlation
@@ -27,7 +33,7 @@ def robust_stack(cc_array,epsilon=1E-5):
     w = np.ones(cc_array.shape[0])
     nstep=0
     newstack = np.median(cc_array,axis=0)
-    while res > epsilon:
+    while res > epsilon and nstep <=maxstep:
         stack = newstack
         for i in range(cc_array.shape[0]):
             crap = np.multiply(stack,cc_array[i,:].T)
@@ -41,10 +47,8 @@ def robust_stack(cc_array,epsilon=1E-5):
         newstack =np.sum( (w*cc_array.T).T,axis=0)#/len(cc_array[:,1])
         res = np.linalg.norm(newstack-stack,ord=1)/np.linalg.norm(newstack)/len(cc_array[:,1])
         nstep +=1
-        if nstep>10:
-            return newstack, w, nstep
-    return newstack, w, nstep
 
+    return newstack, w, nstep
 
 def adaptive_filter(arr,g):
     '''
@@ -131,8 +135,7 @@ def pws(arr,sampling_rate,power=2,pws_timegate=5.):
     weighted = np.multiply(arr,phase_stack)
     return np.mean(weighted,axis=0)
 
-
-def nroot_stack(cc_array,power):
+def nroot_stack(cc_array,power=2):
     '''
     this is nth-root stacking algorithm translated based on the matlab function
     from https://github.com/xtyangpsp/SeisStack (by Xiaotao Yang; follows the
@@ -141,7 +144,7 @@ def nroot_stack(cc_array,power):
     Parameters:
     ------------
     cc_array: numpy.ndarray contains the 2D cross correlation matrix
-    power: np.int, nth root for the stacking
+    power: np.int, nth root for the stacking. Default is 2.
 
     Returns:
     ------------
