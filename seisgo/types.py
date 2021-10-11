@@ -912,7 +912,7 @@ class CorrData(object):
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.
         if sys.getsizeof(self.time)/1024 > 64: #64k is the limit of HDF attribute.
-            parameters['time']=np.float32(np.mean(self.time))
+            parameters['time']=np.float32(self.time-np.mean(self.time))
             parameters['time_mean']=np.mean(self.time)
 
         with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
@@ -1411,7 +1411,7 @@ class DvvData(object):
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.
         if sys.getsizeof(self.time)/1024 > 64: #64k is the limit of HDF attribute.
-            parameters['time']=np.float32(np.mean(self.time))
+            parameters['time']=np.float32(self.time-np.mean(self.time))
             parameters['time_mean']=np.mean(self.time)
 
         with pyasdf.ASDFDataSet(outdir+'/'+file,mpi=False) as dvv_ds:
