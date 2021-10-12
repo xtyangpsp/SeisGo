@@ -1,6 +1,5 @@
 import os
 import sys
-import glob
 import obspy
 import scipy
 import pyasdf
@@ -9,7 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
-from seisgo import noise, stacking
+from seisgo import noise, stacking,utils
 import pygmt as gmt
 from obspy import UTCDateTime
 
@@ -87,6 +86,54 @@ def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="f
     fig.savefig(figname)
     print('plot was saved to: '+figname)
 
+##plot power spectral density
+def plot_psd(data,dt,labels=None,cmap='jet',normalize=True,figsize=(13,5),\
+            save=False,figname=None):
+    """
+    Plot the power specctral density of the data array.
+
+    =PARAMETERS=
+    data: 2-D array containing the data. the data to be plotted should be on axis 1 (second dimention)
+    dt: sampling inverval in time.
+    labels: row labels of the data, default is None.
+    cmap: colormap, default is 'jet'
+    time_format: format to show time marks, default is: '%Y-%m-%dT%H'
+    normalize: whether normalize the PSD in plotting, default is True
+    figsize: figure size, default: (13,5)
+    """
+    data=np.array(data)
+    if data.ndim != 2:
+        raise ValueError('only plot 2d matrix for now. the input data has a dimention of %d'%(data.ndim))
+    plt.figure(figsize=figsize)
+    ax=plt.subplot(111)
+    nwin=data.shape[0]
+    if nwin>10:
+        tick_inc = int(nwin/5)
+    else:
+        tick_inc = 2
+    f,psd=utils.psd(data,1/dt)
+    f=f[1:]
+    psdN=np.ndarray((psd.shape[0],psd.shape[1]-1))
+    for i in range(psd.shape[0]):
+        if normalize: psdN[i,:]=psd[i,1:]/np.max(np.abs(psd[i,1:]))
+        else: psdN[i,:]=psd[i,1:]
+
+    plt.imshow(psdN,aspect='auto',extent=[f.min(),f.max(),psdN.shape[0],0],cmap=cmap)
+    plt.xscale('log')
+    ax.set_yticks(np.arange(0,nwin,step=tick_inc))
+    if labels is not None: ax.set_yticklabels(labels[0:nwin:tick_inc])
+    if normalize: plt.colorbar(label='normalized PSD')
+    else: plt.colorbar(label='PSD')
+    plt.xlabel('frequency (Hz)')
+    plt.title('PSD')
+
+    if save:
+        if figname is not None:
+            plt.savefig(figname)
+        else:
+            plt.savefig("PSD.png")
+    else:
+        plt.show()
 #############################################################################
 ############### PLOTTING RAW SEISMIC WAVEFORMS ##########################
 #############################################################################

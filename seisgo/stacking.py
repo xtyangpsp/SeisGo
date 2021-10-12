@@ -11,8 +11,8 @@ from scipy.fftpack import fft,ifft,next_fast_len
 Modified from NoisePy stacking functions. Originally written by Chengxin Jiang and Marine Donolle.
 
 Adapted for SeisGo by Xiaotao Yang
-TO-DO: add time window indices option.
 """
+
 def robust_stack(cc_array,epsilon=1E-5,maxstep=10):
     """
     this is a robust stacking algorithm described in Palvis and Vernon 2010
