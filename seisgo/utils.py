@@ -1156,6 +1156,30 @@ def calculate_windowed_fft(a, fs, ws, ss=None, wind=None,getindex=False,full_len
     else:
         return ft, f
 
+def psd(d,s,axis=-1):
+    """
+    Compute power spectral density. The power spectrum is normalized by
+    frequency resolution.
+
+    ====PARAMETERS====
+    d: numpy ndarray containing the data.
+    s: sampling frequency (samples per second)
+    axis: axis to computer PSD. default is the last dimension (-1).
+
+    ====RETURNS=======
+    f: frequency array
+    psd: power spectral density
+    """
+    if isinstance(d,list):d=np.array(d)
+    if d.ndim >2:
+        print('data has >2 dimension. skip demean.')
+    else:
+        d=detrend(demean(d))
+
+    ft=fft(d,axis=axis)
+    psd=np.square(np.abs(ft))/s
+    f=np.linspace(0, s/2, psd.shape[-1])
+    return f,psd
 
 def plot_slidingwindows(duration=3600*6,fs=20,window=7200,
                         overlaps=[None,0.1,0.1,0.2,0.2,0.3],
@@ -1592,12 +1616,14 @@ def detrend(data):
             data[ii] = data[ii] - np.dot(X,coeff)
     return data
 
-def demean(data):
+def demean(data,axis=-1):
     '''
     this function remove the mean of the signal
     PARAMETERS:
     ---------------------
     data: input data matrix
+    axis: axis to operate.
+
     RETURNS:
     ---------------------
     data: data matrix with mean removed
@@ -1606,8 +1632,13 @@ def demean(data):
     if data.ndim == 1:
         data = data-np.mean(data)
     elif data.ndim == 2:
+        m=np.mean(data,axis=axis)
         for ii in range(data.shape[0]):
-            data[ii] = data[ii]-np.mean(data[ii])
+            if axis==-1:
+                data[ii] = data[ii]-m[ii]
+            else:
+                data[:,ii] = data[:,ii]-m[ii]
+
     return data
 
 def taper(data,fraction=0.05,maxlen=20):

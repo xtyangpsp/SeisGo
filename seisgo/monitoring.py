@@ -45,7 +45,7 @@ quick index of dv/v methods:
 '''
 
 ####
-def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
+def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
             plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,outdir='.',nproc=None):
     """
@@ -55,6 +55,7 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
     corrdata: CorrData object that stores the correlaiton result.
     freq: minimum and maximum frequencies for dvv measurements.
     win: window length for dvv measurements.
+    ref: reference trace/stack. default is None (will get by stacking all in the data)
     dvmax: maximum dvv searching range. default: 0.05 (5%).
     vmin: minimum velocity for the main phase, only considered in cross-correlations between
         two stations. default 1.0 km/s.
@@ -80,7 +81,7 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
     cdata=corrdata.copy()
 
     cdata.stack(resolution)
-    ref=cdata.stack(method=stack_method,overwrite=False)
+    if ref is None: ref=cdata.stack(method=stack_method,overwrite=False)
 
     nwin=cdata.data.shape[0]
 
@@ -178,7 +179,7 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
 
     ######plotting
     if plot:
-        disp_indx = np.where(np.abs(tvec_all)<=np.max(twin)+10)[0]
+        disp_indx = np.where(np.abs(tvec_all)<=np.max(twin)+0.2*win)[0]
         tvec_disp=tvec_all[disp_indx]
         # tick inc for plotting
         if nwin>100:
@@ -216,7 +217,7 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
         ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
         ax1.autoscale(enable=True, axis='x', tight=True)
         ax1.grid(True)
-        ax1.legend(['reference'],loc='upper right')
+        ax1.legend(['stack: '+stack_method],loc='upper right')
 
         # the cross-correlation coefficient
         xticks=np.int16(np.linspace(0,nwin-1,6))
@@ -224,14 +225,14 @@ def get_dvv(corrdata,freq,win,stack_method='linear',offset=1.0,resolution=None,
         for x in xticks:
             xticklabel.append(str(UTCDateTime(cdata.time[x]))[:10])
         ax2 = fig.add_subplot(8,1,(7,8))
-        ax2.plot(cdata.time,pcor_cc,'yo-',markersize=2,linewidth=1)
-        ax2.plot(cdata.time,ncor_cc,'co-',markersize=2,linewidth=1)
+        ax2.plot(cdata.time,ncor_cc,'yo-',markersize=2,linewidth=1)
+        ax2.plot(cdata.time,pcor_cc,'co-',markersize=2,linewidth=1)
         ax2.set_xticks(cdata.time[xticks])
         ax2.set_xticklabels(xticklabel,fontsize=12)
         # ax2.set_xticks(timestamp[0:nwin:tick_inc])
         ax2.set_xlim([min(cdata.time),max(cdata.time)])
         ax2.set_ylabel('cc coeff')
-        ax2.legend(['positive','negative'],loc='upper right')
+        ax2.legend(['negative','positive'],loc='upper right')
 
         plt.tight_layout()
 

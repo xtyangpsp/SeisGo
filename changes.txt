@@ -1,9 +1,15 @@
 Updates in v0.6.4
 TYPES:
 1. Check lower case only for method in CorrData.stack()
+2. Bugs and improvements in DvvData and CorrData to save large attribute to asdf
+3. Added psd() method in CorrData to plot psd of the CorrData result.
+
+PLOTTING:
+1. Added plot_psd() to plot the psd of an array (works with 2-d array only for now.)
 
 UTILS:
 1. Minor bug fixes in read_gmtlines()
+2. Added psd() to get the power spectral density of an array
 
 ==================================================================
 Updates in v0.6.3.1

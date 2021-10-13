@@ -734,7 +734,7 @@ class CorrData(object):
             side=self.side
         except Exception as e:
             side="A"
-        if side.lower()=="A" or side.lower()=="a":
+        if side.lower()=="a":
             if verbose: print("Splitting negative and positive sides.")
         else:
             print("side attribute is %s. Only splits when side is A."%(self.side))
@@ -912,7 +912,7 @@ class CorrData(object):
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.
         if sys.getsizeof(self.time)/1024 > 64: #64k is the limit of HDF attribute.
-            parameters['time']=np.float32(np.mean(self.time))
+            parameters['time']=np.float32(self.time-np.mean(self.time))
             parameters['time_mean']=np.mean(self.time)
 
         with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
@@ -1201,6 +1201,66 @@ class CorrData(object):
         ##
         if get_stack:
             return tstack,dreturn
+
+    ####
+    def psd(self,cmap='jet',time_format='%Y-%m-%dT%H',normalize=True,figsize=(13,5)):
+        """
+        Plot the power specctral density of corrdata.data.
+
+        =PARAMETERS=
+        cmap: colormap, default is 'jet'
+        time_format: format to show time marks, default is: '%Y-%m-%dT%H'
+        normalize: whether normalize the PSD in plotting, default is True
+        figsize: figure size, default: (13,5)
+        """
+        dt=self.dt
+        if self.side.lower() == 'a':
+            cdatan,cdatap=self.split()
+            nplot=2
+        elif self.side.lower() =='n':
+            cdatan=self.copy()
+            cdatap=None
+            nplot=1
+        else:
+            cdatap=self.copy()
+            cdatan=None
+            nplot=1
+
+        plt.figure(figsize=figsize)
+        cdata_all=[cdatan,cdatap]
+        for ii,cdata in enumerate(cdata_all):
+            if cdata is not None:
+                if nplot==1:ax=plt.subplot(1,nplot,1)
+                else:ax=plt.subplot(1,nplot,ii+1)
+
+                data=cdata.data
+                ydata=cdata.time
+                nwin=data.shape[0]
+                if nwin>10:
+                    tick_inc = int(nwin/5)
+                else:
+                    tick_inc = 2
+                f,p=utils.psd(data,1/dt)
+                f=f[1:]
+                psdN=np.ndarray((p.shape[0],p.shape[1]-1))
+                tmarks=[]
+                for i in range(p.shape[0]):
+                    if normalize: psdN[i,:]=p[i,1:]/np.max(np.abs(p[i,1:]))
+                    else: psdN[i,:]=p[i,1:]
+                    tmarks.append(obspy.UTCDateTime(ydata[i]).strftime(time_format))
+
+                plt.imshow(psdN,aspect='auto',extent=[f.min(),f.max(),psdN.shape[0],0],cmap=cmap)
+                # plt.yscale('log')
+                plt.xscale('log')
+                ax.set_yticks(np.arange(0,nwin,step=tick_inc))
+                ax.set_yticklabels(tmarks[0:nwin:tick_inc])
+                if normalize: plt.colorbar(label='normalized PSD')
+                else: plt.colorbar(label='PSD')
+                plt.xlabel('frequency (Hz)')
+                plt.title('PSD:'+cdata.id+':'+str(round(cdata.dist,2))+' km:'+cdata.side)
+
+        plt.tight_layout()
+        plt.show()
 class DvvData(object):
     """
     Object to store dv/v (seismic velocity change) data. This object can be initiated by directly assigning
@@ -1411,7 +1471,7 @@ class DvvData(object):
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.
         if sys.getsizeof(self.time)/1024 > 64: #64k is the limit of HDF attribute.
-            parameters['time']=np.float32(np.mean(self.time))
+            parameters['time']=np.float32(self.time-np.mean(self.time))
             parameters['time_mean']=np.mean(self.time)
 
         with pyasdf.ASDFDataSet(outdir+'/'+file,mpi=False) as dvv_ds:
@@ -1455,7 +1515,7 @@ class DvvData(object):
         for x in xticks:
             xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
         # dv/v at each filtered frequency band
-        dvv_array = pvdata.T
+        dvv_array = nvdata.T
         yrange=[np.log2(period.min()),np.log2(period.max())]
         extent=(0,nwin,yrange[1],yrange[0])
         ax3 = plt.subplot(211)
@@ -1475,10 +1535,10 @@ class DvvData(object):
             plt.ylim(ylim)
         plt.yticks(fontsize=12)
         plt.colorbar(label='dv/v (%)')
-        ax3.set_title('dv/v:'+self.id+':'+':negative:'+str(cc_min),fontsize=14)
+        ax3.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
         ax3.invert_yaxis()
 
-        dvv_array = nvdata.T
+        dvv_array = pvdata.T
         ax4 = plt.subplot(212)
         plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
         plt.ylabel('frequency (Hz)',fontsize=12)
@@ -1492,7 +1552,7 @@ class DvvData(object):
             plt.ylim(ylim)
         plt.yticks(fontsize=12)
         plt.colorbar(label='dv/v (%)')
-        ax4.set_title('dv/v:'+self.id+':'+':negative:'+str(cc_min),fontsize=14)
+        ax4.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
         ax4.invert_yaxis()
         plt.tight_layout()
 
