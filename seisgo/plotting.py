@@ -12,8 +12,8 @@ from seisgo import noise, stacking,utils
 import pygmt as gmt
 from obspy import UTCDateTime
 
-def plot_eventsequence(cat,figsize=(12,4),minmag=None,figname=None,
-                       yrange=None,save=False):
+def plot_eventsequence(cat,figsize=(12,4),ytype='magnitude',figname=None,
+                       yrange=None,save=False,stem=True):
     if isinstance(cat,obspy.core.event.catalog.Catalog):
         cat=pd.DataFrame(utils.qml2list(cat))
     elif isinstance(cat,list):
@@ -21,27 +21,44 @@ def plot_eventsequence(cat,figsize=(12,4),minmag=None,figname=None,
     #All magnitudes greater than or equal to the limit will be plotted
 
     plt.figure(figsize=figsize)
-    plt.title("Mag. vs Time")
+    plt.title(ytype+" vs. time")
     plt.xlabel("Date (UTC)")
-    plt.ylabel("Magnitude")
+    plt.ylabel(ytype)
 
-    if minmag is not None:
-        cat2=cat[cat.magnitude>=minmag]
+    if yrange is not None:
+        ymin,ymax=yrange
+        if ytype.lower()=="magnitude":
+            cat2=cat[(cat.magnitude>=yrange[0]) & (cat.magnitude<=yrange[1]) ]
+        elif ytype.lower()=="depth":
+            cat2=cat[(cat.depth>=yrange[0]) & (cat.depth<=yrange[1]) ]
     else:
         cat2=cat
+        if ytype.lower()=="magnitude":
+            ymin=np.min(cat2.magnitude)*0.9
+            ymax=np.max(cat2.magnitude)*1.1
+        elif ytype.lower()=="depth":
+            ymin=np.min(cat2.depth)*0.9
+            ymax=np.max(cat2.depth)*1.1
     t=[]
     for i in range(len(cat2)):
-        tTime=UTCDateTime(cat2.datetime[i])
+        tTime=obspy.UTCDateTime(cat2.iloc[i]["datetime"])
         t.append(tTime.datetime)
-    if yrange is None:
-        ymin=np.min(cat2.magnitude)*0.9
-        ymax=np.max(cat2.magnitude)*1.1
+
+    if stem:
+        if ytype.lower()=="magnitude":
+            markerline, stemlines, baseline=plt.stem(t,cat2.magnitude,linefmt='k-',markerfmt="o",
+                                                     bottom=ymin)
+        elif ytype.lower()=="depth":
+            markerline, stemlines, baseline=plt.stem(t,cat2.depth,linefmt='k-',markerfmt="o",
+                                                     bottom=ymin)
+        markerline.set_markerfacecolor('r')
+        markerline.set_markeredgecolor('r')
     else:
-        ymin,ymax=yrange
-    markerline, stemlines, baseline=plt.stem(t,cat2.magnitude,linefmt='k-',markerfmt="o",
-                                             bottom=ymin)
-    markerline.set_markerfacecolor('r')
-    markerline.set_markeredgecolor('r')
+        if ytype.lower()=="magnitude":
+            plt.scatter(t,cat2.magnitude,5,'k')
+        elif ytype.lower()=="depth":
+            plt.scatter(t,cat2.depth,cat2.magnitude,'k')
+
         #
     plt.grid(axis="both")
     plt.ylim([ymin,ymax])
@@ -50,7 +67,7 @@ def plot_eventsequence(cat,figsize=(12,4),minmag=None,figname=None,
         if figname is not None:
             plt.savefig(figname)
         else:
-            plt.savefig("MagVsTime.png")
+            plt.savefig(ytype+"_vs_time.png")
     else:
         plt.show()
 
@@ -87,8 +104,8 @@ def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="f
     print('plot was saved to: '+figname)
 
 ##plot power spectral density
-def plot_psd(data,dt,labels=None,cmap='jet',normalize=True,figsize=(13,5),\
-            save=False,figname=None):
+def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(13,5),\
+            save=False,figname=None,tick_inc=None):
     """
     Plot the power specctral density of the data array.
 
@@ -102,28 +119,41 @@ def plot_psd(data,dt,labels=None,cmap='jet',normalize=True,figsize=(13,5),\
     figsize: figure size, default: (13,5)
     """
     data=np.array(data)
-    if data.ndim != 2:
-        raise ValueError('only plot 2d matrix for now. the input data has a dimention of %d'%(data.ndim))
-    plt.figure(figsize=figsize)
-    ax=plt.subplot(111)
-    nwin=data.shape[0]
-    if nwin>10:
-        tick_inc = int(nwin/5)
-    else:
-        tick_inc = 2
+    if data.ndim > 2:
+        raise ValueError('only plot 1-d arrya or 2d matrix for now. the input data has a dimention of %d'%(data.ndim))
+
     f,psd=utils.psd(data,1/dt)
     f=f[1:]
-    psdN=np.ndarray((psd.shape[0],psd.shape[1]-1))
-    for i in range(psd.shape[0]):
-        if normalize: psdN[i,:]=psd[i,1:]/np.max(np.abs(psd[i,1:]))
-        else: psdN[i,:]=psd[i,1:]
 
-    plt.imshow(psdN,aspect='auto',extent=[f.min(),f.max(),psdN.shape[0],0],cmap=cmap)
+    plt.figure(figsize=figsize)
+    ax=plt.subplot(111)
+    if data.ndim==2:
+        nwin=data.shape[0]
+        if tick_inc is None:
+            if nwin>10:
+                tick_inc = int(nwin/5)
+            else:
+                tick_inc = 2
+
+        psdN=np.ndarray((psd.shape[0],psd.shape[1]-1))
+        for i in range(psd.shape[0]):
+            if normalize: psdN[i,:]=psd[i,1:]/np.max(np.abs(psd[i,1:]))
+            else: psdN[i,:]=psd[i,1:]
+
+        plt.imshow(psdN,aspect='auto',extent=[f.min(),f.max(),psdN.shape[0],0],cmap=cmap)
+        ax.set_yticks(np.arange(0,nwin,step=tick_inc))
+        if labels is not None: ax.set_yticklabels(labels[0:nwin:tick_inc])
+        if normalize: plt.colorbar(label='normalized PSD')
+        else: plt.colorbar(label='PSD')
+    else:
+        if normalize: psdN=psd[1:]/np.max(np.abs(psd[1:]))
+        else: psdN[i,:]=psd[1:]
+
+        plt.plot(f,psdN)
+    if xrange is None:plt.xlim([f[1],f[-1]])
+    else:
+        plt.xlim(xrange)
     plt.xscale('log')
-    ax.set_yticks(np.arange(0,nwin,step=tick_inc))
-    if labels is not None: ax.set_yticklabels(labels[0:nwin:tick_inc])
-    if normalize: plt.colorbar(label='normalized PSD')
-    else: plt.colorbar(label='PSD')
     plt.xlabel('frequency (Hz)')
     plt.title('PSD')
 

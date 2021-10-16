@@ -368,6 +368,60 @@ class FFTData(object):
                         std=std,time=time,Nfft=f1.Nfft,data=data,freqmin=f1.freqmin,freqmax=f1.freqmax,
                         time_norm=f1.time_norm,freq_norm=f1.freq_norm,smooth=f1.smooth,
                         smooth_spec=f1.smooth_spec,misc=f1.misc,df=f1.df)
+    def plot(self,xrange=None,time_format='%Y-%m-%dT%H',db=True,normalize=True,cmap='jet',figsize=(6,4)):
+        """
+        Plot amplitude spectrum of the FFTData.
+
+        ====PARAMETERS====
+        Default options:
+        time_format='%Y-%m-%dT%H'
+        db=True
+        normalize=True
+        cmap='jet'
+        figsize=(6,4)
+        """
+        ydata=self.time
+        dt=self.dt
+        Nfft2=int(self.Nfft/2)
+        nwin=self.data.shape[0]
+        if nwin>10:
+            tick_inc = int(nwin/5)
+        else:
+            tick_inc = 2
+        f=np.linspace(0,0.5/dt,Nfft2)
+        if db:
+            amp=10*np.log10(np.abs(self.data[:Nfft2]))
+        else:
+            amp=np.abs(self.data[:Nfft2])
+        normalize=False
+        ampN=np.ndarray((amp.shape[0],amp.shape[1]))
+        tmarks=[]
+        for i in range(amp.shape[0]):
+            if normalize: psdN[i,:]=amp[i,:]/np.max(np.abs(amp[i,:]))
+            else: ampN[i,:]=amp[i,:]
+            tmarks.append(obspy.UTCDateTime(ydata[i]).strftime(time_format))
+        plt.figure(figsize=figsize)
+        ax=plt.subplot(111)
+        plt.imshow(ampN,aspect='auto',extent=[f.min(),f.max(),ampN.shape[0],0],cmap=cmap)
+        plt.xscale('log')
+        if xrange is not None:
+            plt.xlim(xrange)
+        else:
+            plt.xlim([f[1],f[-1]])
+        plt.xlabel('frequency (Hz)')
+        ax.set_yticks(np.arange(0,nwin,tick_inc))
+        ax.set_yticklabels(tmarks[0:nwin:tick_inc])
+        if normalize:
+            if db:
+                plt.colorbar(label='normalized amplitudes (dB)')
+            else:
+                plt.colorbar(label='normalized amplitudes')
+        else:
+            if db:
+                plt.colorbar(label='amplitudes (dB)')
+            else:
+                plt.colorbar(label='amplitudes')
+        plt.show()
 
 class CorrData(object):
     """
@@ -1203,7 +1257,7 @@ class CorrData(object):
             return tstack,dreturn
 
     ####
-    def psd(self,cmap='jet',time_format='%Y-%m-%dT%H',normalize=True,figsize=(13,5)):
+    def psd(self,cmap='jet',xrange=None,time_format='%Y-%m-%dT%H',normalize=True,figsize=(13,5)):
         """
         Plot the power specctral density of corrdata.data.
 
@@ -1241,16 +1295,18 @@ class CorrData(object):
                 else:
                     tick_inc = 2
                 f,p=utils.psd(data,1/dt)
-                f=f[1:]
-                psdN=np.ndarray((p.shape[0],p.shape[1]-1))
+                psdN=np.ndarray((p.shape[0],p.shape[1]))
                 tmarks=[]
                 for i in range(p.shape[0]):
-                    if normalize: psdN[i,:]=p[i,1:]/np.max(np.abs(p[i,1:]))
-                    else: psdN[i,:]=p[i,1:]
+                    if normalize: psdN[i,:]=p[i,:]/np.max(np.abs(p[i,:]))
+                    else: psdN[i,:]=p[i,:]
                     tmarks.append(obspy.UTCDateTime(ydata[i]).strftime(time_format))
 
                 plt.imshow(psdN,aspect='auto',extent=[f.min(),f.max(),psdN.shape[0],0],cmap=cmap)
                 # plt.yscale('log')
+                if xrange is None:plt.xlim([f[1],f[-1]])
+                else:
+                    plt.xlim(xrange)
                 plt.xscale('log')
                 ax.set_yticks(np.arange(0,nwin,step=tick_inc))
                 ax.set_yticklabels(tmarks[0:nwin:tick_inc])
@@ -1478,7 +1534,8 @@ class DvvData(object):
             dvv_ds.add_auxiliary_data(data=odata, data_type=netsta_pair, path=chan_pair, parameters=parameters)
         if v: print('DvvData saved to: '+outdir+'/'+file)
     ##plot
-    def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,figdir='.',format='png',figname=None):
+    def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
+            figdir='.',format='png',figname=None):
         """
         Plot DvvData.
 
@@ -1501,16 +1558,12 @@ class DvvData(object):
         pvdata[idx2]=np.nan
         nwin=nvdata.shape[0]
         # tick inc for plotting
-        if nwin>100:
-            tick_inc = int(nwin/10)
-        elif nwin>10:
-            tick_inc = int(nwin/5)
-        else:
-            tick_inc = 2
+        if nxtick is None:
+            nxtick = 5
 
         plt.figure(figsize=figsize, facecolor = 'white')
         # the cross-correlation coefficient
-        xticks=np.int16(np.linspace(0,nwin-1,6))
+        xticks=np.int16(np.linspace(0,nwin-1,nxtick))
         xticklabel=[]
         for x in xticks:
             xticklabel.append(str(UTCDateTime(self.time[x]))[:10])

@@ -3,9 +3,11 @@ TYPES:
 1. Check lower case only for method in CorrData.stack()
 2. Bugs and improvements in DvvData and CorrData to save large attribute to asdf
 3. Added psd() method in CorrData to plot psd of the CorrData result.
+4. Added plot() method in FFTData to plot the amplitude spectrum of the FFT results.
 
 PLOTTING:
-1. Added plot_psd() to plot the psd of an array (works with 2-d array only for now.)
+1. Added plot_psd() to plot the psd of an array (works with 1-d and 2-d array only for now.)
+2. Updated plot_eventsequence() to have the option of plotting depth as the ydata.
 
 UTILS:
 1. Minor bug fixes in read_gmtlines()
