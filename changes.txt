@@ -19,6 +19,7 @@ Updates in v0.6.3.1
   size to 64k or less. We split time to time_mean and np.float32(time) to reduce the size.
   This is a temporary fix. Hopefully HDF could lift the size limit for attributes.
 
+==================================================================
 Updates in v0.6.3
 NOISE
 1. Removed ncomp in do_correlation(). Setup a warning message if old usage is used.
