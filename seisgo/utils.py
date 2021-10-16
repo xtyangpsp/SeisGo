@@ -247,14 +247,14 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
     dfile - Data file name.
     var - variable name.
     vmax - maximum value, above which will be set to numpy nan.
-    allstats - If True, returns all statistics (mean, median, min, max, std) of
+    stats - If True, returns all statistics (mean, median, min, max, std) of
                 the model within the polygon. If False, only returns the mean 1d model.
                 Default False.
     lon_correction - add correction to model longitude. Default 0.0.
     ===RETURNS===
     dep - Depth grid. Returns only when surface is False.
     val_mean - Average model value (1d profile in case of 3d ncmodel). Returns in all cases.
-    val_median,val_min,val_max,val_std - Only returns these when allstats is True.
+    val_median,val_min,val_max,val_std - Only returns these when stats is True.
     """
     if surface: #read in 2d surfaces
         lat,lon,val=read_ncmodel2d(dfile,var)
@@ -262,7 +262,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
         val[val>=vmax]=np.nan
 
         val_mean=np.ndarray((len(outlines)))
-        if allstats:
+        if stats:
             val_median=np.ndarray((len(outlines)))
             val_min=np.ndarray((len(outlines)))
             val_max=np.ndarray((len(outlines)))
@@ -270,13 +270,13 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
         for idx,d in enumerate(outlines):
             ix,iy=points_in_polygon(d,lon,lat)
             val_mean[idx]=np.nanmean(np.nanmean(val[iy,ix]))
-            if allstats:
+            if stats:
                 val_median[idx]=np.nanmedian(np.nanmedian(val[iy,ix]))
                 val_min[idx]=np.nanmin(np.nanmin(val[iy,ix]))
                 val_max[idx]=np.nanmax(np.nanmax(val[iy,ix]))
                 val_std[idx]=np.nanstd(val[iy,ix])
         #
-        if allstats:
+        if stats:
             return val_mean,val_median,val_min,val_max,val_std
         else:
             return val_mean
@@ -286,7 +286,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
         val[val>=vmax]=np.nan
 
         val_mean=np.ndarray((len(outlines),val.shape[0]))
-        if allstats:
+        if stats:
             val_median=np.ndarray((len(outlines),val.shape[0]))
             val_min=np.ndarray((len(outlines),val.shape[0]))
             val_max=np.ndarray((len(outlines),val.shape[0]))
@@ -301,7 +301,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
                     val_max[idx,k]=np.nanmax(np.nanmax(val[k,iy,ix]))
                     val_std[idx,k]=np.nanstd(val[k,iy,ix])
         #
-        if allstats:
+        if stats:
             return dep,val_mean,val_median,val_min,val_max,val_std
         else:
             return dep,val_mean
