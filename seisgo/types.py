@@ -1,6 +1,6 @@
 #define key classes
 import os,sys
-import obspy
+import obspy,scipy
 import pyasdf
 from obspy.core import Trace,Stream
 import numpy as np
@@ -1535,7 +1535,7 @@ class DvvData(object):
         if v: print('DvvData saved to: '+outdir+'/'+file)
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
-            figdir='.',format='png',figname=None):
+            figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1):
         """
         Plot DvvData.
 
@@ -1545,9 +1545,16 @@ class DvvData(object):
         save: save figure. default False.
         figdir: directory to save figure. default is current directory.
         figname: figure name when save is True.
+        smooth: box smooth options. should be a list of two elements. Defult None.
+                Use same value for x and y if only one value is given.
         """
         nvdata=self.data1.copy()
         pvdata=self.data2.copy()
+        if smooth is not None:
+            if type(smooth) is not tuple and type(smooth) is not list:smooth=[smooth]
+            if len(smooth)==1:smooth=[smooth[0],smooth[0]]
+            nvdata=scipy.ndimage.filters.gaussian_filter(nvdata, smooth, mode='constant')
+            pvdata=scipy.ndimage.filters.gaussian_filter(pvdata, smooth, mode='constant')
         period=1/self.freq
         if cc_min is None:
             cc_min=-1.0
@@ -1578,10 +1585,10 @@ class DvvData(object):
         ax3.set_xticks(xticks)
         ax3.set_xticklabels(xticklabel,fontsize=12)
 
-        Yticks = 2 ** np.arange(np.ceil(np.log2(period.min())),
-                           np.ceil(np.log2(period.max())))
+        Yticks = 2 ** np.arange(np.log2(period.min()),
+                           np.log2(period.max()),yinc)
         ax3.set_yticks(np.log2(Yticks))
-        ax3.set_yticklabels(1/Yticks)
+        ax3.set_yticklabels(np.round(1/Yticks,ytick_precision))
         if ylim is None:
             plt.ylim(yrange)
         else:
@@ -1598,7 +1605,7 @@ class DvvData(object):
         ax4.set_xticks(xticks)
         ax4.set_xticklabels(xticklabel,fontsize=12)
         ax4.set_yticks(np.log2(Yticks))
-        ax4.set_yticklabels(1/Yticks)
+        ax4.set_yticklabels(np.round(1/Yticks,ytick_precision))
         if ylim is None:
             plt.ylim(yrange)
         else:
