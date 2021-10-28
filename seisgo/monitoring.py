@@ -6,6 +6,7 @@ from obspy.signal.regression import linear_regression
 from obspy.signal.filter import bandpass
 from obspy import UTCDateTime
 from seisgo.types import DvvData
+from seisgo import utils
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 import pyasdf
@@ -79,8 +80,10 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
     # load stacked and sub-stacked waveforms
     cdata=corrdata.copy()
-
-    cdata.stack(resolution)
+    #demean and detrend
+    datatemp=cdata.data.copy()
+    cdata.data=utils.demean(utils.detrend(datatemp))
+    if resolution is not None: cdata.stack(resolution)
     if ref is None: ref=cdata.stack(method=stack_method,overwrite=False)
 
     nwin=cdata.data.shape[0]

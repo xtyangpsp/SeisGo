@@ -5,6 +5,7 @@ TYPES:
 3. Added psd() method in CorrData to plot psd of the CorrData result.
 4. Added plot() method in FFTData to plot the amplitude spectrum of the FFT results.
 5. Improved plot() for DvvData with smoothing option.
+6. Minor bug fixes for FFTData in merging and plotting.
 
 PLOTTING:
 1. Added plot_psd() to plot the psd of an array (works with 1-d and 2-d array only for now.)

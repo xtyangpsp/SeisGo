@@ -116,7 +116,9 @@ class FFTData(object):
             self.freqmax=freqmax
             self.time_norm=time_norm
             self.freq_norm=freq_norm
+            self.df=df
             self.smooth=smooth
+            self.smooth_spec=smooth_spec
             self.win_len=win_len
             self.step=step
             self.std=std
@@ -393,11 +395,10 @@ class FFTData(object):
             amp=10*np.log10(np.abs(self.data[:Nfft2]))
         else:
             amp=np.abs(self.data[:Nfft2])
-        normalize=False
         ampN=np.ndarray((amp.shape[0],amp.shape[1]))
         tmarks=[]
         for i in range(amp.shape[0]):
-            if normalize: psdN[i,:]=amp[i,:]/np.max(np.abs(amp[i,:]))
+            if normalize: ampN[i,:]=amp[i,:]/np.max(np.abs(amp[i,:]))
             else: ampN[i,:]=amp[i,:]
             tmarks.append(obspy.UTCDateTime(ydata[i]).strftime(time_format))
         plt.figure(figsize=figsize)
@@ -1535,7 +1536,8 @@ class DvvData(object):
         if v: print('DvvData saved to: '+outdir+'/'+file)
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
-            figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1):
+            figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1,
+            crange=None):
         """
         Plot DvvData.
 
@@ -1594,6 +1596,7 @@ class DvvData(object):
         else:
             plt.ylim(ylim)
         plt.yticks(fontsize=12)
+        if crange is not None:plt.clim(crange)
         plt.colorbar(label='dv/v (%)')
         ax3.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
         ax3.invert_yaxis()
@@ -1611,6 +1614,7 @@ class DvvData(object):
         else:
             plt.ylim(ylim)
         plt.yticks(fontsize=12)
+        if crange is not None:plt.clim(crange)
         plt.colorbar(label='dv/v (%)')
         ax4.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
         ax4.invert_yaxis()

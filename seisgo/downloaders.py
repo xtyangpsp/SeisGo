@@ -533,7 +533,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     return Stream(trlist),sta_inv_list
 
 def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
-                stainv=True,samp_freq=None):
+                stainv=True,samp_freq=None,stainfo=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
 
@@ -545,6 +545,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
     freqmax: maximum frequency in removing responses. default is 0.499*sample_rate
     rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
     stainv: get station inventory or not, default is True.
+    stainfo:  pandas dataframe contaning station information: network,station,latitudie,longitude,elevation
 
     ==== RETURNS ====
     tr_all: all traces as a list of obspy Trace objects.
@@ -614,7 +615,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         tr_all.append(tr[0])
 
         if stainv:
-            inv_all.append(utils.stats2inv(tr[0].stats))
+            inv_all.append(utils.stats2inv(tr[0].stats,locs=stainfo))
     #
     #return
     if stainv:
