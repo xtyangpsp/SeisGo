@@ -78,6 +78,8 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     """
     if method.lower()!="wts":
         raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
+    if corrdata.side.lower() != "a":
+        raise ValueError("only works for now on corrdata with both sides. here: corrdata.side="+corrdata.side)
     # load stacked and sub-stacked waveforms
     cdata=corrdata.copy()
     #demean and detrend
@@ -99,12 +101,12 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         raise ValueError('proposed window exceeds limit! reduce %d'%win)
 
     # ref and tvec
-    tvec_all = np.arange(-cdata.lag,cdata.lag+cdata.dt,cdata.dt)
-    zero_indx0 = np.where((tvec_all> -cdata.dt)&(tvec_all<cdata.dt))[0]
+    tvec_all = np.arange(-cdata.lag,cdata.lag+0.5*cdata.dt,cdata.dt)
+    zero_indx0 = np.where((tvec_all> -0.5*cdata.dt)&(tvec_all<0.5*cdata.dt))[0]
     zero_indx = zero_indx0[np.argmin(np.abs(tvec_all[zero_indx0]))]
     tvec_half=tvec_all[zero_indx:]
     # casual and acasual coda window
-    pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<np.max(twin)))[0]
+    pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<=np.max(twin)))[0]
     nwin_indx = np.where((tvec_all<=-np.min(twin))&(tvec_all>=-np.max(twin)))[0]
     pcor_cc = np.zeros(shape=(nwin),dtype=np.float32)
     ncor_cc = np.zeros(shape=(nwin),dtype=np.float32)
@@ -213,7 +215,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         ax0.fill(np.concatenate((tvec_all[nwin_indx],np.flip(tvec_all[nwin_indx],axis=0)),axis=0), \
             np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'c', alpha=0.3,linewidth=1)
         ax0.fill(np.concatenate((tvec_all[pwin_indx],np.flip(tvec_all[pwin_indx],axis=0)),axis=0), \
-            np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'y', alpha=0.3)
+            np.concatenate((np.ones(len(pwin_indx))*0,np.ones(len(pwin_indx))*nwin),axis=0),'y', alpha=0.3)
         ax0.xaxis.set_ticks_position('bottom')
         # reference waveform
         ax1 = fig.add_subplot(8,1,(5,6))

@@ -1010,7 +1010,7 @@ class CorrData(object):
             nzmsec=corrtime.microsecond
 
             if file is None:
-                file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'.sac'
+                file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
             sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                            b=b,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                            evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data)
@@ -1029,7 +1029,7 @@ class CorrData(object):
                 nzsec=corrtime.second
                 nzmsec=corrtime.microsecond
                 if file is None:
-                    ofile=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'.sac'
+                    ofile=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
                     sacfile  = os.path.join(outdir,ofile)
                 else:
                     sacfile  = os.path.join(outdir,file)
@@ -1537,7 +1537,7 @@ class DvvData(object):
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
             figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1,
-            crange=None):
+            crange=None,side="a"):
         """
         Plot DvvData.
 
@@ -1549,6 +1549,10 @@ class DvvData(object):
         figname: figure name when save is True.
         smooth: box smooth options. should be a list of two elements. Defult None.
                 Use same value for x and y if only one value is given.
+        crange: colorbar range.
+        yinc: y axis (frequency) increment.
+        ytick_precision: precision of displaying frequency labels on y axis (default is 1)
+        side: which side to plot. default is "a" for both negative and positive sides.
         """
         nvdata=self.data1.copy()
         pvdata=self.data2.copy()
@@ -1577,55 +1581,58 @@ class DvvData(object):
         for x in xticks:
             xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
         # dv/v at each filtered frequency band
-        dvv_array = nvdata.T
-        yrange=[np.log2(period.min()),np.log2(period.max())]
-        extent=(0,nwin,yrange[1],yrange[0])
-        ax3 = plt.subplot(211)
-        plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
+        if side.lower()=="a" or side.lower()=="n":
+            dvv_array = nvdata.T
+            yrange=[np.log2(period.min()),np.log2(period.max())]
+            extent=(0,nwin,yrange[1],yrange[0])
+            if side.lower()=="a":ax1 = plt.subplot(211)
+            else:ax1 = plt.subplot(111)
+            plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
 
-        plt.ylabel('frequency (Hz)',fontsize=12)
-        ax3.set_xticks(xticks)
-        ax3.set_xticklabels(xticklabel,fontsize=12)
+            plt.ylabel('frequency (Hz)',fontsize=12)
+            ax1.set_xticks(xticks)
+            ax1.set_xticklabels(xticklabel,fontsize=12)
 
-        Yticks = 2 ** np.arange(np.log2(period.min()),
-                           np.log2(period.max()),yinc)
-        ax3.set_yticks(np.log2(Yticks))
-        ax3.set_yticklabels(np.round(1/Yticks,ytick_precision))
-        if ylim is None:
-            plt.ylim(yrange)
-        else:
-            plt.ylim(ylim)
-        plt.yticks(fontsize=12)
-        if crange is not None:plt.clim(crange)
-        plt.colorbar(label='dv/v (%)')
-        ax3.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
-        ax3.invert_yaxis()
+            Yticks = 2 ** np.arange(np.log2(period.min()),
+                               np.log2(period.max()),yinc)
+            ax1.set_yticks(np.log2(Yticks))
+            ax1.set_yticklabels(np.round(1/Yticks,ytick_precision))
+            if ylim is None:
+                plt.ylim(yrange)
+            else:
+                plt.ylim(ylim)
+            plt.yticks(fontsize=12)
+            if crange is not None:plt.clim(crange)
+            plt.colorbar(label='dv/v (%)')
+            ax1.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
+            ax1.invert_yaxis()
 
-        dvv_array = pvdata.T
-        ax4 = plt.subplot(212)
-        plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
-        plt.ylabel('frequency (Hz)',fontsize=12)
-        ax4.set_xticks(xticks)
-        ax4.set_xticklabels(xticklabel,fontsize=12)
-        ax4.set_yticks(np.log2(Yticks))
-        ax4.set_yticklabels(np.round(1/Yticks,ytick_precision))
-        if ylim is None:
-            plt.ylim(yrange)
-        else:
-            plt.ylim(ylim)
-        plt.yticks(fontsize=12)
-        if crange is not None:plt.clim(crange)
-        plt.colorbar(label='dv/v (%)')
-        ax4.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
-        ax4.invert_yaxis()
+        if side.lower()=="a" or side.lower()=="p":
+            dvv_array = pvdata.T
+            if side.lower()=="a":ax2 = plt.subplot(212)
+            else:ax2 = plt.subplot(111)
+            plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
+            plt.ylabel('frequency (Hz)',fontsize=12)
+            ax2.set_xticks(xticks)
+            ax2.set_xticklabels(xticklabel,fontsize=12)
+            ax2.set_yticks(np.log2(Yticks))
+            ax2.set_yticklabels(np.round(1/Yticks,ytick_precision))
+            if ylim is None:
+                plt.ylim(yrange)
+            else:
+                plt.ylim(ylim)
+            plt.yticks(fontsize=12)
+            if crange is not None:plt.clim(crange)
+            plt.colorbar(label='dv/v (%)')
+            ax2.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
+            ax2.invert_yaxis()
         plt.tight_layout()
 
         ###################
         ##### SAVING ######
         if save:
             if not os.path.isdir(figdir):os.mkdir(figdir)
-
-            if figname is None: figname = figdir+'/'+'dvv_'+self.id+'_'+self.cc_comp
+            if figname is None: figname = figdir+'/'+'dvv_'+self.id+'_'+self.cc_comp+'_'+side
             plt.savefig(figname+'.'+format, format=format, dpi=300, facecolor = 'white')
             plt.close()
         else:
