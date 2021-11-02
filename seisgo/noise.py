@@ -899,7 +899,10 @@ def get_stationpairs(ccfiles,getcclist=True,flag=False):
     ccomp_all=[]
     for f in ccfiles:
         # load the data from daily compilation
-        ds=pyasdf.ASDFDataSet(f,mpi=False,mode='r')
+        try:
+            ds=pyasdf.ASDFDataSet(f,mpi=False,mode='r')
+        except Exception as e:
+            raise IOError("error openning "+f+":"+str(e))
         try:
             pairlist   = ds.auxiliary_data.list()
             if getcclist:
