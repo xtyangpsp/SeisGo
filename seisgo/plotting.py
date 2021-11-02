@@ -23,7 +23,6 @@ def plot_eventsequence(cat,figsize=(12,4),ytype='magnitude',figname=None,
     plt.figure(figsize=figsize)
     plt.title(ytype+" vs. time")
     plt.xlabel("Date (UTC)")
-    plt.ylabel(ytype)
 
     if yrange is not None:
         ymin,ymax=yrange
@@ -48,16 +47,21 @@ def plot_eventsequence(cat,figsize=(12,4),ytype='magnitude',figname=None,
         if ytype.lower()=="magnitude":
             markerline, stemlines, baseline=plt.stem(t,cat2.magnitude,linefmt='k-',markerfmt="o",
                                                      bottom=ymin)
+            plt.ylabel("magnitue")
+
         elif ytype.lower()=="depth":
             markerline, stemlines, baseline=plt.stem(t,cat2.depth,linefmt='k-',markerfmt="o",
                                                      bottom=ymin)
+            plt.ylabel("depth (km)")
         markerline.set_markerfacecolor('r')
         markerline.set_markeredgecolor('r')
     else:
         if ytype.lower()=="magnitude":
             plt.scatter(t,cat2.magnitude,5,'k')
+            plt.ylabel("magnitue")
         elif ytype.lower()=="depth":
             plt.scatter(t,cat2.depth,cat2.magnitude,'k')
+            plt.ylabel("depth (km)")
 
         #
     plt.grid(axis="both")
