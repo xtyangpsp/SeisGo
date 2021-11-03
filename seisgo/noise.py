@@ -730,11 +730,14 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
             #save components.
             #convert corrdata to empirical Green's functions by
             #taking the negative time derivative. See types.CorrData.to_egf() for details.
-            if stack:
-                corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len)
-            if to_egf:
-                corrdict_all[ic].to_egf()
-            corrdict_all[ic].to_asdf(file=merged_h5)
+            try:
+                if stack:
+                    corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len)
+                if to_egf:
+                    corrdict_all[ic].to_egf()
+                corrdict_all[ic].to_asdf(file=merged_h5)
+            except Exception as e:
+                print(str(e)+"--> skipped: "+corrdict_all[ic].id)
 
         del corrdict_all
 
