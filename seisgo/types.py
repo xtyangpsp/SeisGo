@@ -370,7 +370,8 @@ class FFTData(object):
                         std=std,time=time,Nfft=f1.Nfft,data=data,freqmin=f1.freqmin,freqmax=f1.freqmax,
                         time_norm=f1.time_norm,freq_norm=f1.freq_norm,smooth=f1.smooth,
                         smooth_spec=f1.smooth_spec,misc=f1.misc,df=f1.df)
-    def plot(self,xrange=None,time_format='%Y-%m-%dT%H',db=True,normalize=True,cmap='jet',figsize=(6,4)):
+    def plot(self,xrange=None,time_format='%Y-%m-%dT%H',db=True,normalize=True,cmap='jet',figsize=(6,4),
+            crange=None):
         """
         Plot amplitude spectrum of the FFTData.
 
@@ -381,6 +382,7 @@ class FFTData(object):
         normalize=True
         cmap='jet'
         figsize=(6,4)
+        crange: color range (default is None, automatically determined.)
         """
         ydata=self.time
         dt=self.dt
@@ -412,6 +414,7 @@ class FFTData(object):
         plt.xlabel('frequency (Hz)')
         ax.set_yticks(np.arange(0,nwin,tick_inc))
         ax.set_yticklabels(tmarks[0:nwin:tick_inc])
+        if crange is not None:plt.clim(crange)
         if normalize:
             if db:
                 plt.colorbar(label='normalized amplitudes (dB)')
@@ -719,12 +722,15 @@ class CorrData(object):
         else: #### stacking over segments of time windows.
             if np.ndim(self.data)>1:
                 if verbose: print('Stacking with given windown len %f'%(win_len))
-
-                win=np.arange(self.time[0],self.time[-1],win_len)  #all time chunks
+                if self.time[-1] - self.time[0] >= win_len:
+                    win=np.arange(self.time[0],self.time[-1]+0.5*win_len,win_len)  #all time chunks
+                else:
+                    win=np.array([self.time[0]])
                 ts_temp=[]
                 ds=np.ndarray((len(win),self.data.shape[1]),dtype=self.data.dtype)
+                ds.fill(np.nan)
                 ngood=[]
-                for i in range(len(win)):
+                for i in range(len(win)-1):
                     widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
                     if len(widx) >0:
                         cc0 = utils.demean(self.data[widx,:])
@@ -751,7 +757,7 @@ class CorrData(object):
 
                             ds[i,:]=dstack
                             ngood.append(i)
-                            ts_temp.append(self.time[widx[0]])
+                            ts_temp.append(win[i])
 
                 #
                 ts=np.array(ts_temp)
