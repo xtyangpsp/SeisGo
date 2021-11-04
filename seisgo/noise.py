@@ -766,16 +766,17 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
             windown lengths, instead of the entire data set. The function stacks all data if "stack_win_len"
             > the time duration of the whole list of correlation files.
     """
-    corrdict_all=dict()
-    count=0
-    ts_set=False
-    for ifile in ccfiles:
-        # print("---> "+ifile)
-        corrdict=extract_corrdata(ifile)
-        # txtract[i]=time.time()-tt00
-        if len(list(corrdict.keys()))>0:
-            pair_list=list(corrdict.keys())
-            for p in pair_list:
+    pairs_all=get_stationpairs(ccfiles,getcclist=False)[0]
+    ts,te=get_cctimerange(ccfiles)
+    outfile = os.path.join(outdir,str(obspy.UTCDateTime(ts)).replace(':', '-') + \
+                                'T' + str(obspy.UTCDateTime(te)).replace(':', '-') + '.h5')
+    for p in pairs_all:
+        corrdict_all=dict()
+        for f in ccfiles:
+            # print("---> "+ifile)
+            corrdict=extract_corrdata(f,pair=p)
+            # txtract[i]=time.time()-tt00
+            if len(list(corrdict.keys()))>0:
                 comp_list=list(corrdict[p].keys())
 
                 if len(comp_list)==0:
@@ -785,30 +786,15 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
                 if p not in list(corrdict_all.keys()):
                     corrdict_all[p]=corrdict[p]
                 for c in comp_list:
-                    if count==0 and not ts_set:
-                        if np.ndim(corrdict[p][c].time)==0:ts=corrdict[p][c].time
-                        else:ts=corrdict[p][c].time[0]
-                        ts_set=True
                     if c in list(corrdict_all[p].keys()):
                         corrdict_all[p][c].merge(corrdict[p][c])
                     else:
                         corrdict_all[p][c]=corrdict[p][c]
-        count += 1
-        del corrdict
 
-    #set end time
-    if np.ndim(corrdict_all[p][c].time)==0:te=corrdict_all[p][c].time
-    else:te=corrdict_all[p][c].time[-1]
-
-    ##save to files
-    outfile = os.path.join(outdir,str(obspy.UTCDateTime(ts)).replace(':', '-') + \
-                                'T' + str(obspy.UTCDateTime(te)).replace(':', '-') + '.h5')
-    if len(list(corrdict_all.keys()))>0:
-        pair_list=list(corrdict_all.keys())
-        for p in pair_list:
-            comp_list=list(corrdict_all[p].keys())
-            if len(comp_list)==0:
-                continue
+            del corrdict
+        #
+        comp_list=list(corrdict_all[p].keys())
+        if len(comp_list)>0:
             for c in comp_list:
                 if corrdict_all[p][c].data is not None:
                     if stack:
@@ -885,13 +871,14 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 
-def get_stationpairs(ccfiles,getcclist=True,flag=False):
+def get_stationpairs(ccfiles,getcclist=True,verbose=False):
     """
     Extract unique station pairs from all cc files in ASDF format.
 
     ====PARAMETERS===
     ccfiles: a list of cc files.
-
+    getcclist: get cc component list. default True.
+    verbose: verbose flag; default False.
     ====RETURNS===
     pairs_all: all netstaion pairs in the format of NET1.STA1_NET2.STA2
     netsta_all: all net.sta (unique list)
@@ -920,7 +907,7 @@ def get_stationpairs(ccfiles,getcclist=True,flag=False):
             pairs_all=sorted(set(pairs_all))
 
         except Exception:
-            if flag:print('continue! no data in %s'%(f))
+            if verbose:print('continue! no data in %s'%(f))
             continue
 
     netsta_all=[]
@@ -934,6 +921,39 @@ def get_stationpairs(ccfiles,getcclist=True,flag=False):
         return pairs_all,netsta_all,ccomp_all
     else:
         return pairs_all,netsta_all
+
+def get_cctimerange(ccfiles,verbose=False):
+    """
+    Extract time range from all cc files in ASDF format.
+
+    ====PARAMETERS===
+    ccfiles: a list of cc files.
+    verbose: verbose flag; default False.
+    ====RETURNS===
+    ts,te: start and end time of all ccdata.
+    """
+    if isinstance(ccfiles,str):ccfiles=[ccfiles]
+    ts_all = []
+    te_all = []
+    for f in ccfiles:
+        # load the data from daily compilation
+        corrdata=extraxt_corrdata(f)
+        plist=list(corrdata.keys())
+        for p in plist:
+            clist=list(corrdata[p].keys())
+            for c in clist:
+                if corrdata[p][c].substack:
+                    ts_all.append(corrdata[p][c].time[0])
+                    te_all.append(corrdata[p][c].time[-1])
+                else:
+                    ts_all.append(corrdata[p][c].time)
+                    te_all.append(corrdata[p][c].time)
+        del corrdata
+
+    ts=np.array(ts_all).min()
+    te=np.array(te_all).max()
+
+    return ts,te
 
 def extract_corrdata(sfile,pair=None,comp=['all']):
     '''

@@ -7,6 +7,9 @@ TYPES:
 5. Improved plot() for DvvData with smoothing option.
 6. Minor bug fixes and improvement for FFTData in merging and plotting.
 
+NOISE:
+1. Optimize memory usage for merge_chunks()
+
 PLOTTING:
 1. Added plot_psd() to plot the psd of an array (works with 1-d and 2-d array only for now.)
 2. Updated plot_eventsequence() to have the option of plotting depth as the ydata.
