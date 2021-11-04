@@ -4,7 +4,7 @@ import time
 import pyasdf
 import sys
 import pandas as pd
-from obspy import read_events, UTCDateTime
+from obspy import read_events, UTCDateTime,read_inventory
 from obspy.core import Trace, Stream
 from obspy.clients.fdsn import Client
 from seisgo import utils
@@ -533,18 +533,18 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     return Stream(trlist),sta_inv_list
 
 def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
-                stainv=True,samp_freq=None,stainfo=None):
+                getstainv=True,water_level=60,samp_freq=None,stainfo=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
 
     ==== PARAMETERS ====
     files: local data file or a list of files.
-    rm_resp: 'no'[default], 'spectrum', 'RESP', or 'polozeros'.
+    rm_resp: 'no'[default], 'spectrum', 'RESP', 'polozeros', or 'inv'.
     respdir: directory for response files, default is '.'
     freqmin: minimum frequency in removing responses. default is 0.001
     freqmax: maximum frequency in removing responses. default is 0.499*sample_rate
     rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
-    stainv: get station inventory or not, default is True.
+    getstainv: get station inventory or not, default is True.
     stainfo:  pandas dataframe contaning station information: network,station,latitudie,longitude,elevation
 
     ==== RETURNS ====
@@ -589,6 +589,10 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
                 if len(paz_sts)==0:
                     raise ValueError('no polozeros found for %s' % netstachan)
                 tr.simulate(paz_remove=paz_sts[0],pre_filt=pre_filt)
+            elif rm_resp == 'inv':
+                print('remove response using inventory')
+                inv = read_inventory(os.path.join(respdir,'*'+net+"."+sta+'*.xml'))
+                tr.remove_response(inventory=inv,pre_filt=pre_filt,output=rm_resp_out,water_level=water_level)
             else:
                 raise ValueError('no such option for rm_resp! please double check!')
 
@@ -614,15 +618,113 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         tr[0].taper(0.005)
         tr_all.append(tr[0])
 
-        if stainv:
-            inv_all.append(utils.stats2inv(tr[0].stats,locs=stainfo))
+        if getstainv:
+            if isinstance(stainfo,pd.DataFrame) or isinstance(stainfo,dict):
+                inv_all.append(utils.stats2inv(tr[0].stats,locs=stainfo))
+            else:
+                inv_all.append(read_inventory(stainfo))
     #
     #return
-    if stainv:
+    if getstainv:
         return Stream(tr_all),inv_all
     else:
         return Stream(tr_all)
 
+def ms2asdf(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
+                water_level=60,samp_freq=None,outdir='.',stainfo=None,outfile=None):
+    """
+    Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
+
+    ==== PARAMETERS ====
+    files: local data file or a list of files.
+    rm_resp: 'no'[default], 'spectrum', 'RESP', 'polozeros', or 'inv'.
+    respdir: directory for response files, default is '.'
+    freqmin: minimum frequency in removing responses. default is 0.001
+    freqmax: maximum frequency in removing responses. default is 0.499*sample_rate
+    rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
+    outdir: directory to save the asdf file.
+    outfile: filename
+
+    """
+    if isinstance(files,str):files=[files]
+    #get some common parameters first:
+    tr=obspy.read(files[0], debug_headers=True)
+
+    fs=tr[0].stats.sampling_rate
+    if freqmin is None: freqmin=0.001
+    if freqmax is None: freqmax=0.499*fs
+    pre_filt = set_filter(fs, freqmin,freqmax)
+    inv=None
+    if not os.path.isdir(outdir):os.makedirs(outdir)
+    for f in files:
+        tr=obspy.read(f, debug_headers=True)
+        net=tr[0].stats.network
+        sta=tr[0].stats.station
+        chan=tr[0].stats.channel
+        netstachan=net+"."+sta+"."+chan
+        date_info = {'starttime':tr[0].stats.starttime,'endtime':tr[0].stats.endtime}
+        if rm_resp != 'no':
+            if rm_resp == 'spectrum':
+                print('remove response using spectrum')
+                specfile = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if len(specfile)==0:
+                    raise ValueError('no response sepctrum found for %s' % netstachan)
+                tr = utils.resp_spectrum(tr,specfile[0],fs,pre_filt)
+
+            elif rm_resp == 'RESP':
+                print('remove response using RESP files')
+                resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
+                print(resp)
+                if len(resp)==0:
+                    raise ValueError('no RESP files found for %s' % netstachan)
+                seedresp = {'filename':resp[0],'date':date_info['starttime'],'units':rm_resp_out}
+                tr.simulate(paz_remove=None,pre_filt=pre_filt,seedresp=seedresp)
+
+            elif rm_resp == 'polozeros':
+                print('remove response using polos and zeros')
+                paz_sts = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if len(paz_sts)==0:
+                    raise ValueError('no polozeros found for %s' % netstachan)
+                tr.simulate(paz_remove=paz_sts[0],pre_filt=pre_filt)
+            elif rm_resp == 'inv':
+                print('remove response using inventory')
+                inv = read_inventory(os.path.join(respdir,'*'+net+"."+sta+'*.xml'))
+                tr.remove_response(inventory=inv,pre_filt=pre_filt,output=rm_resp_out,water_level=water_level)
+            else:
+                raise ValueError('no such option for rm_resp! please double check!')
+
+        if samp_freq is not None:
+            sps=int(tr[0].stats.sampling_rate)
+            delta = tr[0].stats.delta
+            #assume pressure and vertical channels have the same sampling rat
+            # make downsampling if needed
+            if sps > samp_freq:
+                print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+                if np.sum(np.isnan(tr[0].data))>0:
+                    raise(Exception('NaN found in trace'))
+                else:
+                    tr[0].interpolate(samp_freq,method='weighted_average_slopes')
+                    # when starttimes are between sampling points
+                    fric = tr[0].stats.starttime.microsecond%(delta*1E6)
+                    if fric>1E-4:
+                        tr[0].data = utils.segment_interpolate(np.float32(tr[0].data),float(fric/(delta*1E6)))
+                        #--reset the time to remove the discrepancy---
+                        tr[0].stats.starttime-=(fric*1E-6)
+        tr[0].detrend('demean')
+        tr[0].detrend('linear')
+        tr[0].taper(0.005)
+        if rm_resp!='inv' and stainfo is not None:
+            if isinstance(stainfo,pd.DataFrame) or isinstance(stainfo,dict):
+                inv=utils.stats2inv(tr[0].stats,locs=stainfo)
+            else:
+                inv=read_inventory(stainfo)
+
+        tag = get_tracetag(tr[0])
+        sdatetime=tr[0].stats.starttime
+        edatetime=tr[0].stats.endtime
+        fname = os.path.join(outdir,str(sdatetime).replace(':', '-') + 'T' + str(edatetime).replace(':', '-') + '.h5')
+        print(" Saving data to ", fname )
+        utils.save2asdf(fname,[tr[0]],[tag],sta_inv=inv)
 
 def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,maxmag=10,
                     magstep=1.0,source="USGS",v=False):

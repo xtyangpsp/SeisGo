@@ -7,6 +7,10 @@ TYPES:
 5. Improved plot() for DvvData with smoothing option.
 6. Minor bug fixes and improvement for FFTData in merging and plotting.
 
+DOWNLOADERS:
+1. Use inventory to remove response in read_data for miniseed
+2. Added ms2asdf() to convert miniseed files to asdf files.
+
 NOISE:
 1. Optimize memory usage for merge_chunks()
 

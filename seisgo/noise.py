@@ -937,7 +937,7 @@ def get_cctimerange(ccfiles,verbose=False):
     te_all = []
     for f in ccfiles:
         # load the data from daily compilation
-        corrdata=extraxt_corrdata(f)
+        corrdata=extract_corrdata(f)
         plist=list(corrdata.keys())
         for p in plist:
             clist=list(corrdata[p].keys())
