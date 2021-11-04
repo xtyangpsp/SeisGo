@@ -1,3 +1,7 @@
+Updates in v0.6.5
+
+
+==================================================================
 Updates in v0.6.4
 TYPES:
 1. Check lower case only for method in CorrData.stack()
