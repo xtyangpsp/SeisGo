@@ -766,8 +766,8 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
             windown lengths, instead of the entire data set. The function stacks all data if "stack_win_len"
             > the time duration of the whole list of correlation files.
     """
-    pairs_all=get_stationpairs(ccfiles,getcclist=False)[0]
-    ts,te=get_cctimerange(ccfiles)
+    pairs_all,netsta,trange=get_stationpairs(ccfiles,getcclist=False,gettimerange=True)
+    ts,te=trange
     outfile = os.path.join(outdir,str(obspy.UTCDateTime(ts)).replace(':', '-') + \
                                 'T' + str(obspy.UTCDateTime(te)).replace(':', '-') + '.h5')
     for p in pairs_all:
@@ -793,15 +793,16 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
 
             del corrdict
         #
-        comp_list=list(corrdict_all[p].keys())
-        if len(comp_list)>0:
-            for c in comp_list:
-                if corrdict_all[p][c].data is not None:
-                    if stack:
-                        corrdict_all[p][c].stack(method=stack_method,win_len=stack_win_len)
-                    if to_egf:
-                        corrdict_all[p][c].to_egf()
-                    corrdict_all[p][c].to_asdf(file=outfile,v=False)
+        if p in list(corrdict_all.keys()):
+            comp_list=list(corrdict_all[p].keys())
+            if len(comp_list)>0:
+                for c in comp_list:
+                    if corrdict_all[p][c].data is not None:
+                        if stack:
+                            corrdict_all[p][c].stack(method=stack_method,win_len=stack_win_len)
+                        if to_egf:
+                            corrdict_all[p][c].to_egf()
+                        corrdict_all[p][c].to_asdf(file=outfile,v=False)
     del corrdict_all
 
 ########################################################
@@ -871,13 +872,13 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 
-def get_stationpairs(ccfiles,getcclist=True,verbose=False):
+def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
     """
     Extract unique station pairs from all cc files in ASDF format.
 
     ====PARAMETERS===
     ccfiles: a list of cc files.
-    getcclist: get cc component list. default True.
+    getcclist: get cc component list. default False.
     verbose: verbose flag; default False.
     ====RETURNS===
     pairs_all: all netstaion pairs in the format of NET1.STA1_NET2.STA2
@@ -887,6 +888,9 @@ def get_stationpairs(ccfiles,getcclist=True,verbose=False):
     if isinstance(ccfiles,str):ccfiles=[ccfiles]
     pairs_all = []
     ccomp_all=[]
+    if gettimerange:
+        ts=[]
+        te=[]
     for f in ccfiles:
         # load the data from daily compilation
         try:
@@ -899,9 +903,26 @@ def get_stationpairs(ccfiles,getcclist=True,verbose=False):
                 for p in pairlist:
                     chanlist=ds.auxiliary_data[p].list()
                     for c in chanlist:
+                        if gettimerange:
+                            para=ds.auxiliary_data[p][c].parameters
+                            ttime=para['time']
+                            if 'time_mean' in list(para.keys()):
+                                ttime += para['time_mean']
+                            ts.append(np.min(ttime))
+                            te.append(np.max(ttime))
                         c1,c2=c.split('_')
                         ccomp_all.extend(c1[-1]+c2[-1])
                 ccomp_all=sorted(set(ccomp_all))
+            elif gettimerange:
+                for p in pairlist:
+                    chanlist=ds.auxiliary_data[p].list()
+                    for c in chanlist:
+                        para=ds.auxiliary_data[p][c].parameters
+                        ttime=para['time']
+                        if 'time_mean' in list(para.keys()):
+                            ttime += para['time_mean']
+                        ts.append(np.min(ttime))
+                        te.append(np.max(ttime))
 
             pairs_all.extend(pairlist)
             pairs_all=sorted(set(pairs_all))
@@ -918,9 +939,17 @@ def get_stationpairs(ccfiles,getcclist=True,verbose=False):
     netsta_all=sorted(set(netsta_all))
 
     if getcclist:
-        return pairs_all,netsta_all,ccomp_all
+        if gettimerange:
+            trange=[np.min(ts),np.max(te)]
+            return pairs_all,netsta_all,ccomp_all,trange
+        else:
+            return pairs_all,netsta_all,ccomp_all
     else:
-        return pairs_all,netsta_all
+        if gettimerange:
+            trange=[np.min(ts),np.max(te)]
+            return pairs_all,netsta_all,trange
+        else:
+            return pairs_all,netsta_all
 
 def get_cctimerange(ccfiles,verbose=False):
     """
@@ -937,17 +966,17 @@ def get_cctimerange(ccfiles,verbose=False):
     te_all = []
     for f in ccfiles:
         # load the data from daily compilation
-        corrdata=extract_corrdata(f)
+        corrdata=extract_corrdata(f,dataless=True)
         plist=list(corrdata.keys())
         for p in plist:
             clist=list(corrdata[p].keys())
-            for c in clist:
-                if corrdata[p][c].substack:
-                    ts_all.append(corrdata[p][c].time[0])
-                    te_all.append(corrdata[p][c].time[-1])
-                else:
-                    ts_all.append(corrdata[p][c].time)
-                    te_all.append(corrdata[p][c].time)
+            c=clist[0]
+            if corrdata[p][c].substack:
+                ts_all.append(corrdata[p][c].time[0])
+                te_all.append(corrdata[p][c].time[-1])
+            else:
+                ts_all.append(corrdata[p][c].time)
+                te_all.append(corrdata[p][c].time)
         del corrdata
 
     ts=np.array(ts_all).min()
@@ -955,7 +984,7 @@ def get_cctimerange(ccfiles,verbose=False):
 
     return ts,te
 
-def extract_corrdata(sfile,pair=None,comp=['all']):
+def extract_corrdata(sfile,pair=None,comp=['all'],dataless=False):
     '''
     extract the 2D matrix of the cross-correlation functions and the metadata for a certain time-chunck.
     PARAMETERS:
@@ -987,7 +1016,12 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
         print("exit! cannot open %s to read"%sfile);sys.exit()
     if pair is None: pair=spairs_all
 
-    for spair in list(set(pair) & set(spairs_all)):
+    overlap_pair=list(set(pair) & set(spairs_all))
+    if len(overlap_pair)<1:
+        print(str(pair)+" not found. Return empty.")
+        return corrdict
+
+    for spair in overlap_pair:
         ttr = spair.split('_')
         snet,ssta = ttr[0].split('.')
         rnet,rsta = ttr[1].split('.')
@@ -1029,10 +1063,12 @@ def extract_corrdata(sfile,pair=None,comp=['all']):
                         tmean=para["time_mean"]
                         ttime = np.float64(ttime) + tmean
 
-                    data = np.array(ds.auxiliary_data[spair][ipath].data)
+                    if not dataless: data = np.array(ds.auxiliary_data[spair][ipath].data)
+                    else: data = None
                 except Exception:
                     print('continue! something wrong with %s %s'%(spair,ipath))
                     continue
+
                 corrdict[spair][cc_comp]=CorrData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
                                                 chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
