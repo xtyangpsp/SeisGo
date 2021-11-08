@@ -1,4 +1,11 @@
 Updates in v0.6.5
+SETUP:
+1. Added requirement for tslearn for the clustering module mainly.
+
+CLUSTERING:
+1. Added new module.
+
+
 NOISE:
 1. Optimized merge_chunks() to use less time getting the time range.
 

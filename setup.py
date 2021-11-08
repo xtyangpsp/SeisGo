@@ -110,6 +110,7 @@ setup(
                         'numba',
                         'pycwt',
                         'shapely',
-                        'netCDF4'
+                        'netCDF4',
+                        'tslearn'
         ]
 )
