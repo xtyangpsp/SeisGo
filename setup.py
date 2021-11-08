@@ -111,6 +111,8 @@ setup(
                         'pycwt',
                         'shapely',
                         'netCDF4',
-                        'tslearn'
+                        'tslearn',
+                        'plotly',
+                        'kaleido'
         ]
 )
