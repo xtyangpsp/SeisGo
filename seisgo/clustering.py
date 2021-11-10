@@ -1,5 +1,5 @@
 ##
-import pickle,os
+import pickle,os,math
 import matplotlib.pyplot as plt
 import plotly.express as px
 import pandas as pd
@@ -10,7 +10,7 @@ from tslearn.clustering import TimeSeriesKMeans
 
 def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
                          verbose=False,plot=True,savefig=True,figbase='kmean',
-                      metric='dtw',max_iter_barycenter=10, random_state=0,save=True,
+                      metric='dtw',max_iter_barycenter=100, random_state=0,save=True,
                       source='vmodel',tag='v'):
     all_v = []
     lat_subidx=[int(x) for x in np.arange(0,len(lat),spacing)]
@@ -23,7 +23,7 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
             v0=np.ndarray((v.shape[0]))
             for pp in range(v.shape[0]):
                 v0[pp]=v[pp,i,j]
-            if not np.isnan(v0).any():
+            if not np.isnan(v0).any() :
                 all_v.append(v0)
                 lat0.append(lat[i])
                 lon0.append(lon[j])
