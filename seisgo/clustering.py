@@ -130,7 +130,7 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
         return outdict
 
 #
-def vmodel_som_depth(lat, lon, depth,v,grid_size,spacing=1,niteration=5000,sigma=0.3,
+def vmodel_som_depth(lat, lon, depth,v,grid_size=None,spacing=1,niteration=5000,sigma=0.3,
                      rate=0.1,verbose=False,plot=True,savefig=True,figbase='som',
                       save=True,source='vmodel',tag='v',figsize=None):
     all_v = []
@@ -150,9 +150,11 @@ def vmodel_som_depth(lat, lon, depth,v,grid_size,spacing=1,niteration=5000,sigma
                 lon0.append(lon[j])
                 count += 1
 
-#     som_x = som_y = math.ceil(math.sqrt(math.sqrt(len(all_v))))
-    som_x=grid_size[0]
-    som_y=grid_size[1]
+    if grid_size is None:
+        som_x = som_y = math.ceil(math.sqrt(math.sqrt(len(all_v))))
+    else:
+        som_x=grid_size[0]
+        som_y=grid_size[1]
     som = MiniSom(som_x, som_y,len(all_v[0]), sigma=sigma, learning_rate = rate)
     som.random_weights_init(all_v)
     som.train(all_v, niteration)
