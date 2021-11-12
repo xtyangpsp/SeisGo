@@ -1,9 +1,10 @@
 Updates in v0.6.5
 SETUP:
-1. Added requirement for tslearn for the clustering module mainly.
+1. Added requirements for tslearn and minisom for the clustering module mainly.
 
 CLUSTERING:
 1. Added new module.
+2. Added clustering of velocity depth profiles with kmean and som, in two functions.
 
 
 NOISE:

@@ -113,6 +113,7 @@ setup(
                         'netCDF4',
                         'tslearn',
                         'plotly',
-                        'kaleido'
+                        'kaleido',
+                        'minisom'
         ]
 )
