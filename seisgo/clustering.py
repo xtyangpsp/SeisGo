@@ -100,6 +100,7 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
 
         if savefig:
             plt.savefig(figbase+"_clusters_k"+str(ncluster)+".png",format="png")
+            plt.close()
         else:
             plt.show()
 
@@ -228,7 +229,11 @@ def vmodel_som_depth(lat, lon, depth,v,grid_size=None,spacing=1,niteration=50000
             plt.xlabel('depth (km)')
             plt.ylabel('Vs (km/s)')
         plt.tight_layout()
-        plt.show()
+        if savefig:
+            plt.savefig(figbase+"_clusters_k"+str(som_x)+"x"+str(som_y)+".png",format="png")
+            plt.close()
+        else:
+            plt.show()
 
         #####################
         ######## plot map view of clusters.

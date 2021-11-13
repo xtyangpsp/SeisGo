@@ -39,7 +39,7 @@ The `jupyter` package is currently not required, **unless** you plan to run the 
 
 **Install PyGMT plotting funcitons**
 
-Map views with geographical projections are plotted using **PyGMT** (https://www.pygmt.org/latest/). The following are steps to install PyGMT package (please refer to PyGMT webpage for trouble shooting and testing):
+Map views with geographical projections are plotted using **PyGMT** (https://www.pygmt.org/latest/). It seems that only PIP install could get the latest version [personal experience]. The following are steps to install PyGMT package (please refer to PyGMT webpage for trouble shooting and testing):
 
 Install GMT through conda first into the `SeisGo` environment:
 
