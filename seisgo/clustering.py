@@ -48,7 +48,6 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
         cdata.append(ts[y_pred == yi])
 
     outdict=dict()
-    outdict['data']=ts
     outdict['method']="k-means"
     outdict['source']=source
     outdict['tag']=tag
@@ -181,7 +180,6 @@ def vmodel_som_depth(lat, lon, depth,v,grid_size=None,spacing=1,niteration=50000
                 cdata.append(win_map[cluster])
 
     outdict=dict()
-    outdict['data']=all_v
     outdict['method']="som"
     outdict['source']=source
     outdict['tag']=tag
