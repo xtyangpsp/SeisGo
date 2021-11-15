@@ -4,14 +4,8 @@
 ##Utility functions used in processing seismic data.
 ############################################
 #import needed packages.
-import sys
-# from warnings import warn
-import time
-import scipy
-import obspy
-import pyasdf
-import datetime
-import os, glob
+import sys,time,scipy,obspy,pyasdf
+import datetime,os, glob
 import numpy as np
 import pandas as pd
 from numba import jit
@@ -31,7 +25,6 @@ from obspy.taup import TauPyModel
 from shapely.geometry import Polygon, Point
 import netCDF4 as nc
 
-####
 def subsetindex(full,subset):
     """
     Get the indices of the subset of a list.

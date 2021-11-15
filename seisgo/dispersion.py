@@ -1,12 +1,4 @@
-import os
-import glob
-import copy
-import obspy
-import scipy
-import time
-import pycwt
-import pyasdf
-import datetime
+import os,glob,copy,obspy,scipy,time,pycwt,pyasdf,datetime
 import numpy as np
 import pandas as pd
 from scipy.signal import hilbert
@@ -17,12 +9,14 @@ from obspy.core.util.base import _get_function_from_entry_point
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.filter import bandpass,lowpass
-
+"""
+This is a planned module, to be developed.
+"""
 ################################################################
 ################ DISPERSION EXTRACTION FUNCTIONS ###############
 ################################################################
-
 # function to extract the dispersion from the image
+# From NoisePy.
 def extract_dispersion(amp,per,vel):
     '''
     this function takes the dispersion image from CWT as input, tracks the global maxinum on

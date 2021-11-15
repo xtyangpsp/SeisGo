@@ -1,16 +1,55 @@
-import os
-import sys
-import obspy
-import scipy
-import pyasdf
+import os,sys,obspy,scipy,pyasdf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
 from seisgo import noise, stacking,utils
 import pygmt as gmt
 from obspy import UTCDateTime
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+import matplotlib.cm
+
+def get_color_cycle(cmap, N=None, use_index="auto"):
+    """
+    This function was original posted by ImportanceOfBeingErnest
+    as get_cycle() as an answer to a question on stackoverflow.com. URL:
+    https://stackoverflow.com/questions/30079590/use-matplotlib-color-map-for-color-cycle.
+    ==PARAMETERS==
+    cmap: str of cmap name
+    N: number of colors. default None.
+    use_index: whether use index when returning the color cycle. default "auto"
+
+    ==RETURN==
+    plt.cycler object.
+
+    ==USAGE CASES==
+    Named cmap: plt.rcParams["axes.prop_cycle"] = get_color_cycle("viridis",7)
+    Indexed cmap: plt.rcParams["axes.prop_cycle"] = get_color_cycle("tab20c")
+    """
+    if isinstance(cmap, str):
+        if use_index == "auto":
+            if cmap in ['Pastel1', 'Pastel2', 'Paired', 'Accent',
+                        'Dark2', 'Set1', 'Set2', 'Set3',
+                        'tab10', 'tab20', 'tab20b', 'tab20c']:
+                use_index=True
+            else:
+                use_index=False
+        cmap = matplotlib.cm.get_cmap(cmap)
+    if not N:
+        N = cmap.N
+    if use_index=="auto":
+        if cmap.N > 100:
+            use_index=False
+        elif isinstance(cmap, LinearSegmentedColormap):
+            use_index=False
+        elif isinstance(cmap, ListedColormap):
+            use_index=True
+    if use_index:
+        ind = np.arange(int(N)) % cmap.N
+        return plt.cycler("color",cmap(ind))
+    else:
+        colors = cmap(np.linspace(0,1,N))
+        return plt.cycler("color",colors)
 
 def plot_eventsequence(cat,figsize=(12,4),ytype='magnitude',figname=None,
                        yrange=None,save=False,stem=True):
@@ -587,326 +626,9 @@ def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None
     else:
         plt.show()
 
-'''
-Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
-Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
-'''
-def plot_xcorr_substack_spect(sfile,freqmin,freqmax,lag=None,save=True,figdir='./'):
-    '''
-    display the amplitude spectrum of the cross-correlation functions for a time-chunck.
-    PARAMETERS:
-    -----------------------
-    sfile: cross-correlation functions outputed by S1
-    freqmin: min frequency to be filtered
-    freqmax: max frequency to be filtered
-    lag: time ranges for display
-    USAGE:
-    -----------------------
-    plot_xcorr_substack_spect('temp.h5',0.1,1,200,True,'./')
-    Note: IMPORTANT!!!! this script only works for the cross-correlation with sub-stacks in S1.
-    '''
-    # open data for read
-    if save:
-        if figdir==None:print('no path selected! save figures in the default path')
-
-    try:
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
-        # extract common variables
-        spairs = ds.auxiliary_data.list()
-        path_lists = ds.auxiliary_data[spairs[0]].list()
-        flag   = ds.auxiliary_data[spairs[0]][path_lists[0]].parameters['substack']
-        dt     = ds.auxiliary_data[spairs[0]][path_lists[0]].parameters['dt']
-        maxlag = ds.auxiliary_data[spairs[0]][path_lists[0]].parameters['maxlag']
-    except Exception:
-        print("exit! cannot open %s to read"%sfile);sys.exit()
-
-    # only works for cross-correlation with substacks generated
-    if not flag:
-        raise ValueError('seems no substacks have been done! not suitable for this plotting function')
-
-    # lags for display
-    if not lag:lag=maxlag
-    if lag>maxlag:raise ValueError('lag excceds maxlag!')
-    t = np.arange(-int(lag),int(lag)+dt,step=int(2*int(lag)/4))
-    indx1 = int((maxlag-lag)/dt)
-    indx2 = indx1+2*int(lag/dt)+1
-    nfft  = int(next_fast_len(indx2-indx1))
-    freq  = scipy.fftpack.fftfreq(nfft,d=dt)[:nfft//2]
-
-    for spair in spairs:
-        ttr = spair.split('_')
-        net1,sta1 = ttr[0].split('.')
-        net2,sta2 = ttr[1].split('.')
-        for ipath in path_lists:
-            chan1,chan2 = ipath.split('_')
-            try:
-                dist = ds.auxiliary_data[spair][ipath].parameters['dist']
-                ngood= ds.auxiliary_data[spair][ipath].parameters['ngood']
-                ttime= ds.auxiliary_data[spair][ipath].parameters['time']
-                timestamp = np.empty(ttime.size,dtype='datetime64[s]')
-            except Exception:
-                print('continue! something wrong with %s %s'%(spair,ipath))
-                continue
-
-            # cc matrix
-            data = ds.auxiliary_data[spair][ipath].data[:,indx1:indx2]
-            nwin = data.shape[0]
-            amax = np.zeros(nwin,dtype=np.float32)
-            spec = np.zeros(shape=(nwin,nfft//2),dtype=np.complex64)
-            if nwin==0 or len(ngood)==1: print('continue! no enough substacks!');continue
-
-            # load cc for each station-pair
-            for ii in range(nwin):
-                spec[ii] = scipy.fftpack.fft(data[ii],nfft,axis=0)[:nfft//2]
-                spec[ii] /= np.max(np.abs(spec[ii]),axis=0)
-                data[ii] = bandpass(data[ii],freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-                amax[ii] = max(data[ii])
-                data[ii] /= amax[ii]
-                timestamp[ii] = obspy.UTCDateTime(ttime[ii])
-
-            # plotting
-            if nwin>10:
-                tick_inc = int(nwin/5)
-            else:
-                tick_inc = 2
-            fig,ax = plt.subplots(3,sharex=False)
-            ax[0].matshow(data,cmap='seismic',extent=[-lag,lag,nwin,0],aspect='auto')
-            ax[0].set_title('%s.%s.%s  %s.%s.%s  dist:%5.2f km' % (net1,sta1,chan1,net2,sta2,chan2,dist))
-            ax[0].set_xlabel('time [s]')
-            ax[0].set_xticks(t)
-            ax[0].set_yticks(np.arange(0,nwin,step=tick_inc))
-            ax[0].set_yticklabels(timestamp[0:-1:tick_inc])
-            ax[0].xaxis.set_ticks_position('bottom')
-            ax[1].matshow(np.abs(spec),cmap='seismic',extent=[freq[0],freq[-1],nwin,0],aspect='auto')
-            ax[1].set_xlabel('freq [Hz]')
-            ax[1].set_ylabel('amplitudes')
-            ax[1].set_yticks(np.arange(0,nwin,step=tick_inc))
-            ax[1].xaxis.set_ticks_position('bottom')
-            ax[2].plot(amax/min(amax),'r-')
-            ax[2].plot(ngood,'b-')
-            ax[2].set_xlabel('waveform number')
-            #ax[1].set_xticks(np.arange(0,nwin,int(nwin/5)))
-            ax[2].legend(['relative amp','ngood'],loc='upper right')
-            fig.tight_layout()
-
-            # save figure or just show
-            if save:
-                if figdir==None:figdir = sfile.split('.')[0]
-                if not os.path.ifigdir(figdir):os.mkdir(figdir)
-                outfname = figdir+'/{0:s}.{1:s}.{2:s}_{3:s}.{4:s}.{5:s}.pdf'.format(net1,sta1,chan1,net2,sta2,chan2)
-                fig.savefig(outfname, format='pdf', dpi=400)
-                plt.close()
-            else:
-                fig.show()
-
-
 #############################################################################
-###############PLOTTING THE POST-STACKING XCORR FUNCTIONS AS OUTPUT OF S2 STEP IN NOISEPY ##########################
+###############PLOTTING THE POST-STACKING XCORR FUNCTIONS##########################
 #############################################################################
-'''
-Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
-Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
-'''
-def plot_substack_all(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None):
-    '''
-    display the 2D matrix of the cross-correlation functions stacked for all time windows.
-    PARAMETERS:
-    ---------------------
-    sfile: cross-correlation functions outputed by S2
-    freqmin: min frequency to be filtered
-    freqmax: max frequency to be filtered
-    lag: time ranges for display
-    comp: cross component of the targeted cc functions
-    USAGE:
-    ----------------------
-    plot_substack_all('temp.h5',0.1,1,'ZZ',50,True,'./')
-    '''
-    # open data for read
-    if save:
-        if figdir==None:print('no path selected! save figures in the default path')
-
-    paths = comp
-    try:
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
-        # extract common variables
-        dtype_lists = ds.auxiliary_data.list()
-        dt     = ds.auxiliary_data[dtype_lists[0]][paths].parameters['dt']
-        dist   = ds.auxiliary_data[dtype_lists[0]][paths].parameters['dist']
-        maxlag = ds.auxiliary_data[dtype_lists[0]][paths].parameters['maxlag']
-    except Exception:
-        print("exit! cannot open %s to read"%sfile);sys.exit()
-
-    if len(dtype_lists)==1:
-        raise ValueError('Abort! seems no substacks have been done')
-
-    # lags for display
-    if not lag:lag=maxlag
-    if lag>maxlag:raise ValueError('lag excceds maxlag!')
-    t = np.arange(-int(lag),int(lag)+dt,step=int(2*int(lag)/4))
-    indx1 = int((maxlag-lag)/dt)
-    indx2 = indx1+2*int(lag/dt)+1
-
-    # other parameters to keep
-    nwin = len(dtype_lists)-1
-    data = np.zeros(shape=(nwin,indx2-indx1),dtype=np.float32)
-    ngood= np.zeros(nwin,dtype=np.int16)
-    ttime= np.zeros(nwin,dtype=np.int)
-    timestamp = np.empty(ttime.size,dtype='datetime64[s]')
-    amax = np.zeros(nwin,dtype=np.float32)
-
-    for ii,itype in enumerate(dtype_lists[2:]):
-        timestamp[ii] = obspy.UTCDateTime(np.float(itype[1:]))
-        try:
-            ngood[ii] = ds.auxiliary_data[itype][paths].parameters['ngood']
-            ttime[ii] = ds.auxiliary_data[itype][paths].parameters['time']
-            #timestamp[ii] = obspy.UTCDateTime(ttime[ii])
-            # cc matrix
-            data[ii] = ds.auxiliary_data[itype][paths].data[indx1:indx2]
-            data[ii] = bandpass(data[ii],freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-            amax[ii] = np.max(data[ii])
-            data[ii] /= amax[ii]
-        except Exception as e:
-            print(e);continue
-
-        if len(ngood)==1:
-            raise ValueError('seems no substacks have been done! not suitable for this plotting function')
-
-    # plotting
-    if nwin>100:
-        tick_inc = int(nwin/10)
-    elif nwin>10:
-        tick_inc = int(nwin/5)
-    else:
-        tick_inc = 2
-    fig,ax = plt.subplots(2,sharex=False)
-    ax[0].matshow(data,cmap='seismic',extent=[-lag,lag,nwin,0],aspect='auto')
-    ax[0].set_title('%s dist:%5.2f km filtered at %4.2f-%4.2fHz' % (sfile.split('/')[-1],dist,freqmin,freqmax))
-    ax[0].set_xlabel('time [s]')
-    ax[0].set_ylabel('wavefroms')
-    ax[0].set_xticks(t)
-    ax[0].set_yticks(np.arange(0,nwin,step=tick_inc))
-    ax[0].set_yticklabels(timestamp[0:nwin:tick_inc])
-    ax[0].xaxis.set_ticks_position('bottom')
-    ax[1].plot(amax/max(amax),'r-')
-    ax[1].plot(ngood,'b-')
-    ax[1].set_xlabel('waveform number')
-    ax[1].set_xticks(np.arange(0,nwin,nwin//5))
-    ax[1].legend(['relative amp','ngood'],loc='upper right')
-    # save figure or just show
-    if save:
-        if figdir==None:figdir = sfile.split('.')[0]
-        if not os.path.ifigdir(figdir):os.mkdir(figdir)
-        outfname = figdir+'/{0:s}_{1:4.2f}_{2:4.2f}Hz.pdf'.format(sfile.split('/')[-1],freqmin,freqmax)
-        fig.savefig(outfname, format='pdf', dpi=400)
-        plt.close()
-    else:
-        fig.show()
-
-'''
-Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
-Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
-'''
-def plot_substack_all_spect(sfile,freqmin,freqmax,comp,lag=None,save=False,figdir=None):
-    '''
-    display the amplitude spectrum of the cross-correlation functions stacked for all time windows.
-    PARAMETERS:
-    -----------------------
-    sfile: cross-correlation functions outputed by S2
-    freqmin: min frequency to be filtered
-    freqmax: max frequency to be filtered
-    lag: time ranges for display
-    comp: cross component of the targeted cc functions
-    USAGE:
-    -----------------------
-    plot_substack_all('temp.h5',0.1,1,'ZZ',50,True,'./')
-    '''
-    # open data for read
-    if save:
-        if figdir==None:print('no path selected! save figures in the default path')
-
-    paths = comp
-    try:
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
-        # extract common variables
-        dtype_lists = ds.auxiliary_data.list()
-        dt     = ds.auxiliary_data[dtype_lists[0]][paths].parameters['dt']
-        dist   = ds.auxiliary_data[dtype_lists[0]][paths].parameters['dist']
-        maxlag = ds.auxiliary_data[dtype_lists[0]][paths].parameters['maxlag']
-    except Exception:
-        print("exit! cannot open %s to read"%sfile);sys.exit()
-
-    if len(dtype_lists)==1:
-        raise ValueError('Abort! seems no substacks have been done')
-
-    # lags for display
-    if not lag:lag=maxlag
-    if lag>maxlag:raise ValueError('lag excceds maxlag!')
-    t = np.arange(-int(lag),int(lag)+dt,step=int(2*int(lag)/4))
-    indx1 = int((maxlag-lag)/dt)
-    indx2 = indx1+2*int(lag/dt)+1
-    nfft  = int(next_fast_len(indx2-indx1))
-    freq  = scipy.fftpack.fftfreq(nfft,d=dt)[:nfft//2]
-
-    # other parameters to keep
-    nwin = len(dtype_lists)-1
-    data = np.zeros(shape=(nwin,indx2-indx1),dtype=np.float32)
-    spec = np.zeros(shape=(nwin,nfft//2),dtype=np.complex64)
-    ngood= np.zeros(nwin,dtype=np.int16)
-    ttime= np.zeros(nwin,dtype=np.int)
-    timestamp = np.empty(ttime.size,dtype='datetime64[s]')
-    amax = np.zeros(nwin,dtype=np.float32)
-
-    for ii,itype in enumerate(dtype_lists[1:]):
-        timestamp[ii] = obspy.UTCDateTime(np.float(itype[1:]))
-        try:
-            ngood[ii] = ds.auxiliary_data[itype][paths].parameters['ngood']
-            ttime[ii] = ds.auxiliary_data[itype][paths].parameters['time']
-            #timestamp[ii] = obspy.UTCDateTime(ttime[ii])
-            # cc matrix
-            tdata = ds.auxiliary_data[itype][paths].data[indx1:indx2]
-            spec[ii] = scipy.fftpack.fft(tdata,nfft,axis=0)[:nfft//2]
-            spec[ii] /= np.max(np.abs(spec[ii]))
-            data[ii] = bandpass(tdata,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-            amax[ii] = np.max(data[ii])
-            data[ii] /= amax[ii]
-        except Exception as e:
-            print(e);continue
-
-        if len(ngood)==1:
-            raise ValueError('seems no substacks have been done! not suitable for this plotting function')
-
-    # plotting
-    tick_inc = 50
-    fig,ax = plt.subplots(3,sharex=False)
-    ax[0].matshow(data,cmap='seismic',extent=[-lag,lag,nwin,0],aspect='auto')
-    ax[0].set_title('%s dist:%5.2f km' % (sfile.split('/')[-1],dist))
-    ax[0].set_xlabel('time [s]')
-    ax[0].set_ylabel('wavefroms')
-    ax[0].set_xticks(t)
-    ax[0].set_yticks(np.arange(0,nwin,step=tick_inc))
-    ax[0].set_yticklabels(timestamp[0:nwin:tick_inc])
-    ax[0].xaxis.set_ticks_position('bottom')
-    ax[1].matshow(np.abs(spec),cmap='seismic',extent=[freq[0],freq[-1],nwin,0],aspect='auto')
-    ax[1].set_xlabel('freq [Hz]')
-    ax[1].set_ylabel('amplitudes')
-    ax[1].set_yticks(np.arange(0,nwin,step=tick_inc))
-    ax[1].set_yticklabels(timestamp[0:nwin:tick_inc])
-    ax[1].xaxis.set_ticks_position('bottom')
-    ax[2].plot(amax/max(amax),'r-')
-    ax[2].plot(ngood,'b-')
-    ax[2].set_xlabel('waveform number')
-    ax[2].set_xticks(np.arange(0,nwin,nwin//15))
-    ax[2].legend(['relative amp','ngood'],loc='upper right')
-    # save figure or just show
-    if save:
-        if figdir==None:figdir = sfile.split('.')[0]
-        if not os.path.ifigdir(figdir):os.mkdir(figdir)
-        outfname = figdir+'/{0:s}.pdf'.format(sfile.split('/')[-1])
-        fig.savefig(outfname, format='pdf', dpi=400)
-        plt.close()
-    else:
-        fig.show()
-
 '''
 Modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
 Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).

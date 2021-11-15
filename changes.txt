@@ -6,6 +6,9 @@ CLUSTERING:
 1. Added new module.
 2. Added clustering of velocity depth profiles with kmean and som, in two functions.
 
+PLOTTING:
+1. Added get_color_cycle() to help assign colors in plotting using matplotlib.
+2. Cleaned up unused old NOISEPY functions.
 
 NOISE:
 1. Optimized merge_chunks() to use less time getting the time range.
