@@ -45,7 +45,7 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
     df = pd.DataFrame(rows, columns=['lat', 'lon', 'cluster'])
     cdata=[]
     for yi in range(ncluster):
-        cdata.append(ts[y_pred == yi])
+        cdata.append(ts[y_pred == yi].T)
 
     outdict=dict()
     outdict['method']="k-means"
