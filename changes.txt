@@ -1,6 +1,6 @@
 Updates in v0.6.5
 SETUP:
-1. Added requirements for tslearn and minisom for the clustering module mainly.
+1. Added requirements for tslearn and minisom mainly for the clustering module .
 
 CLUSTERING:
 1. Added new module.
@@ -9,9 +9,13 @@ CLUSTERING:
 PLOTTING:
 1. Added get_color_cycle() to help assign colors in plotting using matplotlib.
 2. Cleaned up unused old NOISEPY functions.
+3. Function to plot vmodel clustering results.
 
 NOISE:
 1. Optimized merge_chunks() to use less time getting the time range.
+
+UTILS:
+1. Added option to use pattern in get_filelist().
 
 ==================================================================
 Updates in v0.6.4
