@@ -1332,3 +1332,148 @@ def plot_xcorr_amplitudes(dict_in,region,fignamebase=None,format='png',distance=
             print('plot was saved to: '+figname)
         else:
             print('less than '+str(mindatapoints)+' receivers with data. Skip!')
+
+##plot velocity clustering results.
+def plot_vmodel_cluster(data,series=True,centers=True,map_plotly=True,map_gmt=True,
+                        gmt_region=None,gmt_projection="M4i",gmt_frame_style="plain",
+                        gmt_frame=None,cmap="turbo",figbase=None,save=False):
+    """
+    Plots velocity model clustering results. It may work better seperating each plot into different functions.
+    It is hard to provide all controling parameters for all plots in one function.
+    =======PARAMETERS=====
+    data: the dictionary containing all clustering results.
+    series=True,centers=True,map_plotly=True,map_gmt=True: determine which plot to produce. default is all True.
+    gmt_region=None,gmt_projection="M4i",gmt_frame_style="plain",gmt_frame=None,cmap="turbo": parameters for gmt plots.
+    figbase: fig name base when saving. Default: "vmodel_cluster+k"+str(ncluster)+"_"+method
+    save: Default False.
+    """
+    depth,pred,df,tag,method=[data['depth'],data['pred'],
+                            data['cluster_map'],data['tag'],data['method']]
+    paralist=list(gmt_para.keys())
+
+    if gmt_region is None:
+        minlon=np.min(df['lon'])
+        maxlon=np.max(df['lon'])
+        minlat=np.min(df['lat'])
+        maxlat=np.max(df['lat'])
+        gmt_region=str(minlon)+"/"+str(maxlon)+"/"+str(minlat)+"/"+str(maxlat)
+
+    ncluster=len(pred)
+    if figbase is None:
+        figbase="vmodel_cluster_k"+str(ncluster)+"_"+method
+    ###########
+    #### plotting clustered data/time series.
+    ###########
+    if series:
+        if ncluster<4:
+            plt.figure(figsize=(13, 4),facecolor='w')
+        else:
+            plt.figure(figsize=(13, 9),facecolor='w')
+        for yi in range(ncluster):
+            if ncluster<4:
+                plt.subplot(1, ncluster, yi + 1)
+            elif ncluster<9:
+                plt.subplot(int(np.ceil(ncluster/2)), 2, yi + 1)
+            elif ncluster < 16:
+                plt.subplot(int(np.ceil(ncluster/3)), 3, yi + 1)
+            elif ncluster < 21:
+                plt.subplot(int(np.ceil(ncluster/4)), 4, yi + 1)
+            elif ncluster < 26:
+                plt.subplot(int(np.ceil(ncluster/5)), 5, yi + 1)
+            else:
+                plt.subplot(int(np.ceil(ncluster/6)), 6, yi + 1)
+            for xx in pred[yi]:
+                plt.plot(depth,xx, "k-", alpha=.2)
+            plt.plot(depth,np.average(np.vstack(pred[yi]),axis=0),c="red")
+            plt.title(f"Cluster {yi+1}: "+method)
+            plt.xlabel('depth (km)')
+            plt.ylabel('Vs (km/s)')
+        plt.tight_layout()
+
+        if savefig:
+            plt.savefig(figbase+"_clusters.png",format="png")
+            plt.close()
+        else:
+            plt.show()
+    ###########
+    #### plotting cluster centers.
+    ###########
+    if centers:
+        plt.figure(figsize=(7,5),facecolor='w')
+        plt.rcParams["axes.prop_cycle"] = get_color_cycle(cmap,ncluster)
+        for yi in range(ncluster):
+            plt.plot(depth,np.average(np.vstack(pred[yi]),axis=0),label="cluster "+str(yi+1))
+        plt.legend()
+
+        plt.xlabel("depth (km)")
+        plt.ylabel("Vs (km/s)")
+        if savefig:
+            plt.savefig(figbase+"_clustercenters.png",format="png")
+            plt.close()
+        else:
+            plt.show()
+    #####################
+    ######## plot map view of clusters.
+    ####################
+    # Create map using plotly
+    if map_plotly:
+        fig = px.scatter_mapbox(
+            df,
+            lat="lat",
+            lon='lon',
+            color='cluster',
+            size_max=13,
+            zoom=3,
+            width=900,
+            height=800,
+        )
+
+        fig.update_layout(
+            mapbox_style="white-bg",
+            mapbox_layers=[
+                {
+                    "below": 'traces',
+                    "sourcetype": "raster",
+                    "source": ["https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"]
+                }
+            ]
+        )
+        if savefig:
+            #
+            fig.write_image(figbase+"_clustermap.png",format="png")
+        else:
+            fig.show()
+
+    ##gmt map
+    if map_gmt:
+        title=tag+":"+method
+        gridsize=np.diff(sorted(df['lat'].unique())[0:2])[0]
+        ss=0.1*gridsize/0.25
+        ss_str="r%3.2f/%3.2f"%(ss,1.3*ss)
+        fig = gmt.Figure()
+        gmt.config(MAP_FRAME_TYPE=gmt_frame_style)
+        gmt.config(FORMAT_GEO_MAP="ddd")
+        gmt.config(FONT_TITLE='14')
+        gmt.makecpt(cmap=cmap, series=[df['cluster'].min()-0.5, df['cluster'].max()+0.5,1])
+    #         grd=gmt.xyz2grd(region=region,x=df['lon'],y=df['lat'],z=df['cluster'],projection=projection,
+    #                 spacing=str(gridsize)+"/"+str(gridsize))
+        fig.coast(region=gmt_region, resolution="l",projection=gmt_projection,
+                  water="white",frame=frame,land="grey")
+        fig.basemap(frame='+t"'+title+'"')
+        fig.plot(
+            x=df['lon'],
+            y=df['lat'],
+            style=ss_str,
+            color=df['cluster'],
+            cmap=True,
+        )
+        fig.coast(region=gmt_region, resolution="l",projection=gmt_projection,
+                  borders=["1/0.5p,gray,2/1p,gray"],shorelines=True)
+
+        fig.colorbar(frame='af+l"Cluster"')
+
+        if savefig:
+            figname=figbase+"_clustermap_gmt.png"
+            fig.savefig(figname)
+        else:
+            fig.show()

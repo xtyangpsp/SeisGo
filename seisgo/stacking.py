@@ -12,7 +12,6 @@ Modified from NoisePy stacking functions. Originally written by Chengxin Jiang a
 
 Adapted for SeisGo by Xiaotao Yang
 """
-
 def robust_stack(cc_array,epsilon=1E-5,maxstep=10):
     """
     this is a robust stacking algorithm described in Palvis and Vernon 2010

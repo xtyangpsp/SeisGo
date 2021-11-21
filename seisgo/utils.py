@@ -36,19 +36,28 @@ def subsetindex(full,subset):
 
     return idx
 #
-def get_filelist(dir,extension,sort=True):
+def get_filelist(dir,extension=None,pattern=None,sort=True):
     """
     Get list of files with absolute path, by specifying the format extension.
 
     ===========PARAMETERS=============
     dir: directory containing the files.
     extension: file extension (the ending format tag), for example "h5" for asdf file.
+    pattern: pattern to use in searching. Wildcards are NOT considered here.
     sort: (optional) to sort the list, default is True.
 
     ============RETURN=============
     flist: the list of file names with paths.
     """
-    flist=[os.path.join(dir,f) for f in os.listdir(dir) if f[-len(extension):].lower()==extension]
+    if extension is None:
+        flist=[os.path.join(dir,f) for f in os.listdir(dir)]
+    else:
+        flist=[os.path.join(dir,f) for f in os.listdir(dir) if f[-len(extension):].lower()==extension]
+    if pattern is not None:
+        flist2=[]
+        for f in flist:
+            if f.find(pattern)>=0: flist2.append(f)
+        flist=flist2
     if sort:
         return  sorted(flist)
     else:
