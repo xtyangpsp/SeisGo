@@ -26,6 +26,8 @@ This package is under active development. The currently available modules are li
 7. `types`: This module contains the definition of major data types and classes.
 
 ## Installation
+**SeisGo** is available on PyPi (https://pypi.org/project/seisgo/). You can install it as a regular package `pip install seisgo`. The following instruction shows how to install seisgo with a virtual environment with github repository.
+
 1. Create and activate the **conda** `seisgo` environment
 
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seisgo` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
@@ -94,6 +96,21 @@ $ python
 | ZP-H   | True     | Vertical, pressure, and rotated horizontal |
 ------------------------------------------------------------------
 ```
+
+## Update SeisGo
+If you installed SeisGo through github, run the following lines to update to the latest version (may not be a release on pip yet):
+
+```Python
+git pull
+pip install .   #note there is a period "." sign here, indicating the current directory
+```
+
+If you installed SeisGo through pip, you can get the latest release (GitHub always has the most recent commits) though running these lines:
+
+```Python
+pip update seisgo
+```
+
 
 ## Structure of the package
 1. **seisgo**: This directory contains the main modules.
