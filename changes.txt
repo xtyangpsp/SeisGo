@@ -1,3 +1,7 @@
+Updates in v0.6.6
+
+
+==================================================================
 Updates in v0.6.5
 SETUP:
 1. Added requirements for tslearn and minisom mainly for the clustering module .
