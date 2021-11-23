@@ -3,7 +3,7 @@ SETUP:
 1. Added requirements for tslearn and minisom mainly for the clustering module .
 
 CLUSTERING:
-1. Added new module.
+1. Added the new module.
 2. Added clustering of velocity depth profiles with kmean and som, in two functions.
 
 PLOTTING:
