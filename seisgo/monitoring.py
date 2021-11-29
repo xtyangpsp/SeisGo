@@ -117,7 +117,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
             if method.lower()=="wts":
                 freq_p,dvv_p,dvv_error_p,cc_p,cdp_p = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
                                                                          allfreq=subfreq,dvmax=dvmax)
-                freq_n,dvv_n,dvv_error_n,cc_n,cdp_n = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                freq_n,dvv_n,dvv_error_n,cc_n,cdp_n = wts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
                                                                              allfreq=subfreq,dvmax=dvmax)
             else:
                 raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
