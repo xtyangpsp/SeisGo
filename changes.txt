@@ -2,6 +2,8 @@ Updates in v0.6.6
 MONITORING:
 1. Fixed a bug in single cpu mode, where the positive side was used for the negative measurements.
 
+TYPES:
+1. CorrData.to_egf(): Added a statement to check whether the data is already EGFs.
 
 ==================================================================
 Updates in v0.6.5
