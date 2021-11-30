@@ -858,43 +858,48 @@ class CorrData(object):
         taper_maxlen: default 10. taper maximum number of points.
         """
         if verbose: print("Converting to empirical Green's functions.")
-
-        dt=self.dt
-        try:
-            side=self.side
-        except Exception as e:
-            side="A"
-        #
-        #initiate as zeros
-        egf=np.zeros(self.data.shape,dtype=self.data.dtype)
-        if self.substack:
-            if side.lower()=="a":
-                nhalfpoint=np.int(self.data.shape[1]/2)
-                #positive side
-                egf[:,nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[:,nhalfpoint:],axis=1)/dt,
-                                                fraction=taper_frac,maxlen=taper_maxlen)
-                #negative side
-                egf[:,:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:,:nhalfpoint+1],axis=1),
-                                                axis=1)/dt,fraction=taper_frac,maxlen=taper_maxlen),axis=1)
-                egf[:,[0,nhalfpoint,-1]]=0
-            else:
-                egf=utils.taper(-1.0*np.gradient(self.data,axis=1)/dt,
-                                                fraction=taper_frac,maxlen=taper_maxlen)
+        #type flag here
+        egf_flag="Empirical Green's Functions"
+        if self.type.lower() == egf_flag.lower():
+            print("It seems the data is already EGFs. self.type="+self.type+". Skip without converting!")
+            pass
         else:
-            if side.lower()=="a":
-                nhalfpoint=np.int(self.data.shape[0]/2)
-                #positive side
-                egf[nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[nhalfpoint:])/dt,
-                                            fraction=taper_frac,maxlen=taper_maxlen)
-                #negative side
-                egf[:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
-                                            fraction=taper_frac,maxlen=taper_maxlen))
-                egf[[0,nhalfpoint,-1]]=0
+            dt=self.dt
+            try:
+                side=self.side
+            except Exception as e:
+                side="A"
+            #
+            #initiate as zeros
+            egf=np.zeros(self.data.shape,dtype=self.data.dtype)
+            if self.substack:
+                if side.lower()=="a":
+                    nhalfpoint=np.int(self.data.shape[1]/2)
+                    #positive side
+                    egf[:,nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[:,nhalfpoint:],axis=1)/dt,
+                                                    fraction=taper_frac,maxlen=taper_maxlen)
+                    #negative side
+                    egf[:,:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:,:nhalfpoint+1],axis=1),
+                                                    axis=1)/dt,fraction=taper_frac,maxlen=taper_maxlen),axis=1)
+                    egf[:,[0,nhalfpoint,-1]]=0
+                else:
+                    egf=utils.taper(-1.0*np.gradient(self.data,axis=1)/dt,
+                                                    fraction=taper_frac,maxlen=taper_maxlen)
             else:
-                egf=utils.taper(-1.0*np.gradient(self.data)/dt,
-                                            fraction=taper_frac,maxlen=taper_maxlen)
-        self.data=egf
-        self.type="Empirical Green's Functions"
+                if side.lower()=="a":
+                    nhalfpoint=np.int(self.data.shape[0]/2)
+                    #positive side
+                    egf[nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[nhalfpoint:])/dt,
+                                                fraction=taper_frac,maxlen=taper_maxlen)
+                    #negative side
+                    egf[:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
+                                                fraction=taper_frac,maxlen=taper_maxlen))
+                    egf[[0,nhalfpoint,-1]]=0
+                else:
+                    egf=utils.taper(-1.0*np.gradient(self.data)/dt,
+                                                fraction=taper_frac,maxlen=taper_maxlen)
+            self.data=egf
+            self.type=egf_flag
 
     #
     def filter(self,fmin=None,fmax=None,corners=4,zerophase=True):
