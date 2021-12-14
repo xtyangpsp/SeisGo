@@ -1159,7 +1159,7 @@ class CorrData(object):
                 extent=[-lag0,lag0,nwin,0]
             else:
                 extent=[0,lag0,nwin,0]
-            ax.matshow(data_normalizd,cmap='seismic',extent=extent,aspect='auto')
+            ax.imshow(data_normalizd,cmap='seismic',extent=extent,aspect='auto')
             ax.plot((0,0),(nwin,0),'k-')
             if freqmin is not None and freqmax is not None:
                 ax.set_title('%s-%s: dist=%5.2f km: %4.2f-%4.2f Hz: %s' % (netstachan1,netstachan2,

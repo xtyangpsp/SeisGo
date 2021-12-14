@@ -25,6 +25,8 @@ from obspy.taup import TauPyModel
 from shapely.geometry import Polygon, Point
 import netCDF4 as nc
 
+def rms(d):
+    return np.sqrt(np.mean(d**2))
 def subsetindex(full,subset):
     """
     Get the indices of the subset of a list.
