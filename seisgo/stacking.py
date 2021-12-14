@@ -12,13 +12,46 @@ Modified from NoisePy stacking functions. Originally written by Chengxin Jiang a
 
 Adapted for SeisGo by Xiaotao Yang
 """
-def robust_stack(cc_array,epsilon=1E-5,maxstep=10):
+def seisstack(d,method,par=None):
     """
-    this is a robust stacking algorithm described in Palvis and Vernon 2010
+    this is a wrapper for calling individual stacking functions.
+    d: data. 2-d array
+    method: stacking method, one of "linear","pws","robust","acf","nroot","selective"
+    par: dictionary containing all parameters for each stacking method. defaults will
+        be used if not specified.
+
+    RETURNS:
+    ds: stacked data, which may be a list depending on the method.
+    """
+    par0={"axis":0,"p":2,"g":1,"cc_min"=0.0,"epsilon":1E-5,"maxstep":10}
+    if par is None:
+        par=par0
+    else:
+        par={**par0,**par} #use par values if specified. otherwise, use defaults.
+
+    if method.lower() == 'linear':
+        ds = np.mean(d,axis=par["axis"])
+    elif method.lower() == 'pws':
+        ds = pws(d,p=par['p'])
+    elif method.lower() == 'robust':
+        ds = robust(d,epsilon=par['epsilon'],maxstep=par['maxstep'])
+    elif method.lower() == 'acf':
+        ds = adaptive_filter(d,g=par['g'])
+    elif method.lower() == 'nroot':
+        ds = nroot(d,p=par['p'])
+    elif method.lower() == 'selective':
+        ds = selective(d,cc_min=par['cc_min'],epsilon=par['epsilon'],maxstep=par['maxstep'])
+    #
+    return ds
+
+def robust(d,epsilon=1E-5,maxstep=10):
+    """
+    this is a robust stacking algorithm described in Pavlis and Vernon 2010. Generalized
+    by Xiaotao Yang.
 
     PARAMETERS:
     ----------------------
-    cc_array: numpy.ndarray contains the 2D cross correlation matrix
+    d: numpy.ndarray contains the 2D cross correlation matrix
     epsilon: residual threhold to quit the iteration (a small number). Default 1E-5
     maxstep: maximum iterations. default 10.
     RETURNS:
@@ -28,28 +61,31 @@ def robust_stack(cc_array,epsilon=1E-5,maxstep=10):
     Written by Marine Denolle
     Modified by Xiaotao Yang
     """
+    if d.ndim == 1:
+        print('2D matrix is needed')
+        return d
     res  = 9E9  # residuals
-    w = np.ones(cc_array.shape[0])
+    w = np.ones(d.shape[0])
     nstep=0
-    newstack = np.median(cc_array,axis=0)
+    newstack = np.median(d,axis=0)
     while res > epsilon and nstep <=maxstep:
         stack = newstack
-        for i in range(cc_array.shape[0]):
-            crap = np.multiply(stack,cc_array[i,:].T)
+        for i in range(d.shape[0]):
+            crap = np.multiply(stack,d[i,:].T)
             crap_dot = np.sum(crap)
-            di_norm = np.linalg.norm(cc_array[i,:])
-            ri = cc_array[i,:] -  crap_dot*stack
+            di_norm = np.linalg.norm(d[i,:])
+            ri = d[i,:] -  crap_dot*stack
             ri_norm = np.linalg.norm(ri)
             w[i]  = np.abs(crap_dot) /di_norm/ri_norm#/len(cc_array[:,1])
         # print(w)
         w =w /np.sum(w)
-        newstack =np.sum( (w*cc_array.T).T,axis=0)#/len(cc_array[:,1])
-        res = np.linalg.norm(newstack-stack,ord=1)/np.linalg.norm(newstack)/len(cc_array[:,1])
+        newstack =np.sum( (w*d.T).T,axis=0)#/len(cc_array[:,1])
+        res = np.linalg.norm(newstack-stack,ord=1)/np.linalg.norm(newstack)/len(d[:,1])
         nstep +=1
 
     return newstack, w, nstep
 
-def adaptive_filter(arr,g):
+def adaptive_filter(d,g=1):
     '''
     the adaptive covariance filter to enhance coherent signals. Fellows the method of
     Nakata et al., 2015 (Appendix B)
@@ -59,19 +95,20 @@ def adaptive_filter(arr,g):
 
     PARAMETERS:
     ----------------------
-    arr: numpy.ndarray contains the 2D traces of daily/hourly cross-correlation functions
-    g: a positive number to adjust the filter harshness
+    d: numpy.ndarray contains the 2D traces of daily/hourly cross-correlation functions
+    g: a positive number to adjust the filter harshness [default is 1]
     RETURNS:
     ----------------------
     narr: numpy vector contains the stacked cross correlation function
     '''
-    if arr.ndim == 1:
-        return arr
-    N,M = arr.shape
+    if d.ndim == 1:
+        print('2D matrix is needed')
+        return d
+    N,M = d.shape
     Nfft = next_fast_len(M)
 
     # fft the 2D array
-    spec = scipy.fftpack.fft(arr,axis=1,n=Nfft)[:,:M]
+    spec = scipy.fftpack.fft(d,axis=1,n=Nfft)[:,:M]
 
     # make cross-spectrm matrix
     cspec = np.zeros(shape=(N*N,M),dtype=np.complex64)
@@ -94,9 +131,12 @@ def adaptive_filter(arr,g):
 
     # make ifft
     narr = np.real(scipy.fftpack.ifft(np.multiply(p,spec),Nfft,axis=1)[:,:M])
-    return np.mean(narr,axis=0)
+    newstack=np.mean(narr,axis=0)
 
-def pws(arr,sampling_rate,power=2,pws_timegate=5.):
+    #
+    return newstack
+
+def pws(d,p=2):
     '''
     Performs phase-weighted stack on array of time series. Modified on the noise function by Tim Climents.
     Follows methods of Schimmel and Paulssen, 1997.
@@ -110,31 +150,29 @@ def pws(arr,sampling_rate,power=2,pws_timegate=5.):
 
     PARAMETERS:
     ---------------------
-    arr: N length array of time series data (numpy.ndarray)
-    sampling_rate: sampling rate of time series arr (int)
-    power: exponent for phase stack (int)
-    pws_timegate: number of seconds to smooth phase stack (float)
+    d: N length array of time series data (numpy.ndarray)
+    p: exponent for phase stack (int). default is 2
 
     RETURNS:
     ---------------------
-    weighted: Phase weighted stack of time series data (numpy.ndarray)
+    newstack: Phase weighted stack of time series data (numpy.ndarray)
     '''
 
-    if arr.ndim == 1:
-        return arr
-    N,M = arr.shape
-    analytic = hilbert(arr,axis=1, N=next_fast_len(M))[:,:M]
+    if d.ndim == 1:
+        print('2D matrix is needed')
+        return d
+    N,M = d.shape
+    analytic = hilbert(d,axis=1, N=next_fast_len(M))[:,:M]
     phase = np.angle(analytic)
     phase_stack = np.mean(np.exp(1j*phase),axis=0)
-    phase_stack = np.abs(phase_stack)**(power)
+    phase_stack = np.abs(phase_stack)**(p)
 
-    # smoothing
-    #timegate_samples = int(pws_timegate * sampling_rate)
-    #phase_stack = moving_ave(phase_stack,timegate_samples)
-    weighted = np.multiply(arr,phase_stack)
-    return np.mean(weighted,axis=0)
+    weighted = np.multiply(d,phase_stack)
 
-def nroot_stack(cc_array,power=2):
+    newstack=np.mean(weighted,axis=0)
+    return newstack
+
+def nroot(d,p=2):
     '''
     this is nth-root stacking algorithm translated based on the matlab function
     from https://github.com/xtyangpsp/SeisStack (by Xiaotao Yang; follows the
@@ -142,42 +180,42 @@ def nroot_stack(cc_array,power=2):
 
     Parameters:
     ------------
-    cc_array: numpy.ndarray contains the 2D cross correlation matrix
-    power: np.int, nth root for the stacking. Default is 2.
+    d: numpy.ndarray contains the 2D cross correlation matrix
+    p: np.int, nth root for the stacking. Default is 2.
 
     Returns:
     ------------
-    nstack: np.ndarray, final stacked waveforms
+    newstack: np.ndarray, final stacked waveforms
 
     Written by Chengxin Jiang @ANU (May2020)
     '''
-    if cc_array.ndim == 1:
+    if d.ndim == 1:
         print('2D matrix is needed for nroot_stack')
-        return cc_array
-    N,M = cc_array.shape
+        return d
+    N,M = d.shape
     dout = np.zeros(M,dtype=np.float32)
 
     # construct y
     for ii in range(N):
-        dat = cc_array[ii,:]
-        dout += np.sign(dat)*np.abs(dat)**(1/power)
+        dat = d[ii,:]
+        dout += np.sign(dat)*np.abs(dat)**(1/p)
     dout /= N
 
     # the final stacked waveform
-    nstack = dout*np.abs(dout)**(power-1)
+    newstack = dout*np.abs(dout)**(p-1)
 
-    return nstack
+    return newstack
 
 
-def selective_stack(cc_array,epsilon,cc_th):
+def selective(d,cc_min,epsilon=1E-5):
     '''
     this is a selective stacking algorithm developed by Jared Bryan/Kurama Okubo.
 
     PARAMETERS:
     ----------------------
-    cc_array: numpy.ndarray contains the 2D cross correlation matrix
+    d: numpy.ndarray contains the 2D cross correlation matrix
     epsilon: residual threhold to quit the iteration
-    cc_th: numpy.float, threshold of correlation coefficient to be selected
+    cc_min: numpy.float, threshold of correlation coefficient to be selected
 
     RETURNS:
     ----------------------
@@ -187,26 +225,26 @@ def selective_stack(cc_array,epsilon,cc_th):
     Originally ritten by Marine Denolle
     Modified by Chengxin Jiang @Harvard (Oct2020)
     '''
-    if cc_array.ndim == 1:
-        print('2D matrix is needed for nroot_stack')
-        return cc_array
-    N,M = cc_array.shape
+    if d.ndim == 1:
+        print('2D matrix is needed for selective stacking')
+        return d
+    N,M = d.shape
 
     res  = 9E9  # residuals
     cof  = np.zeros(N,dtype=np.float32)
-    newstack = np.mean(cc_array,axis=0)
+    newstack = np.mean(d,axis=0)
 
     nstep = 0
     # start iteration
     while res>epsilon:
         for ii in range(N):
-            cof[ii] = np.corrcoef(newstack, cc_array[ii,:])[0, 1]
+            cof[ii] = np.corrcoef(newstack, d[ii,:])[0, 1]
 
         # find good waveforms
-        indx = np.where(cof>=cc_th)[0]
+        indx = np.where(cof>=cc_min)[0]
         if not len(indx): raise ValueError('cannot find good waveforms inside selective stacking')
         oldstack = newstack
-        newstack = np.mean(cc_array[indx],axis=0)
+        newstack = np.mean(d[indx],axis=0)
         res = np.linalg.norm(newstack-oldstack)/(np.linalg.norm(newstack)*M)
         nstep +=1
 

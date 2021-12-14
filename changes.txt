@@ -2,6 +2,10 @@ Updates in v0.6.6
 MONITORING:
 1. Fixed a bug in single cpu mode, where the positive side was used for the negative measurements.
 
+STACKING:
+1. Cleaned up stacking methods with simpler names with a consistent fashion
+2. Added seisstack() as a wrapper/interface to call all methods.
+
 TYPES:
 1. CorrData.to_egf(): Added a statement to check whether the data is already EGFs.
 

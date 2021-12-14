@@ -564,16 +564,18 @@ def stacking(corrdata,method='linear'):
                 m =method[i]
                 if nstacks==1: dstack[i,:]=cc_array
                 else:
-                    if m == 'linear':
+                    if m.lower() == 'linear':
                         dstack[i,:] = np.mean(cc_array,axis=0)
-                    elif m == 'pws':
+                    elif m.lower() == 'pws':
                         dstack[i,:] = stack.pws(cc_array,1.0/corrdata.dt)
                     elif m == 'robust':
-                        dstack[i,:] = stack.robust_stack(cc_array)[0]
-                    elif m == 'acf':
+                        dstack[i,:] = stack.robust(cc_array)[0]
+                    elif m.lower() == 'acf':
                         dstack[i,:] = stack.adaptive_filter(cc_array,1)
-                    elif m == 'nroot':
-                        dstack[i,:] = stack.nroot_stack(cc_array,2)
+                    elif m.lower() == 'nroot':
+                        dstack[i,:] = stack.nroot(cc_array,2)
+                    elif m.lower() == 'selective':
+                        dstack[i,:] = stack.selective(cc_array,0.0)[0]
 
     # good to return
     return dstack,cc_time

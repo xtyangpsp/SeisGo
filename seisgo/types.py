@@ -702,11 +702,13 @@ class CorrData(object):
                         elif method.lower() == 'pws':
                             ds = stacking.pws(cc_array,1.0/self.dt)
                         elif method.lower() == 'robust':
-                            ds = stacking.robust_stack(cc_array)[0]
+                            ds = stacking.robust(cc_array)[0]
                         elif method.lower() == 'acf':
                             ds = stacking.adaptive_filter(cc_array,1)
                         elif method.lower() == 'nroot':
-                            ds = stacking.nroot_stack(cc_array,2)
+                            ds = stacking.nroot(cc_array,2)
+                        elif method.lower() == 'selective':
+                            ds = stacking.selective(cc_array,0.0)[0]
                     if overwrite:
                         #overwrite the data attribute.
                         self.substack=False
@@ -749,11 +751,11 @@ class CorrData(object):
                                 elif method.lower() == 'pws':
                                     dstack = stacking.pws(cc_array,1.0/self.dt)
                                 elif method.lower() == 'robust':
-                                    dstack = stacking.robust_stack(cc_array)[0]
+                                    dstack = stacking.robust(cc_array)[0]
                                 elif method.lower() == 'acf':
                                     dstack = stacking.adaptive_filter(cc_array,1)
                                 elif method.lower() == 'nroot':
-                                    dstack = stacking.nroot_stack(cc_array,2)
+                                    dstack = stacking.nroot(cc_array,2)
 
                             ds[i,:]=dstack
                             ngood.append(i)
@@ -1139,13 +1141,13 @@ class CorrData(object):
             elif stack_method == 'pws':
                 dstack = stacking.pws(data,1.0/dt)
             elif stack_method == 'robust':
-                dstack = stacking.robust_stack(data)[0]
+                dstack = stacking.robust(data)[0]
             elif stack_method == 'acf':
                 dstack = stacking.adaptive_filter(data,1)
             elif stack_method == 'nroot':
-                dstack = stacking.nroot_stack(data,2)
+                dstack = stacking.nroot(data,2)
             del data
-    #         dstack_robust=stack.robust_stack(data)[0]
+    #         dstack_robust=stack.robust(data)[0]
 
             # plotting
             if nwin>10:
