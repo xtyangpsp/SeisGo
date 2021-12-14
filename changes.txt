@@ -9,6 +9,10 @@ STACKING:
 TYPES:
 1. CorrData.to_egf(): Added a statement to check whether the data is already EGFs.
 
+UTILS:
+1. Added get_snr() to get snr of data with distance information.
+2. Added rms() to get the rms of data.
+
 ==================================================================
 Updates in v0.6.5
 SETUP:

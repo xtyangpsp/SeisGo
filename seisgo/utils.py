@@ -27,6 +27,48 @@ import netCDF4 as nc
 
 def rms(d):
     return np.sqrt(np.mean(d**2))
+def get_snr(d,t,dist,vmin,vmax,offset=20,axis=1):
+    """
+    Get SNRs of the data with given distance, vmin, and vmax. The signal window will be
+    computed using vmin and vmax. The noise window will be the same length as the signal
+    window shifted toward the end with the given offset.
+
+    """
+    #get window index:
+    tmin=dist/vmax
+    tmax=dist/vmin
+    dt=np.abs(t[1]-t[0])
+    shift=int(offset/dt)
+    halfn=int(len(t)/2) + 1
+    sig_idx_p=[int(tmin/dt),int(tmax/dt)]
+    noise_idx_p= [sig_idx_p[0]+shift,sig_idx_p[1]+shift]
+
+    if noise_idx_p[1] > halfn - 1:
+        raise ValueError("Noise window end [%d]is larger than the data length [%d]. Please adjust it."%(noise_idx_p[1],len(t)-1))
+
+    sig_idx_n=[halfn - sig_idx_p[1], halfn - sig_idx_p[0]]
+    noise_idx_n=[halfn - noise_idx_p[1], halfn - noise_idx_p[0]]
+
+    if d.ndim==1:
+        #axis is not used in this case
+        snr_n=rms(np.abs(d[sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[noise_idx_n[0]:noise_idx_n[1]+1]))
+        snr_p=rms(np.abs(d[sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[noise_idx_p[0]:noise_idx_p[1]+1]))
+        snr=[snr_n**2,snr_p**2]
+    elif d.ndim==2:
+        #
+        if axis==1:dim=0
+        else:dim=1
+        snr=np.ndarray((d.shape[dim],2))
+        for i in range(d.shape[dim]):
+            snr_n=rms(np.abs(d[i,sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[i,noise_idx_n[0]:noise_idx_n[1]+1]))
+            snr_p=rms(np.abs(d[i,sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[i,noise_idx_p[0]:noise_idx_p[1]+1]))
+            snr[i,:]=[snr_n**2,snr_p**2]
+        #
+    else:
+        raise ValueError("Only handles ndim <=2.")
+        snr=[np.nan,np.nan]
+
+    return snr
 def subsetindex(full,subset):
     """
     Get the indices of the subset of a list.

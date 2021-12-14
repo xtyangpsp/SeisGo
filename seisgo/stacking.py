@@ -23,7 +23,7 @@ def seisstack(d,method,par=None):
     RETURNS:
     ds: stacked data, which may be a list depending on the method.
     """
-    par0={"axis":0,"p":2,"g":1,"cc_min"=0.0,"epsilon":1E-5,"maxstep":10}
+    par0={"axis":0,"p":2,"g":1,"cc_min":0.0,"epsilon":1E-5,"maxstep":10}
     if par is None:
         par=par0
     else:
@@ -207,7 +207,7 @@ def nroot(d,p=2):
     return newstack
 
 
-def selective(d,cc_min,epsilon=1E-5):
+def selective(d,cc_min,epsilon=1E-5,maxstep=10):
     '''
     this is a selective stacking algorithm developed by Jared Bryan/Kurama Okubo.
 
@@ -236,7 +236,7 @@ def selective(d,cc_min,epsilon=1E-5):
 
     nstep = 0
     # start iteration
-    while res>epsilon:
+    while res>epsilon and nstep<=maxstep:
         for ii in range(N):
             cof[ii] = np.corrcoef(newstack, d[ii,:])[0, 1]
 
