@@ -148,7 +148,7 @@ def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="f
 
 ##plot power spectral density
 def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(13,5),\
-            save=False,figname=None,tick_inc=None):
+            save=False,figname=None,tick_inc=None,db=False):
     """
     Plot the power specctral density of the data array.
 
@@ -166,6 +166,8 @@ def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(
         raise ValueError('only plot 1-d arrya or 2d matrix for now. the input data has a dimention of %d'%(data.ndim))
 
     f,psd=utils.psd(data,1/dt)
+    if db:
+        psd=10*np.log10(np.abs(psd))
     f=f[1:]
 
     plt.figure(figsize=figsize)

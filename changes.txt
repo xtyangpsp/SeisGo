@@ -8,10 +8,13 @@ STACKING:
 
 TYPES:
 1. CorrData.to_egf(): Added a statement to check whether the data is already EGFs.
+2. CorrData.stack(): demean is now an option. ampcut can be turned off now. This is to
+    consider situations when all data need to be stacked and/or the overall trend needs to be preserved.
 
 UTILS:
 1. Added get_snr() to get snr of data with distance information.
 2. Added rms() to get the rms of data.
+3. Fixed a bug in psd() to return half of the PSD and the corresponding frequency vector.
 
 ==================================================================
 Updates in v0.6.5

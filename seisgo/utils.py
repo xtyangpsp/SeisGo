@@ -27,27 +27,29 @@ import netCDF4 as nc
 
 def rms(d):
     return np.sqrt(np.mean(d**2))
-def get_snr(d,t,dist,vmin,vmax,offset=20,axis=1):
+def get_snr(d,t,dist,vmin,vmax,offset=20,axis=1,getwindow=False):
     """
     Get SNRs of the data with given distance, vmin, and vmax. The signal window will be
     computed using vmin and vmax. The noise window will be the same length as the signal
     window shifted toward the end with the given offset.
 
     """
+    d=np.array(d)
     #get window index:
     tmin=dist/vmax
     tmax=dist/vmin
     dt=np.abs(t[1]-t[0])
     shift=int(offset/dt)
     halfn=int(len(t)/2) + 1
-    sig_idx_p=[int(tmin/dt),int(tmax/dt)]
-    noise_idx_p= [sig_idx_p[0]+shift,sig_idx_p[1]+shift]
+    sig_idx_p=[int(tmin/dt)+halfn,int(tmax/dt)+halfn]
+    winlen=sig_idx_p[1]-sig_idx_p[0]+1
+    noise_idx_p= [sig_idx_p[0]+shift+winlen,sig_idx_p[1]+shift+winlen]
 
-    if noise_idx_p[1] > halfn - 1:
+    if noise_idx_p[1] > len(t) - 1:
         raise ValueError("Noise window end [%d]is larger than the data length [%d]. Please adjust it."%(noise_idx_p[1],len(t)-1))
 
-    sig_idx_n=[halfn - sig_idx_p[1], halfn - sig_idx_p[0]]
-    noise_idx_n=[halfn - noise_idx_p[1], halfn - noise_idx_p[0]]
+    sig_idx_n=[len(t) - sig_idx_p[1], len(t) - sig_idx_p[0]]
+    noise_idx_n=[len(t) - noise_idx_p[1], len(t) - noise_idx_p[0]]
 
     if d.ndim==1:
         #axis is not used in this case
@@ -67,8 +69,11 @@ def get_snr(d,t,dist,vmin,vmax,offset=20,axis=1):
     else:
         raise ValueError("Only handles ndim <=2.")
         snr=[np.nan,np.nan]
-
-    return snr
+    if getwindow:
+        return snr,[sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]
+    else:
+        return snr
+##
 def subsetindex(full,subset):
     """
     Get the indices of the subset of a list.
@@ -1202,7 +1207,7 @@ def calculate_windowed_fft(a, fs, ws, ss=None, wind=None,getindex=False,full_len
     else:
         return ft, f
 
-def psd(d,s,axis=-1):
+def psd(d,s,axis=-1,db=False):
     """
     Compute power spectral density. The power spectrum is normalized by
     frequency resolution.
@@ -1224,7 +1229,14 @@ def psd(d,s,axis=-1):
 
     ft=fft(d,axis=axis)
     psd=np.square(np.abs(ft))/s
-    f=np.linspace(0, s/2, psd.shape[-1])
+    N=int(psd.shape[-1]/2)
+    f=np.linspace(0, s/2, N)
+    if d.ndim ==1:
+        psd=psd[:N]
+    elif d.ndim==2:
+        psd=psd[:,:N]
+    if db:
+        psd=10*np.log10(np.abs(psd))
     return f,psd
 
 def plot_slidingwindows(duration=3600*6,fs=20,window=7200,

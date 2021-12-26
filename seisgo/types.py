@@ -659,7 +659,8 @@ class CorrData(object):
 
         return cout
 
-    def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20,verbose=False):
+    def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20,verbose=False,
+                dmean=True):
         '''
         This function stacks the cross correlation data. It will overwrite the
         [data] attribute with the stacked trace, if overwrite is True. Substack will
@@ -674,7 +675,8 @@ class CorrData(object):
         overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
                     it returns the stacked data as a vector. Default: True.
         ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax)).
-                Default: 20.
+                Default: 20. Use None to disable cutting by amplitudes.
+        deman: demean before stacking. Default is True.
 
         RETURNS:
         -----------------------
@@ -686,9 +688,15 @@ class CorrData(object):
         if isinstance(method,list):method=method[0]
         if win_len is None:
             if self.substack:
-                cc_temp = utils.demean(self.data)
+                if demean:
+                    cc_temp = utils.demean(self.data)
+                else:
+                    cc_temp = self.data
                 ampmax = np.max(cc_temp,axis=1)
-                tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
+                if ampcut is None:
+                    tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
+                else:
+                    tindx  = np.where((np.abs(ampmax)>0))[0]
                 nstacks=len(tindx)
                 if nstacks >0:
                     cc_array = cc_temp[tindx,:]
@@ -735,9 +743,15 @@ class CorrData(object):
                 for i in range(len(win)-1):
                     widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
                     if len(widx) >0:
-                        cc0 = utils.demean(self.data[widx,:])
+                        if demean:
+                            cc0 = utils.demean(self.data[widx,:])
+                        else:
+                            cc0 = self.data[widx,:]
                         ampmax = np.max(cc0,axis=1)
-                        tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
+                        if ampcut is None:
+                            tindx  = np.where( (ampmax<ampcut*np.median(ampmax)) & (ampmax>0))[0]
+                        else:
+                            tindx  = np.where((np.abs(ampmax)>0))[0]
                         nstacks=len(tindx)
                         dstack = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
                         if nstacks>0:
@@ -808,7 +822,7 @@ class CorrData(object):
         #initiate as zeros
 
         if self.substack:
-            nhalfpoint=np.int(self.data.shape[1]/2)
+            nhalfpoint=int(self.data.shape[1]/2)
 
             d_p=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
             d_n=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
@@ -822,7 +836,7 @@ class CorrData(object):
                 d_p=self.data[:,nhalfpoint:]
                 d_n=np.flip(self.data[:,:nhalfpoint+1],axis=1)
         else:
-            nhalfpoint=np.int(self.data.shape[0]/2)
+            nhalfpoint=int(self.data.shape[0]/2)
             d_p=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
             d_n=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
 
