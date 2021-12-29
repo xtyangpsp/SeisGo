@@ -114,8 +114,8 @@ def plot_eventsequence(cat,figsize=(12,4),ytype='magnitude',figname=None,
     else:
         plt.show()
 
-def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="fancy",figname=None,
-                  format='png',distance=None,projection="M5i", xshift="6i",frame="af"):
+def plot_stations(lon,lat,region=None,markersize="c0.2c",title="station map",style="fancy",figname=None,
+                  format='png',distance=None,projection="M5i", xshift="6i",frame="af",save=False):
     """
     lon, lat: could be list of vectors contaning multiple sets of stations. The number of sets must be the same
             as the length of the marker list.
@@ -125,7 +125,9 @@ def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="f
     nsta=len(lon)
     if isinstance(markersize,str):
         markersize=[markersize]*nsta
-
+    #
+    if region is None:
+        region="%6.2f/%6.2f/%5.2f/%5.2f"%(np.min(lon),np.max(lon),np.min(lat),np.max(lat))
     fig = gmt.Figure()
     gmt.config(MAP_FRAME_TYPE=style)
     for i in range(nsta):
@@ -141,10 +143,14 @@ def plot_stations(lon,lat,region,markersize="c0.2c",title="station map",style="f
             color="red",
         )
 
-    if figname is None:
-        figname='stationmap.'+format
-    fig.savefig(figname)
-    print('plot was saved to: '+figname)
+    if save:
+        if figname is None:
+            figname='stationmap.'+format
+        fig.savefig(figname)
+        print('plot was saved to: '+figname)
+    else:
+        fig.show()
+
 
 ##plot power spectral density
 def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(13,5),\

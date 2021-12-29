@@ -27,17 +27,29 @@ import netCDF4 as nc
 
 def rms(d):
     return np.sqrt(np.mean(d**2))
-def get_snr(d,t,dist,vmin,vmax,offset=20,axis=1,getwindow=False):
+def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=False):
     """
     Get SNRs of the data with given distance, vmin, and vmax. The signal window will be
     computed using vmin and vmax. The noise window will be the same length as the signal
     window shifted toward the end with the given offset.
 
+    ==========
+    d,t,dist,vmin,vmax: REQUIRED. data, time vector, distance, minimum velocity, maximum velocity.
+    extend: extend the window length from the computed window based on vmin and vmax. default is 0.
+    offset: offset between noise and signal windows, in seconds. default is 20.
+    axis: axis for the calculation. default 1.
+    db: Decibel or not. Default is False.
+    getwindow: return the indices of the signal and noise windows. only the start and end indices.
+                Default False.
+
+    =======RETURNS======
+    snr: [negative, positive]
+    [sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]: only return these windows when getwindow is True.
     """
     d=np.array(d)
     #get window index:
     tmin=dist/vmax
-    tmax=dist/vmin
+    tmax=extend + dist/vmin
     dt=np.abs(t[1]-t[0])
     shift=int(offset/dt)
     halfn=int(len(t)/2) + 1
@@ -69,6 +81,8 @@ def get_snr(d,t,dist,vmin,vmax,offset=20,axis=1,getwindow=False):
     else:
         raise ValueError("Only handles ndim <=2.")
         snr=[np.nan,np.nan]
+    if db:
+        snr=10*np.log10(snr)
     if getwindow:
         return snr,[sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]
     else:
