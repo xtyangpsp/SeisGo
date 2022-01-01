@@ -44,7 +44,7 @@ def seisstack(d,method,par=None):
     #
     return ds
 
-def robust(d,epsilon=1E-5,maxstep=10):
+def robust(d,epsilon=1E-5,maxstep=10,win=None):
     """
     this is a robust stacking algorithm described in Pavlis and Vernon 2010. Generalized
     by Xiaotao Yang.
@@ -54,6 +54,8 @@ def robust(d,epsilon=1E-5,maxstep=10):
     d: numpy.ndarray contains the 2D cross correlation matrix
     epsilon: residual threhold to quit the iteration (a small number). Default 1E-5
     maxstep: maximum iterations. default 10.
+    win: [start_index,end_index] used to compute the weight, instead of the entire trace. Default None.
+            When None, use the entire trace.
     RETURNS:
     ----------------------
     newstack: numpy vector contains the stacked cross correlation
@@ -68,14 +70,16 @@ def robust(d,epsilon=1E-5,maxstep=10):
     w = np.ones(d.shape[0])
     nstep=0
     newstack = np.median(d,axis=0)
+    if win is None:
+        win=[0,-1]
     while res > epsilon and nstep <=maxstep:
         stack = newstack
         for i in range(d.shape[0]):
-            crap = np.multiply(stack,d[i,:].T)
+            dtemp=d[i,win[0]:win[1]]
+            crap = np.multiply(stack[win[0]:win[1]],dtemp.T)
             crap_dot = np.sum(crap)
-            di_norm = np.linalg.norm(d[i,:])
-            ri = d[i,:] -  crap_dot*stack
-            ri_norm = np.linalg.norm(ri)
+            di_norm = np.linalg.norm(dtemp)
+            ri_norm = np.linalg.norm(dtemp -  crap_dot*stack[win[0]:win[1]])
             w[i]  = np.abs(crap_dot) /di_norm/ri_norm#/len(cc_array[:,1])
         # print(w)
         w =w /np.sum(w)

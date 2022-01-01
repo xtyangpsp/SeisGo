@@ -813,7 +813,7 @@ def split_datetimestr(dtstr1,dtstr2,inc_hours):
 
     return dtlist
 
-#Stolen from NoisePy
+#Adapted from NoisePy function with the same name.
 @jit('float32[:](float32[:],float32)')
 def segment_interpolate(sig1,nfric):
     '''

@@ -219,8 +219,8 @@ def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(
 ############### PLOTTING RAW SEISMIC WAVEFORMS ##########################
 #############################################################################
 '''
-Inherited and modified from the plotting functions in the plotting_module of NoisePy (https://github.com/mdenolle/NoisePy).
-Credits should be given to the development team for NoisePy (Chengxin Jiang and Marine Denolle).
+Inherited and modified from the plotting functions in the plotting_module of
+NoisePy (https://github.com/mdenolle/NoisePy) by Chengxin Jiang and Marine Denolle.
 '''
 def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='pdf'):
     '''
