@@ -112,7 +112,7 @@ pip install .   #note there is a period "." sign here, indicating the current di
 If you installed SeisGo through pip, you can get the latest release (GitHub always has the most recent commits) though running these lines:
 
 ```Python
-pip update seisgo
+pip install seisgo --upgrade
 ```
 
 
