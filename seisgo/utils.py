@@ -35,7 +35,7 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
 
     ==========
     d,t,dist,vmin,vmax: REQUIRED. data, time vector, distance, minimum velocity, maximum velocity.
-    extend: extend the window length from the computed window based on vmin and vmax. default is 0.
+    extend: extend the window length from the computed window based on vmin and vmax. default is 20.
     offset: offset between noise and signal windows, in seconds. default is 20.
     axis: axis for the calculation. default 1.
     db: Decibel or not. Default is False.

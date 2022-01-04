@@ -660,7 +660,7 @@ class CorrData(object):
         return cout
 
     def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20,verbose=False,
-                dmean=True):
+                dmean=True,stack_par=None):
         '''
         This function stacks the cross correlation data. It will overwrite the
         [data] attribute with the stacked trace, if overwrite is True. Substack will
@@ -677,6 +677,7 @@ class CorrData(object):
         ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax)).
                 Default: 20. Use None to disable cutting by amplitudes.
         deman: demean before stacking. Default is True.
+        stack_par: Defautl None. parameter dictionary to conduct stacking.
 
         RETURNS:
         -----------------------
@@ -705,18 +706,7 @@ class CorrData(object):
                     ds = np.zeros((self.data.shape[1]),dtype=self.data.dtype)
                     if nstacks==1: ds=cc_array
                     else:
-                        if method.lower() == 'linear':
-                            ds = np.mean(cc_array,axis=0)
-                        elif method.lower() == 'pws':
-                            ds = stacking.pws(cc_array,1.0/self.dt)
-                        elif method.lower() == 'robust':
-                            ds = stacking.robust(cc_array)[0]
-                        elif method.lower() == 'acf':
-                            ds = stacking.adaptive_filter(cc_array,1)
-                        elif method.lower() == 'nroot':
-                            ds = stacking.nroot(cc_array,2)
-                        elif method.lower() == 'selective':
-                            ds = stacking.selective(cc_array,0.0)[0]
+                        ds = stacking.seisstack(cc_array,method=method,par=stack_par)
                     if overwrite:
                         #overwrite the data attribute.
                         self.substack=False
@@ -760,16 +750,7 @@ class CorrData(object):
                             # do stacking
                             if nstacks==1: dstack=cc_array
                             else:
-                                if method.lower() == 'linear':
-                                    dstack = np.mean(cc_array,axis=0)
-                                elif method.lower() == 'pws':
-                                    dstack = stacking.pws(cc_array,1.0/self.dt)
-                                elif method.lower() == 'robust':
-                                    dstack = stacking.robust(cc_array)[0]
-                                elif method.lower() == 'acf':
-                                    dstack = stacking.adaptive_filter(cc_array,1)
-                                elif method.lower() == 'nroot':
-                                    dstack = stacking.nroot(cc_array,2)
+                                dstack = stacking.seisstack(cc_array,method=method,par=stack_par)
 
                             ds[i,:]=dstack
                             ngood.append(i)
@@ -1068,7 +1049,7 @@ class CorrData(object):
                 if v: print('saved sac to: '+sacfile)
 
     def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8),
-            figname=None,format='png',stack_method='linear',get_stack=False):
+            figname=None,format='png',stack_method='linear',get_stack=False,stack_par=None):
         """
         Plotting method for CorrData. It is the same as seisgo.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
@@ -1150,16 +1131,7 @@ class CorrData(object):
                 timestamp[ii] = obspy.UTCDateTime(ttime[ii])
                 tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%Y-%m-%dT%H:%M:%S'))
 
-            if stack_method == 'linear':
-                dstack = np.mean(data,axis=0)
-            elif stack_method == 'pws':
-                dstack = stacking.pws(data,1.0/dt)
-            elif stack_method == 'robust':
-                dstack = stacking.robust(data)[0]
-            elif stack_method == 'acf':
-                dstack = stacking.adaptive_filter(data,1)
-            elif stack_method == 'nroot':
-                dstack = stacking.nroot(data,2)
+            dstack = stacking.seisstack(data,method=stack_method,par=stack_par)
             del data
     #         dstack_robust=stack.robust(data)[0]
 

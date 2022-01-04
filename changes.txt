@@ -5,11 +5,16 @@ MONITORING:
 STACKING:
 1. Cleaned up stacking methods with simpler names with a consistent fashion
 2. Added seisstack() as a wrapper/interface to call all methods.
+3. Added clusterstack() and tfpws().
 
 TYPES:
 1. CorrData.to_egf(): Added a statement to check whether the data is already EGFs.
 2. CorrData.stack(): demean is now an option. ampcut can be turned off now. This is to
     consider situations when all data need to be stacked and/or the overall trend needs to be preserved.
+3. Simplified calling stacking through seisstack. this enables easier future development.
+
+NOISE:
+1. Simplified calling stacking through seisstack. this enables easier future development.
 
 UTILS:
 1. Added get_snr() to get snr of data with distance information.

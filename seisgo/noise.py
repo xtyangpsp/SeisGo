@@ -523,7 +523,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
         del corrdict_all
 
 ####
-def stacking(corrdata,method='linear'):
+def stacking(corrdata,method='linear',par=None):
     '''
     this function stacks the cross correlation data
 
@@ -531,6 +531,7 @@ def stacking(corrdata,method='linear'):
     ----------------------
     corrdata: CorrData object.
     method: stacking method, could be: linear, robust, pws, acf, or nroot.
+    par: stacking parameters in a dictionary. See stacking.seisstack() for details.
 
     RETURNS:
     ----------------------
@@ -564,18 +565,7 @@ def stacking(corrdata,method='linear'):
                 m =method[i]
                 if nstacks==1: dstack[i,:]=cc_array
                 else:
-                    if m.lower() == 'linear':
-                        dstack[i,:] = np.mean(cc_array,axis=0)
-                    elif m.lower() == 'pws':
-                        dstack[i,:] = stack.pws(cc_array,1.0/corrdata.dt)
-                    elif m == 'robust':
-                        dstack[i,:] = stack.robust(cc_array)[0]
-                    elif m.lower() == 'acf':
-                        dstack[i,:] = stack.adaptive_filter(cc_array,1)
-                    elif m.lower() == 'nroot':
-                        dstack[i,:] = stack.nroot(cc_array,2)
-                    elif m.lower() == 'selective':
-                        dstack[i,:] = stack.selective(cc_array,0.0)[0]
+                    dstack[i,:] = stack.seisstack(cc_array,method=method,par=par)
 
     # good to return
     return dstack,cc_time
