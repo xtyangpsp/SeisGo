@@ -114,6 +114,7 @@ setup(
                         'tslearn',
                         'plotly',
                         'kaleido',
-                        'minisom'
+                        'minisom',
+                        'stockwell'
         ]
 )
