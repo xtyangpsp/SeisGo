@@ -23,7 +23,11 @@ This package is under active development. The currently available modules are li
 
 6. `monitoring`: This module contains functions for ambient noise seismic monitoring, adapted from functions by Yuan et al. (2021).
 
-7. `types`: This module contains the definition of major data types and classes.
+7. `clustering`: Clustering functions for seismic data and velocity models.
+
+8. `stacking`: stacking of seismic data.
+
+9. `types`: This module contains the definition of major data types and classes.
 
 ## Installation
 **SeisGo** is available on PyPi (https://pypi.org/project/seisgo/). You can install it as a regular package `pip install seisgo`. The following instruction shows how to install seisgo with a virtual environment with github repository.
