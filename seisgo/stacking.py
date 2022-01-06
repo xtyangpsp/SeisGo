@@ -116,7 +116,7 @@ def adaptive_filter(d,g=1):
     g: a positive number to adjust the filter harshness [default is 1]
     RETURNS:
     ----------------------
-    narr: numpy vector contains the stacked cross correlation function
+    newstack: numpy vector contains the stacked cross correlation function
     '''
     if d.ndim == 1:
         print('2D matrix is needed')
