@@ -1,8 +1,6 @@
 # SeisGo
 *A ready-to-go Python toolbox for seismic data analysis*
 
-### Author: Xiaotao Yang (stcyang@gmail.com)
-
 ![plot1](/figs/seisgo_logo.png)
 
 ## Introduction
