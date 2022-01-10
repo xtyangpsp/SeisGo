@@ -23,7 +23,7 @@ Note by Congcong: several utility functions are modified based on https://github
 ########################################################
 def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
-            plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,outdir='.',nproc=None):
+            plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,outdir='.',outfile=None,nproc=None):
     """
     Compute dvv with given corrdata object, with options to save dvvdata to file.
 
@@ -155,7 +155,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
                         method=method,stack_method=stack_method,error1=error_n,error2=error_p,
                         window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
     if save:
-        dvvdata.to_asdf(outdir=outdir)
+        dvvdata.to_asdf(outdir=outdir,file=outfile)
 
     ######plotting
     if plot:
