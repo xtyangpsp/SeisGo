@@ -660,7 +660,7 @@ class CorrData(object):
         return cout
 
     def stack(self,win_len=None,method='linear',overwrite=True,ampcut=20,verbose=False,
-                dmean=True,stack_par=None):
+                demean=True,stack_par=None):
         '''
         This function stacks the cross correlation data. It will overwrite the
         [data] attribute with the stacked trace, if overwrite is True. Substack will
@@ -676,7 +676,7 @@ class CorrData(object):
                     it returns the stacked data as a vector. Default: True.
         ampcut: used in QC, only stack traces that satisfy ampmax<ampcut*np.median(ampmax)).
                 Default: 20. Use None to disable cutting by amplitudes.
-        deman: demean before stacking. Default is True.
+        demean: demean before stacking. Default is True.
         stack_par: Defautl None. parameter dictionary to conduct stacking.
 
         RETURNS:
