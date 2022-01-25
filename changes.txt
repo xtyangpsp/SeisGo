@@ -1,3 +1,8 @@
+Updates in v0.7.2
+TYPES:
+1. CorrData.subset() changed overwrite to False by default.
+
+==================================================================
 Changes in v0.7.0
 STACKING:
 1. Added clusterstack() and tfpws().

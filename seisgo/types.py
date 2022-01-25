@@ -598,12 +598,12 @@ class CorrData(object):
         self.substack=True
 
     #subset method
-    def subset(self,starttime=None,endtime=None,overwrite=True):
+    def subset(self,starttime=None,endtime=None,overwrite=False):
         """
         Subset the xcorr data by time.
         starttime: Start time in string, with the format of "2021_09_05_0_0_0" or an obspy UTCDateTime object.
         endtime: End time in the same format as the "starttime"
-        overwrite: overwrite the data (default) or return the new subset CorrData object. Default: True.
+        overwrite: overwrite the data (default) or return the new subset CorrData object. Default: False.
 
 
         """
