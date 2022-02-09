@@ -1,7 +1,5 @@
 #define key classes
-import os,sys
-import obspy,scipy
-import pyasdf
+import os,sys,pickle,obspy,scipy,pyasdf
 from obspy.core import Trace,Stream
 import numpy as np
 import matplotlib.pyplot as plt
@@ -1469,17 +1467,22 @@ class DvvData(object):
 
         return "<DvvData object>"
 
-    def to_asdf(self,outdir='.',file=None,v=True):
+    ## method to get some info
+    def get_info(self):
         """
-        Save DvvData object to asdf file.
-        file: file name, default is like dvv_AK.CHN..BHE_AK.CHN..BHZ_EZ.h5.
+        Get collective information.
+
+        =====RETURNS====
+        data: data matrix.
+        label: data label.
+        path: path label, particularly for heirachy file system.
+        parameters: parameters for additional attributes
         """
-        if file is None:
-            file="dvv_"+self.id+"_"+self.cc_comp+".h5"
+
         # source-receiver pair
-        netsta_pair = self.net[0]+'.'+self.sta[0]+'_'+\
+        label = self.net[0]+'.'+self.sta[0]+'_'+\
                         self.net[1]+'.'+self.sta[1]
-        chan_pair = self.chan[0]+'_'+self.chan[1]
+        path = self.chan[0]+'_'+self.chan[1]
 
         #save to asdf
         lonS,lonR = self.lon
@@ -1524,15 +1527,99 @@ class DvvData(object):
             'maxcc2':np.float32(self.maxcc2),
             'error1':np.float32(self.maxcc1),
             'error2':np.float32(self.maxcc2)}
+
+        return odata,label,path,parameters
+
+
+    def to_asdf(self,outdir='.',file=None,v=True):
+        """
+        Save DvvData object to asdf file.
+        file: file name, default is like dvv_AK.CHN..BHE_AK.CHN..BHZ_EZ.h5.
+        ======parameters======
+        outdir: outdirectory, default is current folder
+        file: file name, file extension will be added if not already there.
+        v: verbose
+        """
+        if file is None:
+            file="dvv_"+self.id+"_"+self.cc_comp+".h5"
+        elif file[-2:] != "h5":
+            file = file + ".h5"
+        odata,netsta_pair,chan_pair,parameters=self.get_info()
+
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.
-        if sys.getsizeof(self.time)/1024 > 64: #64k is the limit of HDF attribute.
-            parameters['time']=np.float32(self.time-np.mean(self.time))
-            parameters['time_mean']=np.mean(self.time)
+        time_temp=parameters['time']
+        if sys.getsizeof(parameters['time'])/1024 > 64: #64k is the limit of HDF attribute.
+            parameters['time']=np.float32(time_temp-np.mean(time_temp))
+            parameters['time_mean']=np.mean(time_temp)
 
         with pyasdf.ASDFDataSet(outdir+'/'+file,mpi=False) as dvv_ds:
             dvv_ds.add_auxiliary_data(data=odata, data_type=netsta_pair, path=chan_pair, parameters=parameters)
         if v: print('DvvData saved to: '+outdir+'/'+file)
+    #
+    def to_pickle(self,outdir='.',file=None,v=True):
+        """
+        Save DvvData object to a pickle file.
+        file: file name, default is like dvv_AK.CHN..BHE_AK.CHN..BHZ_EZ.pk.
+        ======parameters======
+        outdir: outdirectory, default is current folder
+        file: file name, file extension will be added if not already there.
+        v: verbose
+        """
+        overwrite=True #appending mode is not supported yet.
+        if file is None:
+            file="dvv_"+self.id+"_"+self.cc_comp+".pk"
+        elif file[-2:] != "pk":
+            file = file + ".pk"
+        odata,netsta_pair,chan_pair,parameters=self.get_info()
+        dvvdict={"data":odata,"label":netsta_pair,"path":chan_pair,"parameters":parameters}
+        dvvoutdict={netsta_pair:{self.cc_comp:dvvdict}}
+        if overwrite:
+            mode="wb"
+        else:
+            mode="ab"
+        with open(file,mode) as dvvf:
+            pickle.dump(dvvoutdict,dvvf)
+        if v: print('DvvData saved to: '+outdir+'/'+file)
+    #
+    def save(self,outdir='.',file=None,v=True,format=None):
+        """
+        Save DvvData object to a file. This is a wrapper of the saving functions for different file formats.
+        file: file name, default is like dvv_AK.CHN..BHE_AK.CHN..BHZ_EZ.XX.
+        ASDF file will end with "h5"
+        Pickle file will end with "pk"
+
+        ======parameters======
+        outdir: outdirectory, default is current folder
+        file: file name, file extension will be added if not already there.
+        v: verbose
+        format: "asdf" or "pickle". Default is "asdf", unless specified by the file extension.
+        """
+        fextlist=["h5","pk"]
+        fend=file[-2:]
+        if fend.lower() in fextlist:
+            if fend.lower() == "h5":
+                format = "asdf"
+            elif fend.lower() == "pk":
+                format = "pickle"
+        else:
+            format = "asdf"
+
+        fext="h5"
+        if format.lower() == "pickle":
+            fext="pk"
+        if file is None:
+            file="dvv_"+self.id+"_"+self.cc_comp+"."+fext
+        elif fend.lower() != fext:
+            file = file + "."+fext
+
+        # call corresponding saving functions
+        if format.lower() == "asdf":
+            self.to_asdf(outdir=outdir,file=file,v=v)
+        elif format.lower() == "pickle":
+            self.to_pickle(outdir=outdir,file=file,v=v)
+        else:
+            raise ValueError(format+" is not supported yet.")
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
             figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1,

@@ -1,6 +1,14 @@
 Updates in v0.7.2
 TYPES:
 1. CorrData.subset() changed overwrite to False by default.
+2. DvvData, added get_info() to streamline and wrapup key information for other use.
+3. DvvData: added save() as a wrapper for saving functions, including to_asdf() and to_pickle.
+4. DvvData: added to_pickle() to save data to pickle files. This is mainly aiming to
+    workaround with the problem of saving large attributes in h5 file, through asdf.
+
+MONITORING:
+1. extract_dvvdata: added option to read in pickle files.
+2. get_dvv(): added option to save to pickle.
 
 ==================================================================
 Changes in v0.7.0

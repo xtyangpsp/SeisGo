@@ -1,4 +1,4 @@
-import obspy,scipy,time,pycwt
+import obspy,scipy,time,pycwt,pickle
 import numpy as np
 from obspy.signal.invsim import cosine_taper
 from scipy.fftpack import fft,ifft,next_fast_len
@@ -23,7 +23,8 @@ Note by Congcong: several utility functions are modified based on https://github
 ########################################################
 def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
-            plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,outdir='.',outfile=None,nproc=None):
+            plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,
+            outdir='.',outfile=None,format=None,nproc=None):
     """
     Compute dvv with given corrdata object, with options to save dvvdata to file.
 
@@ -50,6 +51,9 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     save: this flag is for the dvvdata result. if true, the result will be saved to an ASDF file.
         Othersie, it returns the dvvdata object. Default is False.
     outdir: this is the directory to save the dvvdata.
+    outfile: specify the file name to save the dvvdata. the file format can be indicated with the
+            extension or "format"
+    format: data file format: "asdf" or "pickle". Default is None, which will be determined by file extension.
     """
     if method.lower()!="wts":
         raise ValueError(method+" is not available yet. Please change to 'wts' for now!")
@@ -155,7 +159,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
                         method=method,stack_method=stack_method,error1=error_n,error2=error_p,
                         window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
     if save:
-        dvvdata.to_asdf(outdir=outdir,file=outfile)
+        dvvdata.save(outdir=outdir,file=outfile,format=format)
 
     ######plotting
     if plot:
@@ -229,15 +233,17 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
 
     if not save: return dvvdata
 #
-def extract_dvvdata(sfile,pair=None,comp=['all']):
+def extract_dvvdata(sfile,pair=None,comp=['all'],format=None):
     """
-    Extracts DvvData from ASDF file.
+    Extracts DvvData from a file.
 
     PARAMETERS:
     --------------------------
-    dfile: ASDF file containing DvvData saved through DvvData.to_asdf().
+    dfile: data file containing DvvData saved through DvvData.save().
     pair: net1.sta1-net2.sta2 pair to extract, default is to extract all pairs.
     comp: cross-correlation component or a list of components to extract, default is all components.
+    format: if the file format is known, specify here. otherwise, the program determines it from the file extension.
+            You can specify as "asdf" or "pickle"
 
     RETURN:
     --------------------------
@@ -252,70 +258,173 @@ def extract_dvvdata(sfile,pair=None,comp=['all']):
     # open data for read
     if isinstance(pair,str): pair=[pair]
     if isinstance(comp,str): comp=[comp]
-    dvvdict=dict()
 
-    try:
-        ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
-        # extract common variables
-        spairs_all = ds.auxiliary_data.list()
-    except Exception:
-        raise IOError("exit! cannot open %s to read"%sfile)
-    if pair is None: pair=spairs_all
+    #
+    if format is None: #automatically determine the format.
+        fext=sfile[-2:]
+        if fext.lower() == "h5":
+            format="asdf"
+        elif fext.lower() == "pk":
+            format="pickle"
 
-    for spair in list(set(pair) & set(spairs_all)):
-        ttr = spair.split('_')
-        snet,ssta = ttr[0].split('.')
-        rnet,rsta = ttr[1].split('.')
-        path_lists = ds.auxiliary_data[spair].list()
-        dvvdict[spair]=dict()
-        for ipath in path_lists:
-            schan,rchan = ipath.split('_')
-            cc_comp=schan[-1]+rchan[-1]
-            if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
-                try:
-                    para=ds.auxiliary_data[spair][ipath].parameters
-                    dt,dist,dist_unit,azi,baz,slon,slat,sele,rlon,rlat,rele,\
-                    window,stack_method,method,normalize,ttime,comp,freq,\
-                    net,sta,chan,side,cc1,cc2,maxcc1,maxcc2,error1,error2=\
-                        para['dt'],para['dist'],para['dist_unit'],para['azi'],para['baz'],\
-                        para['lonS'],para['latS'],para['eleS'],para['lonR'],para['latR'],para['eleR'],\
-                        para['window'],para['stack_method'],para['method'],para['normalize'],\
-                        para['time'],para['comp'],para['freq'],\
-                        para['net'],para['sta'],para['chan'],para['side'],para['cc1'],para['cc2'],\
-                        para['maxcc1'],para['maxcc2'],para['error1'],para['error2']
+    if format.lower() == "pickle":
+        return pickle.load(open(sfile,"rb"))
+    elif format.lower() == "asdf":
+        dvvdict=dict()
 
-                    ##special handling of time, in case time_mean is saved to reduce
-                    #the attribute memory_size
-                    if "time_mean" in list(para.keys()):
-                        tmean=para["time_mean"]
-                        ttime = np.float64(ttime) + tmean
+        try:
+            ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
+            # extract common variables
+            spairs_all = ds.auxiliary_data.list()
+        except Exception:
+            raise IOError("exit! cannot open %s to read"%sfile)
+        if pair is None: pair=spairs_all
 
-                    if side.lower() == 'a':
-                        data1 = ds.auxiliary_data[spair][ipath].data[0].copy()
-                        data2 = ds.auxiliary_data[spair][ipath].data[1].copy()
-                    elif side.lower()=='n':
-                        data1 = ds.auxiliary_data[spair][ipath].data.copy()
-                        data2=None
-                    elif side.lower()=='p':
-                        data1=None
-                        data2 = ds.auxiliary_data[spair][ipath].data.copy()
+        for spair in list(set(pair) & set(spairs_all)):
+            ttr = spair.split('_')
+            snet,ssta = ttr[0].split('.')
+            rnet,rsta = ttr[1].split('.')
+            path_lists = ds.auxiliary_data[spair].list()
+            dvvdict[spair]=dict()
+            for ipath in path_lists:
+                schan,rchan = ipath.split('_')
+                cc_comp=schan[-1]+rchan[-1]
+                if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
+                    try:
+                        para=ds.auxiliary_data[spair][ipath].parameters
+                        dt,dist,dist_unit,azi,baz,slon,slat,sele,rlon,rlat,rele,\
+                        window,stack_method,method,normalize,ttime,comp,freq,\
+                        net,sta,chan,side,cc1,cc2,maxcc1,maxcc2,error1,error2=\
+                            para['dt'],para['dist'],para['dist_unit'],para['azi'],para['baz'],\
+                            para['lonS'],para['latS'],para['eleS'],para['lonR'],para['latR'],para['eleR'],\
+                            para['window'],para['stack_method'],para['method'],para['normalize'],\
+                            para['time'],para['comp'],para['freq'],\
+                            para['net'],para['sta'],para['chan'],para['side'],para['cc1'],para['cc2'],\
+                            para['maxcc1'],para['maxcc2'],para['error1'],para['error2']
 
-                except Exception:
-                    print('continue! something wrong with %s %s'%(spair,ipath))
-                    continue
-                dvvdict[spair][cc_comp]=DvvData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
-                                                chan=chan,lon=[slon,rlon],lat=[slat,rlat],
-                                                ele=[sele,rele],cc_comp=comp,dt=dt,dist=dist,
-                                                dist_unit=dist_unit,az=azi,baz=baz,time=ttime,normalize=normalize,
-                                                freq=freq,cc1=cc1,cc2=cc2,maxcc1=maxcc1,maxcc2=maxcc2,
-                                                error1=error1,error2=error2,window=window,
-                                                stack_method=stack_method,method=method,
-                                                data1=data1,data2=data2)
-    return dvvdict
+                        ##special handling of time, in case time_mean is saved to reduce
+                        #the attribute memory_size
+                        if "time_mean" in list(para.keys()):
+                            tmean=para["time_mean"]
+                            ttime = np.float64(ttime) + tmean
+
+                        if side.lower() == 'a':
+                            data1 = ds.auxiliary_data[spair][ipath].data[0].copy()
+                            data2 = ds.auxiliary_data[spair][ipath].data[1].copy()
+                        elif side.lower()=='n':
+                            data1 = ds.auxiliary_data[spair][ipath].data.copy()
+                            data2=None
+                        elif side.lower()=='p':
+                            data1=None
+                            data2 = ds.auxiliary_data[spair][ipath].data.copy()
+
+                    except Exception:
+                        print('continue! something wrong with %s %s'%(spair,ipath))
+                        continue
+                    dvvdict[spair][cc_comp]=DvvData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
+                                                    chan=chan,lon=[slon,rlon],lat=[slat,rlat],
+                                                    ele=[sele,rele],cc_comp=comp,dt=dt,dist=dist,
+                                                    dist_unit=dist_unit,az=azi,baz=baz,time=ttime,normalize=normalize,
+                                                    freq=freq,cc1=cc1,cc2=cc2,maxcc1=maxcc1,maxcc2=maxcc2,
+                                                    error1=error1,error2=error2,window=window,
+                                                    stack_method=stack_method,method=method,
+                                                    data1=data1,data2=data2)
+        return dvvdict
+    else:
+        raise ValueError(format+" is not supported yet.")
 
 ##########################################################################
 ################ MONITORING FUNCTIONS ADAPTED FOR SEISGO ##################
 ##########################################################################
+def ts_dvv(ref, cur, dv_max, ndv, para):
+
+    """
+    This function compares the Reference waveform to stretched/compressed current waveforms to get the relative seismic velocity variation (and associated error).
+    It also computes the correlation coefficient between the Reference waveform and the current waveform.
+
+    PARAMETERS:
+    ----------------
+    ref: Reference waveform (np.ndarray, size N)
+    cur: Current waveform (np.ndarray, size N)
+    dv_max: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change ('float')
+    ndv: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  ('float')
+    para: vector of the indices of the cur and ref windows on wich you want to do the measurements (np.ndarray, size tmin*delta:tmax*delta)
+    For error computation, we need parameters:
+        fmin: minimum frequency of the data
+        fmax: maximum frequency of the data
+        tmin: minimum time window where the dv/v is computed
+        tmax: maximum time window where the dv/v is computed
+    RETURNS:
+    ----------------
+    dv: Relative velocity change dv/v (in %)
+    cc: correlation coefficient between the reference waveform and the best stretched/compressed current waveform
+    cdp: correlation coefficient between the reference waveform and the initial current waveform
+    error: Errors in the dv/v measurements based on Weaver et al (2011), On the precision of noise-correlation interferometry, Geophys. J. Int., 185(3)
+
+    Note: The code first finds the best correlation coefficient between the Reference waveform and the stretched/compressed current waveform among the "ndv" values.
+    A refined analysis is then performed around this value to obtain a more precise dv/v measurement .
+
+    Originally by L. Viens 04/26/2018 (Viens et al., 2018 JGR)
+    modified by Chengxin Jiang
+    """
+    # load common variables from dictionary
+    t = para['t']
+    twin = para['twin']
+    freq = para['freq']
+    dt   = t[1]-t[0]
+    tmin = np.min(twin)
+    tmax = np.max(twin)
+    fmin = np.min(freq)
+    fmax = np.max(freq)
+    itvec = np.arange(np.int((tmin-t.min())/dt)+1, np.int((tmax-t.min())/dt)+1)
+    tvec = t[itvec]
+
+    # make useful one for measurements
+    dvmin = -np.abs(dv_max)
+    dvmax = np.abs(dv_max)
+    Eps = 1+(np.linspace(dvmin, dvmax, ndv))
+    cof = np.zeros(Eps.shape,dtype=np.float32)
+
+    # Set of stretched/compressed current waveforms
+    for ii in range(len(Eps)):
+        nt = tvec*Eps[ii]
+        s = np.interp(x=tvec, xp=nt, fp=cur)
+        waveform_ref = ref
+        waveform_cur = s
+        cof[ii] = np.corrcoef(waveform_ref, waveform_cur)[0, 1]
+
+    cdp = np.corrcoef(cur, ref)[0, 1] # correlation coefficient between the reference and initial current waveforms
+
+    # find the maximum correlation coefficient
+    imax = np.nanargmax(cof)
+    if imax >= len(Eps)-2:
+        imax = imax - 2
+    if imax <= 2:
+        imax = imax + 2
+
+    # Proceed to the second step to get a more precise dv/v measurement
+    dtfiner = np.linspace(Eps[imax-2], Eps[imax+2], 100)
+    ncof    = np.zeros(dtfiner.shape,dtype=np.float32)
+    for ii in range(len(dtfiner)):
+        nt = tvec*dtfiner[ii]
+        s = np.interp(x=tvec, xp=nt, fp=cur)
+        waveform_ref = ref
+        waveform_cur = s
+        ncof[ii] = np.corrcoef(waveform_ref, waveform_cur)[0, 1]
+
+    cc = np.max(ncof) # Find maximum correlation coefficient of the refined  analysis
+    dv = 100. * dtfiner[np.argmax(ncof)]-100 # Multiply by 100 to convert to percentage (Epsilon = -dt/t = dv/v)
+
+    # Error computation based on Weaver et al (2011), On the precision of noise-correlation interferometry, Geophys. J. Int., 185(3)
+    T = 1 / (fmax - fmin)
+    X = cc
+    wc = np.pi * (fmin + fmax)
+    t1 = np.min([tmin, tmax])
+    t2 = np.max([tmin, tmax])
+    error = 100*(np.sqrt(1-X**2)/(2*X)*np.sqrt((6* np.sqrt(np.pi/2)*T)/(wc**2*(t2**3-t1**3))))
+
+    return dv, error, cc, cdp
+
 def wts_dvv(ref,cur,t,twin,freq,allfreq=True,dvmax=0.05,normalize=True,ndv=100,dj=1/12,s0=-1,J=-1,wvn='morlet'):
     """
     Apply stretching method to continuous wavelet transformation (CWT) of signals
@@ -414,94 +523,6 @@ def wts_dvv(ref,cur,t,twin,freq,allfreq=True,dvmax=0.05,normalize=True,ndv=100,d
 
         return f[f_ind], dvv, err, cc, cdp
 
-def ts_dvv(ref, cur, dv_max, ndv, para):
-
-    """
-    This function compares the Reference waveform to stretched/compressed current waveforms to get the relative seismic velocity variation (and associated error).
-    It also computes the correlation coefficient between the Reference waveform and the current waveform.
-
-    PARAMETERS:
-    ----------------
-    ref: Reference waveform (np.ndarray, size N)
-    cur: Current waveform (np.ndarray, size N)
-    dv_max: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change ('float')
-    ndv: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  ('float')
-    para: vector of the indices of the cur and ref windows on wich you want to do the measurements (np.ndarray, size tmin*delta:tmax*delta)
-    For error computation, we need parameters:
-        fmin: minimum frequency of the data
-        fmax: maximum frequency of the data
-        tmin: minimum time window where the dv/v is computed
-        tmax: maximum time window where the dv/v is computed
-    RETURNS:
-    ----------------
-    dv: Relative velocity change dv/v (in %)
-    cc: correlation coefficient between the reference waveform and the best stretched/compressed current waveform
-    cdp: correlation coefficient between the reference waveform and the initial current waveform
-    error: Errors in the dv/v measurements based on Weaver et al (2011), On the precision of noise-correlation interferometry, Geophys. J. Int., 185(3)
-
-    Note: The code first finds the best correlation coefficient between the Reference waveform and the stretched/compressed current waveform among the "ndv" values.
-    A refined analysis is then performed around this value to obtain a more precise dv/v measurement .
-
-    Originally by L. Viens 04/26/2018 (Viens et al., 2018 JGR)
-    modified by Chengxin Jiang
-    """
-    # load common variables from dictionary
-    t = para['t']
-    twin = para['twin']
-    freq = para['freq']
-    dt   = t[1]-t[0]
-    tmin = np.min(twin)
-    tmax = np.max(twin)
-    fmin = np.min(freq)
-    fmax = np.max(freq)
-    itvec = np.arange(np.int((tmin-t.min())/dt)+1, np.int((tmax-t.min())/dt)+1)
-    tvec = t[itvec]
-
-    # make useful one for measurements
-    dvmin = -np.abs(dv_max)
-    dvmax = np.abs(dv_max)
-    Eps = 1+(np.linspace(dvmin, dvmax, ndv))
-    cof = np.zeros(Eps.shape,dtype=np.float32)
-
-    # Set of stretched/compressed current waveforms
-    for ii in range(len(Eps)):
-        nt = tvec*Eps[ii]
-        s = np.interp(x=tvec, xp=nt, fp=cur)
-        waveform_ref = ref
-        waveform_cur = s
-        cof[ii] = np.corrcoef(waveform_ref, waveform_cur)[0, 1]
-
-    cdp = np.corrcoef(cur, ref)[0, 1] # correlation coefficient between the reference and initial current waveforms
-
-    # find the maximum correlation coefficient
-    imax = np.nanargmax(cof)
-    if imax >= len(Eps)-2:
-        imax = imax - 2
-    if imax <= 2:
-        imax = imax + 2
-
-    # Proceed to the second step to get a more precise dv/v measurement
-    dtfiner = np.linspace(Eps[imax-2], Eps[imax+2], 100)
-    ncof    = np.zeros(dtfiner.shape,dtype=np.float32)
-    for ii in range(len(dtfiner)):
-        nt = tvec*dtfiner[ii]
-        s = np.interp(x=tvec, xp=nt, fp=cur)
-        waveform_ref = ref
-        waveform_cur = s
-        ncof[ii] = np.corrcoef(waveform_ref, waveform_cur)[0, 1]
-
-    cc = np.max(ncof) # Find maximum correlation coefficient of the refined  analysis
-    dv = 100. * dtfiner[np.argmax(ncof)]-100 # Multiply by 100 to convert to percentage (Epsilon = -dt/t = dv/v)
-
-    # Error computation based on Weaver et al (2011), On the precision of noise-correlation interferometry, Geophys. J. Int., 185(3)
-    T = 1 / (fmax - fmin)
-    X = cc
-    wc = np.pi * (fmin + fmax)
-    t1 = np.min([tmin, tmax])
-    t2 = np.max([tmin, tmax])
-    error = 100*(np.sqrt(1-X**2)/(2*X)*np.sqrt((6* np.sqrt(np.pi/2)*T)/(wc**2*(t2**3-t1**3))))
-
-    return dv, error, cc, cdp
 ########################################################
 ################ MONITORING FUNCTIONS ##################
 ########################################################
