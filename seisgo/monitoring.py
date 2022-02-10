@@ -298,71 +298,85 @@ def extract_dvvdata(sfile,pair=None,comp=['all'],format=None):
         else:
             raise ValueError("file extension ["+fext+"] is not supported. Specify the format if you know it.")
 
-    if format.lower() == "pickle":
-        return pickle.load(open(sfile,"rb"))
-    elif format.lower() == "asdf":
-        dvvdict=dict()
-
+    dvvdict=dict()
+    if format.lower() == "asdf":
         try:
             ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
             # extract common variables
             spairs_all = ds.auxiliary_data.list()
         except Exception:
             raise IOError("exit! cannot open %s to read"%sfile)
-        if pair is None: pair=spairs_all
+    elif format.lower() == "pickle":
+        datain=pickle.load(open(sfile,"rb"))
+        spairs_all=list(datain.keys())
 
-        for spair in list(set(pair) & set(spairs_all)):
-            ttr = spair.split('_')
-            snet,ssta = ttr[0].split('.')
-            rnet,rsta = ttr[1].split('.')
+    if pair is None: pair=spairs_all
+
+    for spair in list(set(pair) & set(spairs_all)):
+        ttr = spair.split('_')
+        snet,ssta = ttr[0].split('.')
+        rnet,rsta = ttr[1].split('.')
+        if format.lower() == "asdf":
             path_lists = ds.auxiliary_data[spair].list()
-            dvvdict[spair]=dict()
-            for ipath in path_lists:
-                schan,rchan = ipath.split('_')
-                cc_comp=schan[-1]+rchan[-1]
-                if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
-                    try:
+        elif format.lower() == "pickle":
+            path_lists = list(datain[spair].keys())
+        #
+        dvvdict[spair]=dict()
+        for ipath in path_lists:
+            schan,rchan = ipath.split('_')
+            cc_comp=schan[-1]+rchan[-1]
+            if cc_comp in comp or comp == ['all'] or comp ==['ALL']:
+                try:
+                    if format.lower() == "asdf":
                         para=ds.auxiliary_data[spair][ipath].parameters
-                        dt,dist,dist_unit,azi,baz,slon,slat,sele,rlon,rlat,rele,\
-                        window,stack_method,method,normalize,ttime,comp,freq,\
-                        net,sta,chan,side,cc1,cc2,maxcc1,maxcc2,error1,error2=\
-                            para['dt'],para['dist'],para['dist_unit'],para['azi'],para['baz'],\
-                            para['lonS'],para['latS'],para['eleS'],para['lonR'],para['latR'],para['eleR'],\
-                            para['window'],para['stack_method'],para['method'],para['normalize'],\
-                            para['time'],para['comp'],para['freq'],\
-                            para['net'],para['sta'],para['chan'],para['side'],para['cc1'],para['cc2'],\
-                            para['maxcc1'],para['maxcc2'],para['error1'],para['error2']
+                    elif format.lower() == "pickle":
+                        para=datain[spair][ipath]["parameters"]
+                    #
+                    dt,dist,dist_unit,azi,baz,slon,slat,sele,rlon,rlat,rele,\
+                    window,stack_method,method,normalize,ttime,comp,freq,\
+                    net,sta,chan,side,cc1,cc2,maxcc1,maxcc2,error1,error2=\
+                        para['dt'],para['dist'],para['dist_unit'],para['azi'],para['baz'],\
+                        para['lonS'],para['latS'],para['eleS'],para['lonR'],para['latR'],para['eleR'],\
+                        para['window'],para['stack_method'],para['method'],para['normalize'],\
+                        para['time'],para['comp'],para['freq'],\
+                        para['net'],para['sta'],para['chan'],para['side'],para['cc1'],para['cc2'],\
+                        para['maxcc1'],para['maxcc2'],para['error1'],para['error2']
 
-                        ##special handling of time, in case time_mean is saved to reduce
-                        #the attribute memory_size
-                        if "time_mean" in list(para.keys()):
-                            tmean=para["time_mean"]
-                            ttime = np.float64(ttime) + tmean
-                        if "subfreq" in list(para.keys()):
-                            subfreq=para['subfreq']
-                        else:
-                            subfreq=True #to be compatible with old usage, only wts with subfreq True.
-                        if side.lower() == 'a':
-                            data1 = ds.auxiliary_data[spair][ipath].data[0].copy()
-                            data2 = ds.auxiliary_data[spair][ipath].data[1].copy()
-                        elif side.lower()=='n':
-                            data1 = ds.auxiliary_data[spair][ipath].data.copy()
-                            data2=None
-                        elif side.lower()=='p':
-                            data1=None
-                            data2 = ds.auxiliary_data[spair][ipath].data.copy()
+                    ##special handling of time, in case time_mean is saved to reduce
+                    #the attribute memory_size
+                    if "time_mean" in list(para.keys()):
+                        tmean=para["time_mean"]
+                        ttime = np.float64(ttime) + tmean
+                    if "subfreq" in list(para.keys()):
+                        subfreq=para['subfreq']
+                    else:
+                        subfreq=True #to be compatible with old usage, only wts with subfreq True.
+                    if format.lower() == "asdf":
+                        datamatrix=ds.auxiliary_data[spair][ipath].data
+                    elif format.lower() == "pickle":
+                        datamatrix=datain[spair][ipath]["data"]
 
-                    except Exception:
-                        print('continue! something wrong with %s %s'%(spair,ipath))
-                        continue
-                    dvvdict[spair][cc_comp]=DvvData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
-                                                    chan=chan,lon=[slon,rlon],lat=[slat,rlat],
-                                                    ele=[sele,rele],cc_comp=comp,dt=dt,dist=dist,
-                                                    dist_unit=dist_unit,az=azi,baz=baz,time=ttime,normalize=normalize,
-                                                    freq=freq,cc1=cc1,cc2=cc2,maxcc1=maxcc1,maxcc2=maxcc2,
-                                                    error1=error1,error2=error2,window=window,subfreq=subfreq,
-                                                    stack_method=stack_method,method=method,
-                                                    data1=data1,data2=data2)
+                    if side.lower() == 'a':
+                        data1 = datamatrix[0].copy()
+                        data2 = datamatrix[1].copy()
+                    elif side.lower()=='n':
+                        data1 = datamatrix.copy()
+                        data2=None
+                    elif side.lower()=='p':
+                        data1=None
+                        data2 = datamatrix.copy()
+
+                except Exception:
+                    print('continue! something wrong with %s %s'%(spair,ipath))
+                    continue
+                dvvdict[spair][cc_comp]=DvvData(net=[snet,rnet],sta=[ssta,rsta],loc=['',''],\
+                                                chan=chan,lon=[slon,rlon],lat=[slat,rlat],
+                                                ele=[sele,rele],cc_comp=comp,dt=dt,dist=dist,
+                                                dist_unit=dist_unit,az=azi,baz=baz,time=ttime,normalize=normalize,
+                                                freq=freq,cc1=cc1,cc2=cc2,maxcc1=maxcc1,maxcc2=maxcc2,
+                                                error1=error1,error2=error2,window=window,subfreq=subfreq,
+                                                stack_method=stack_method,method=method,
+                                                data1=data1,data2=data2)
         return dvvdict
     else:
         raise ValueError(format+" is not supported yet.")
