@@ -15,28 +15,43 @@ This is a planned module, to be developed.
 ################################################################
 ################ DISPERSION EXTRACTION FUNCTIONS ###############
 ################################################################
+def get_dispersion_image(data,t,dist,freq,velocity=[0.5,5],dv=0.1):
+    """
+    Produce the dispersion image with given data ensemble.
+
+    ==PARAMETERS===
+    data: 2-D matrix of the surface wave data.
+    t: time vector for the data.
+    dist: distance vector corresponding to the data matrix, must be in the
+            same order as data.
+    freq: [min,max] frequency for dispersion image.
+    velocity: velocity range in [min,max] for the dispersion image. Default: [0.5,5]
+    dv: velocity increment. Default: 0.1
+    """
+    print("Place holder function.")
+
+    aout=[] #amplitude
+    pout=[] # phase
+    return aout,pout
+
 # function to extract the dispersion from the image
-# From NoisePy.
-def extract_dispersion(amp,per,vel):
+# modified from NoisePy.
+def extract_dispersion(amp,vel):
     '''
-    this function takes the dispersion image from CWT as input, tracks the global maxinum on
-    the wavelet spectrum amplitude and extract the sections with continous and high quality data
+    this function takes the dispersion image as input, tracks the global maxinum on
+    the spectrum amplitude
 
     PARAMETERS:
     ----------------
     amp: 2D amplitude matrix of the wavelet spectrum
-    phase: 2D phase matrix of the wavelet spectrum
-    per:  period vector for the 2D matrix
     vel:  vel vector of the 2D matrix
     RETURNS:
     ----------------
-    per:  central frequency of each wavelet scale with good data
     gv:   group velocity vector at each frequency
     '''
-    maxgap = 5
     nper = amp.shape[0]
     gv   = np.zeros(nper,dtype=np.float32)
-    dvel = vel[1]-vel[0]
+    dv = vel[1]-vel[0]
 
     # find global maximum
     for ii in range(nper):
@@ -44,15 +59,4 @@ def extract_dispersion(amp,per,vel):
         indx = list(amp[ii]).index(maxvalue)
         gv[ii] = vel[indx]
 
-    # check the continuous of the dispersion
-    for ii in range(1,nper-15):
-        # 15 is the minumum length needed for output
-        for jj in range(15):
-            if np.abs(gv[ii+jj]-gv[ii+1+jj])>maxgap*dvel:
-                gv[ii] = 0
-                break
-
-    # remove the bad ones
-    indx = np.where(gv>0)[0]
-
-    return per[indx],gv[indx]
+    return gv

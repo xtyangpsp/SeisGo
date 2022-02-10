@@ -1347,7 +1347,7 @@ class DvvData(object):
     def __init__(self,corrdata=None,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,dist_unit='',\
                     method=None,stack_method=None,window=None,dt=None,az=0.0,baz=0.0,time=None,freq=None,\
-                    normalize=False,cc1=None,cc2=None,maxcc1=None,maxcc2=None,\
+                    subfreq=True,normalize=False,cc1=None,cc2=None,maxcc1=None,maxcc2=None,\
                     error1=None,error2=None,data1=None,data2=None,misc=dict()):
         self.type='dv/v Data'
         if corrdata is None: #
@@ -1396,6 +1396,7 @@ class DvvData(object):
             self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.'+self.chan[1]
 
         self.freq=freq
+        self.subfreq=subfreq
         self.stack_method=stack_method
         self.method=method
         self.window=window
@@ -1434,6 +1435,7 @@ class DvvData(object):
         print("stack    :  "+str(self.stack_method))
         print("misc     :   "+str(self.misc))
         print("freq     :   "+str(self.freq))
+        print("subfreq  :   "+str(self.subfreq))
 
         try:
             print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
@@ -1455,6 +1457,14 @@ class DvvData(object):
             print("maxcc2 [P]  :  "+str(self.maxcc2.shape))
         else:
             print("maxcc2 [P]:   none")
+        if self.error1 is not None:
+            print("error1 [N]  :  "+str(self.error1.shape))
+        else:
+            print("error1 [N]:   none")
+        if self.error2 is not None:
+            print("error2 [P]  :  "+str(self.error2.shape))
+        else:
+            print("error2 [P]:   none")
         if self.data1 is not None:
             print("data1 [N]:   "+str(self.data1.shape))
         else:
@@ -1513,6 +1523,7 @@ class DvvData(object):
             'stack_method':self.stack_method,
             'method':self.method,
             'normalize':self.normalize,
+            'subfreq':self.subfreq,
             'time':self.time,
             'comp':self.cc_comp,
             'type':self.type,
@@ -1647,7 +1658,6 @@ class DvvData(object):
             if len(smooth)==1:smooth=[smooth[0],smooth[0]]
             nvdata=scipy.ndimage.filters.gaussian_filter(nvdata, smooth, mode='constant')
             pvdata=scipy.ndimage.filters.gaussian_filter(pvdata, smooth, mode='constant')
-        period=1/self.freq
         if cc_min is None:
             cc_min=-1.0
         idx1=np.where((self.maxcc1<cc_min))
@@ -1662,63 +1672,92 @@ class DvvData(object):
 
         plt.figure(figsize=figsize, facecolor = 'white')
         # the cross-correlation coefficient
-        xticks=np.int16(np.linspace(0,nwin-1,nxtick))
-        xticklabel=[]
-        for x in xticks:
-            xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
-        # dv/v at each filtered frequency band
-        if side.lower()=="a" or side.lower()=="n":
-            dvv_array = nvdata.T
-            yrange=[np.log2(period.min()),np.log2(period.max())]
-            extent=(0,nwin,yrange[1],yrange[0])
-            if side.lower()=="a":ax1 = plt.subplot(211)
-            else:ax1 = plt.subplot(111)
-            plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
 
-            plt.ylabel('frequency (Hz)',fontsize=12)
-            ax1.set_xticks(xticks)
-            ax1.set_xticklabels(xticklabel,fontsize=12)
+        #
+        if self.subfreq: #multiple frequencies.
+            # dv/v at each filtered frequency band
+            xticks=np.int16(np.linspace(0,nwin-1,nxtick))
+            xticklabel=[]
+            for x in xticks:
+                xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
+            period=1/self.freq
+            if side.lower()=="a" or side.lower()=="n":
+                dvv_array = nvdata.T
+                yrange=[np.log2(period.min()),np.log2(period.max())]
+                extent=(0,nwin,yrange[1],yrange[0])
+                if side.lower()=="a":ax1 = plt.subplot(211)
+                else:ax1 = plt.subplot(111)
+                plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
 
-            Yticks = 2 ** np.arange(np.log2(period.min()),
-                               np.log2(period.max()),yinc)
-            ax1.set_yticks(np.log2(Yticks))
-            ax1.set_yticklabels(np.round(1/Yticks,ytick_precision))
-            if ylim is None:
-                plt.ylim(yrange)
-            else:
+                plt.ylabel('frequency (Hz)',fontsize=12)
+                ax1.set_xticks(xticks)
+                ax1.set_xticklabels(xticklabel,fontsize=12)
+
+                Yticks = 2 ** np.arange(np.log2(period.min()),
+                                   np.log2(period.max()),yinc)
+                ax1.set_yticks(np.log2(Yticks))
+                ax1.set_yticklabels(np.round(1/Yticks,ytick_precision))
+                if ylim is None:
+                    plt.ylim(yrange)
+                else:
+                    plt.ylim(ylim)
+                plt.yticks(fontsize=12)
+                if crange is not None:plt.clim(crange)
+                plt.colorbar(label='dv/v (%)')
+                ax1.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
+                ax1.invert_yaxis()
+
+            if side.lower()=="a" or side.lower()=="p":
+                dvv_array = pvdata.T
+                if side.lower()=="a":ax2 = plt.subplot(212)
+                else:ax2 = plt.subplot(111)
+                plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
+                plt.ylabel('frequency (Hz)',fontsize=12)
+                ax2.set_xticks(xticks)
+                ax2.set_xticklabels(xticklabel,fontsize=12)
+                ax2.set_yticks(np.log2(Yticks))
+                ax2.set_yticklabels(np.round(1/Yticks,ytick_precision))
+                if ylim is None:
+                    plt.ylim(yrange)
+                else:
+                    plt.ylim(ylim)
+                plt.yticks(fontsize=12)
+                if crange is not None:plt.clim(crange)
+                plt.colorbar(label='dv/v (%)')
+                ax2.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
+                ax2.invert_yaxis()
+            plt.tight_layout()
+        else: #only one measurement from one frequency
+            xticks=np.linspace(np.min(self.time),np.max(self.time),nxtick)
+            xticklabel=[]
+            for x in xticks:
+                xticklabel.append(str(UTCDateTime(x))[:10])
+            xext=0.02*(np.max(self.time)-np.min(self.time))
+            plt.hlines(0,np.min(self.time)-xext,np.max(self.time)+xext,colors='k')
+            if side.lower()=="a" or side.lower()=="n":
+                plt.errorbar(self.time,nvdata,yerr=self.error1,fmt="o",markersize=5,
+                            capsize=3,label="negative")
+            if side.lower()=="a" or side.lower()=="p":
+                plt.errorbar(self.time,pvdata,yerr=self.error2,fmt="^",markersize=5,
+                            capsize=3,label="positive")
+
+            plt.ylabel('dv/v (%)',fontsize=12)
+            plt.xlim([np.min(self.time)-xext,np.max(self.time)+xext])
+
+            plt.xticks(xticks,labels=xticklabel,fontsize=12)
+            plt.legend(fontsize=12)
+            if ylim is not None:
                 plt.ylim(ylim)
-            plt.yticks(fontsize=12)
-            if crange is not None:plt.clim(crange)
-            plt.colorbar(label='dv/v (%)')
-            ax1.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
-            ax1.invert_yaxis()
-
-        if side.lower()=="a" or side.lower()=="p":
-            dvv_array = pvdata.T
-            if side.lower()=="a":ax2 = plt.subplot(212)
-            else:ax2 = plt.subplot(111)
-            plt.imshow(dvv_array,cmap='jet_r',aspect='auto',extent=extent)
-            plt.ylabel('frequency (Hz)',fontsize=12)
-            ax2.set_xticks(xticks)
-            ax2.set_xticklabels(xticklabel,fontsize=12)
-            ax2.set_yticks(np.log2(Yticks))
-            ax2.set_yticklabels(np.round(1/Yticks,ytick_precision))
-            if ylim is None:
-                plt.ylim(yrange)
-            else:
-                plt.ylim(ylim)
-            plt.yticks(fontsize=12)
-            if crange is not None:plt.clim(crange)
-            plt.colorbar(label='dv/v (%)')
-            ax2.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
-            ax2.invert_yaxis()
-        plt.tight_layout()
+            plt.title('dv/v:'+self.id+':'+str(self.dist)+' km:'+side+':'+\
+                        str(cc_min)+':'+str(np.min(self.freq))+"-"+str(np.max(self.freq))+" Hz",
+                        fontsize=14)
 
         ###################
         ##### SAVING ######
         if save:
             if not os.path.isdir(figdir):os.mkdir(figdir)
-            if figname is None: figname = figdir+'/'+'dvv_'+self.id+'_'+self.cc_comp+'_'+side
+            if figname is None: figname = figdir+'/'+'dvv_'+self.id+'_'+self.cc_comp+'_'+side+\
+                    '_'+str(cc_min)+'_'+str(np.min(self.freq))+"_"+str(np.max(self.freq))+"Hz"
             plt.savefig(figname+'.'+format, format=format, dpi=300, facecolor = 'white')
             plt.close()
         else:

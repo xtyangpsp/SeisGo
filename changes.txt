@@ -5,10 +5,14 @@ TYPES:
 3. DvvData: added save() as a wrapper for saving functions, including to_asdf() and to_pickle.
 4. DvvData: added to_pickle() to save data to pickle files. This is mainly aiming to
     workaround with the problem of saving large attributes in h5 file, through asdf.
+5. DvvData: added subfreq as a Boolean attribute.
+6. DvvData.plot(): added option to plot when subfreq=False. only plots error bars.
 
 MONITORING:
 1. extract_dvvdata: added option to read in pickle files.
 2. get_dvv(): added option to save to pickle.
+3. get_dvv(): added "ts" method.
+4. Modified ts_dvv() to provide filter option and streamlined to work as a standalone method for SeisGo.
 
 ==================================================================
 Changes in v0.7.0
