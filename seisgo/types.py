@@ -1584,7 +1584,7 @@ class DvvData(object):
             file = file + ".pk"
         odata,netsta_pair,chan_pair,parameters=self.get_info()
         dvvdict={"data":odata,"label":netsta_pair,"path":chan_pair,"parameters":parameters}
-        dvvoutdict={netsta_pair:{self.cc_comp:dvvdict}}
+        dvvoutdict={netsta_pair:{chan_pair:dvvdict}}
         if overwrite:
             mode="wb"
         else:
