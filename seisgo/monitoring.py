@@ -295,6 +295,8 @@ def extract_dvvdata(sfile,pair=None,comp=['all'],format=None):
             format="asdf"
         elif fext.lower() == "pk":
             format="pickle"
+        else:
+            raise ValueError("file extension ["+fext+"] is not supported. Specify the format if you know it.")
 
     if format.lower() == "pickle":
         return pickle.load(open(sfile,"rb"))

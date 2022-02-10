@@ -1606,15 +1606,19 @@ class DvvData(object):
         v: verbose
         format: "asdf" or "pickle". Default is "asdf", unless specified by the file extension.
         """
+        format_all=["asdf","pickle"]
         fextlist=["h5","pk"]
         fend=file[-2:]
-        if fend.lower() in fextlist:
-            if fend.lower() == "h5":
+        if format is None:
+            if fend.lower() in fextlist:
+                if fend.lower() == "h5":
+                    format = "asdf"
+                elif fend.lower() == "pk":
+                    format = "pickle"
+            else:
                 format = "asdf"
-            elif fend.lower() == "pk":
-                format = "pickle"
-        else:
-            format = "asdf"
+        elif format not in format_all:
+            raise ValueError(format+" is not supported yet. Use one of: "+str(format_all))
 
         fext="h5"
         if format.lower() == "pickle":
