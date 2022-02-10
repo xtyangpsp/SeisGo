@@ -276,33 +276,6 @@ def correct_orientations(tr1,tr2,orient):
     trE.data = vEN[0, :]
     trN.data = vEN[1, :]
 
-
-    #match and do the rotation.
-    # if oh1==0: #due north
-    #     trE=tr2.copy()
-    #     trE.stats.channel=chan2[0:2]+'E'
-    #     trN=tr1.copy()
-    #     trN.stats.channel=chan1[0:2]+'N'
-    # elif oh1==90:
-    #     trE=tr1.copy()
-    #     trE.stats.channel=chan1[0:2]+'E'
-    #     trN=tr2.copy()
-    #     trN.stats.channel=chan2[0:2]+'N'
-    #     trN.data=-1.0*data2
-    # elif oh1==180:
-    #     trE=tr2.copy()
-    #     trE.data=-1.0*data2
-    #     trE.stats.channel=chan2[0:2]+'E'
-    #     trN=tr1.copy()
-    #     trN.stats.channel=chan1[0:2]+'N'
-    #     trN.data=-1.0*data1
-    # elif oh1==270:
-    #     trE=tr1.copy()
-    #     trE.data=-1.0*data1
-    #     trE.stats.channel=chan1[0:2]+'E'
-    #     trN=tr2.copy()
-    #     trN.stats.channel=chan2[0:2]+'N'
-
     return trE,trN
 
 #
@@ -449,7 +422,7 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, tiltfreq=[0.005, 0.035]):
     for i, d in enumerate(direc):
 
         # Rotate horizontals
-        ftH = utils.rotate_dir(ft1, ft2, d)
+        ftH = rotate_dir(ft1, ft2, d)
 
         # Get transfer functions
         cHH = np.abs(np.mean(ftH *
@@ -457,8 +430,8 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, tiltfreq=[0.005, 0.035]):
         cHZ = np.mean(ftH *
                       np.conj(ftZ), axis=0)[0:len(f)]
 
-        Co = utils.coherence(cHZ, cHH, cZZ)
-        Ph = utils.phase(cHZ)
+        Co = coherence(cHZ, cHH, cZZ)
+        Ph = phase(cHZ)
 
         # Calculate coherence over frequency band
         coh[i] = np.mean(Co[(f > tiltfreq[0]) & (f < tiltfreq[1])])
@@ -480,7 +453,7 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, tiltfreq=[0.005, 0.035]):
     for i, d in enumerate(rdirec):
 
         # Rotate horizontals
-        ftH = utils.rotate_dir(ft1, ft2, d)
+        ftH = rotate_dir(ft1, ft2, d)
 
         # Get transfer functions
         cHH = np.abs(np.mean(ftH *
@@ -488,8 +461,8 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, tiltfreq=[0.005, 0.035]):
         cHZ = np.mean(ftH *
                       np.conj(ftZ), axis=0)[0:len(f)]
 
-        Co = utils.coherence(cHZ, cHH, cZZ)
-        Ph = utils.phase(cHZ)
+        Co = coherence(cHZ, cHH, cZZ)
+        Ph = phase(cHZ)
 
         # Calculate coherence over frequency band
         rcoh[i] = np.mean(Co[(f > tiltfreq[0]) & (f < tiltfreq[1])])
@@ -512,13 +485,13 @@ def calculate_tilt(ft1, ft2, ftZ, ftP, f, tiltfreq=[0.005, 0.035]):
     # print('Maximum coherence for tilt = ', tilt)
 
     # Now calculate spectra at tilt direction
-    ftH = utils.rotate_dir(ft1, ft2, tilt)
+    ftH = rotate_dir(ft1, ft2, tilt)
 
     # Get transfer functions
     cHH = np.abs(np.mean(ftH *
                          np.conj(ftH), axis=0))[0:len(f)]
     cHZ = np.mean(ftH*np.conj(ftZ), axis=0)[0:len(f)]
-    admt_value = utils.admittance(cHZ,cHH)
+    admt_value = admittance(cHZ,cHH)
     if np.any(ftP):
         cHP = np.mean(ftH *
                       np.conj(ftP), axis=0)[0:len(f)]
@@ -736,7 +709,7 @@ def getspectra(tr1,tr2,trZ,trP,window=7200,overlap=0.3,pd=[0.004, 0.2], tol=1.5,
 
             trypenalty = penalty[np.argwhere(kill == False)].T[0]
 
-            if utils.ftest(penalty, 1, trypenalty, 1) < alpha:
+            if ftest(penalty, 1, trypenalty, 1) < alpha:
                 goodwins[indwin[kill == True]] = False
                 indwin = np.argwhere(goodwins == True)
                 moveon = False
@@ -858,11 +831,6 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
             Container Dictionary for all possible transfer functions
     *** TO-DO: add plotting option to plot transfer functions.
     """
-    #
-    # tflistdefault=gettflist()
-    # if tflist is None:
-    #     tflist = tflistdefault
-
     transfunc = dict()
     transfunc['window']=auto.window
     transfunc['overlap']=auto.overlap
@@ -880,7 +848,7 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
         elif tfkey == 'Z2-1':
             if value:
                 lc1c2 = np.conj(cross.c12)/auto.c11
-                coh_12 = utils.coherence(cross.c12, auto.c11, auto.c22)
+                coh_12 = coherence(cross.c12, auto.c11, auto.c22)
                 gc2c2_c1 = auto.c22*(1. - coh_12)
                 gc2cZ_c1 = np.conj(cross.c2Z) - np.conj(lc1c2*cross.c1Z)
                 lc2cZ_c1 = gc2cZ_c1/gc2c2_c1
@@ -892,8 +860,8 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
                 lc1c2 = np.conj(cross.c12)/auto.c11
                 lc1cP = np.conj(cross.c1P)/auto.c11
 
-                coh_12 = utils.coherence(cross.c12, auto.c11, auto.c22)
-                coh_1P = utils.coherence(cross.c1P, auto.c11, auto.cPP)
+                coh_12 = coherence(cross.c12, auto.c11, auto.c22)
+                coh_1P = coherence(cross.c1P, auto.c11, auto.cPP)
 
                 gc2c2_c1 = auto.c22*(1. - coh_12)
                 gcPcP_c1 = auto.cPP*(1. - coh_1P)
@@ -906,7 +874,7 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
                 lc2cP_c1 = gc2cP_c1/gc2c2_c1
                 lc2cZ_c1 = gc2cZ_c1/gc2c2_c1
 
-                coh_c2cP_c1 = utils.coherence(gc2cP_c1, gc2c2_c1,
+                coh_c2cP_c1 = coherence(gc2cP_c1, gc2c2_c1,
                                               gcPcP_c1)
 
                 gcPcP_c1c2 = gcPcP_c1*(1. - coh_c2cP_c1)
@@ -926,7 +894,7 @@ def gettransferfunc(auto,cross,rotation,tflist=gettflist()):
         elif tfkey == 'ZP-H':
             if value:
                 lcHcP = np.conj(rotation.cHP)/rotation.cHH
-                coh_HP = utils.coherence(rotation.cHP, rotation.cHH, auto.cPP)
+                coh_HP = coherence(rotation.cHP, rotation.cHH, auto.cPP)
                 gcPcP_cH = auto.cPP*(1. - coh_HP)
                 gcPcZ_cH = cross.cZP - np.conj(lcHcP*rotation.cHZ)
                 lcPcZ_cH = gcPcZ_cH/gcPcP_cH
@@ -968,9 +936,6 @@ def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
     correct : dictionary
         The corrected vertical data after applying multiple transfer functions.
     """
-    # tflistdefault=gettflist()
-    # if tflist is None:
-    #     tflist = tflistdefault
 
     correct = dict()
 
@@ -1158,7 +1123,7 @@ def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
                 ft1_temp = ft1[j]
                 ft2_temp = ft2[j]
                 # Rotate horizontals
-                ftH = utils.rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
+                ftH = rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
 
                 corrspec = ftZ_temp - fTF_ZH*ftH
                 corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
@@ -1189,7 +1154,7 @@ def docorrection(tr1,tr2,trZ,trP,tf,correctlist=getcorrectlist(),overlap=0.1,
                 ft1_temp = ft1[j]
                 ft2_temp = ft2[j]
                 # Rotate horizontals
-                ftH = utils.rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
+                ftH = rotate_dir(ft1_temp, ft2_temp, tf['tilt'])
 
                 corrspec = ftZ_temp - fTF_ZH*ftH - (ftP_temp - ftH*fTF_PH)*fTF_ZP_H
                 corrtime = np.real(np.fft.ifft(corrspec))[0:ws]
@@ -1429,3 +1394,112 @@ def savecorrection(trIN,correctdict,fname,subset=None,sta_inv=None,format='asdf'
         utils.save2asdf(fname,streams,tags,sta_inv)
     else:
         print('Saving to format other than ASDF is currently under develpment.')
+
+######################################
+#### Utility functions for obs processing.
+######################################
+# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
+def admittance(Gxy, Gxx):
+    """
+    Calculates admittance between two components
+
+    Parameters
+    ---------
+    Gxy : :class:`~numpy.ndarray`
+        Cross spectral density function of `x` and `y`
+    Gxx : :class:`~numpy.ndarray`
+        Power spectral density function of `x`
+
+    Returns
+    -------
+    : :class:`~numpy.ndarray`, optional
+        Admittance between `x` and `y`
+
+    """
+
+    if np.any(Gxy) and np.any(Gxx):
+        return np.abs(Gxy)/Gxx
+    else:
+        return None
+
+# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
+def coherence(Gxy, Gxx, Gyy):
+    """
+    Calculates coherence between two components
+
+    Parameters
+    ---------
+    Gxy : :class:`~numpy.ndarray`
+        Cross spectral density function of `x` and `y`
+    Gxx : :class:`~numpy.ndarray`
+        Power spectral density function of `x`
+    Gyy : :class:`~numpy.ndarray`
+        Power spectral density function of `y`
+
+    Returns
+    -------
+    : :class:`~numpy.ndarray`, optional
+        Coherence between `x` and `y`
+
+    """
+
+    if np.any(Gxy) and np.any(Gxx) and np.any(Gxx):
+        return np.abs(Gxy)**2/(Gxx*Gyy)
+    else:
+        return None
+
+# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
+def phase(Gxy):
+    """
+    Calculates phase angle between two components
+
+    Parameters
+    ---------
+    Gxy : :class:`~numpy.ndarray`
+        Cross spectral density function of `x` and `y`
+
+    Returns
+    -------
+    : :class:`~numpy.ndarray`, optional
+        Phase angle between `x` and `y`
+
+    """
+
+    if np.any(Gxy):
+        return np.angle(Gxy)
+    else:
+        return None
+
+# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
+def rotate_dir(tr1, tr2, direc):
+
+    d = -direc*np.pi/180.+np.pi/2.
+    rot_mat = np.array([[np.cos(d), -np.sin(d)],
+                        [np.sin(d), np.cos(d)]])
+
+    v12 = np.array([tr2, tr1])
+    vxy = np.tensordot(rot_mat, v12, axes=1)
+    tr_2 = vxy[0, :]
+    tr_1 = vxy[1, :]
+
+    return tr_1
+
+# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
+def ftest(res1, pars1, res2, pars2):
+
+    from scipy.stats import f as f_dist
+
+    N1 = len(res1)
+    N2 = len(res2)
+
+    dof1 = N1 - pars1
+    dof2 = N2 - pars2
+
+    Ea_1 = np.sum(res1**2)
+    Ea_2 = np.sum(res2**2)
+
+    Fobs = (Ea_1/dof1)/(Ea_2/dof2)
+
+    P = 1. - (f_dist.cdf(Fobs, dof1, dof2) - f_dist.cdf(1./Fobs, dof1, dof2))
+
+    return P

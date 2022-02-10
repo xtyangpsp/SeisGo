@@ -1,4 +1,6 @@
 Updates in v0.7.2
+All modules: Cleaned up unused functions.
+
 TYPES:
 1. CorrData.subset() changed overwrite to False by default.
 2. DvvData, added get_info() to streamline and wrapup key information for other use.
@@ -13,6 +15,10 @@ MONITORING:
 2. get_dvv(): added option to save to pickle.
 3. get_dvv(): added "ts" method.
 4. Modified ts_dvv() to provide filter option and streamlined to work as a standalone method for SeisGo.
+5. Delted unused functions.
+
+OBSMASTER:
+1. Moved some funcitons from utils.py to here.
 
 ==================================================================
 Changes in v0.7.0

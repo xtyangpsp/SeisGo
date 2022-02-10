@@ -427,15 +427,6 @@ def plot_xcorr_substack(sfile,freqmin,freqmax,lag=None,comp='ZZ',
                 ax1.set_ylim(ylim)
                 ax1.legend(loc='upper right')
                 ax1.grid()
-#                 ax2 = fig.add_subplot(414)
-#                 ax2.plot(amax/min(amax),'r-')
-#                 ax2.plot(ngood,'b-')
-#                 ax2.set_xlabel('waveform number')
-#                 ax2.set_xticks(np.arange(0,nwin,step=tick_inc))
-#                 ax2.set_xticklabels(tmarks[0:nwin:tick_inc])
-#                 #for tick in ax[2].get_xticklabels():
-#                 #    tick.set_rotation(30)
-#                 ax2.legend(['relative amp','ngood'],loc='upper right')
                 fig.tight_layout()
 
                 # save figure or just show
@@ -948,6 +939,7 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
             plt.show()
 
 #get peak amplitudes
+#this function is out of date. needs to be updated to use CorrData workflow.
 def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],
                               scale=1.0,lag=None,ylim=None,save=False,figdir=None,minsnr=None,
                         velocity=[1.0,5.0]):

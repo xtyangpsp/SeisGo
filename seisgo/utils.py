@@ -598,7 +598,9 @@ def sta_info_from_inv(inv):
     return sta,net,lon,lat,elv,location
 
 def get_tt(event_lat, event_long, sta_lat, sta_long, depth_km,model="iasp91",type='first'):
-    # get the seismic phase arrival time of the specified earthquake at the station.
+    """
+    Get the seismic phase arrival time of the specified earthquake at the station.
+    """
     sta_t = locations2degrees(event_lat, event_long, sta_lat, sta_long)
     taup = TauPyModel(model=model)
     arrivals = taup.get_travel_times(source_depth_in_km=depth_km,distance_in_degree=sta_t)
@@ -1012,7 +1014,7 @@ def check_overlap(t1,t2,error=0):
 #Modified from noisepy function cut_trace_make_statis().
 def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     '''
-    this function cuts continous noise data into user-defined segments, estimate the statistics of
+    This function cuts continous noise data into user-defined segments, estimate the statistics of
     each segment and keep timestamp of each segment for later use.
     PARAMETERS:
     ----------------------
@@ -1317,9 +1319,6 @@ def plot_slidingwindows(duration=3600*6,fs=20,window=7200,
     else:
         plt.show()
 
-# def smooth(data, np, poly=0, axis=0):
-#     return savgol_filter(data, np, poly, axis=axis, mode='wrap')
-
 # modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
 def smooth(data, nd, axis=0):
     """
@@ -1356,112 +1355,6 @@ def smooth(data, nd, axis=0):
         return filt
     else:
         return None
-
-# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
-def admittance(Gxy, Gxx):
-    """
-    Calculates admittance between two components
-
-    Parameters
-    ---------
-    Gxy : :class:`~numpy.ndarray`
-        Cross spectral density function of `x` and `y`
-    Gxx : :class:`~numpy.ndarray`
-        Power spectral density function of `x`
-
-    Returns
-    -------
-    : :class:`~numpy.ndarray`, optional
-        Admittance between `x` and `y`
-
-    """
-
-    if np.any(Gxy) and np.any(Gxx):
-        return np.abs(Gxy)/Gxx
-    else:
-        return None
-
-# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
-def coherence(Gxy, Gxx, Gyy):
-    """
-    Calculates coherence between two components
-
-    Parameters
-    ---------
-    Gxy : :class:`~numpy.ndarray`
-        Cross spectral density function of `x` and `y`
-    Gxx : :class:`~numpy.ndarray`
-        Power spectral density function of `x`
-    Gyy : :class:`~numpy.ndarray`
-        Power spectral density function of `y`
-
-    Returns
-    -------
-    : :class:`~numpy.ndarray`, optional
-        Coherence between `x` and `y`
-
-    """
-
-    if np.any(Gxy) and np.any(Gxx) and np.any(Gxx):
-        return np.abs(Gxy)**2/(Gxx*Gyy)
-    else:
-        return None
-
-# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
-def phase(Gxy):
-    """
-    Calculates phase angle between two components
-
-    Parameters
-    ---------
-    Gxy : :class:`~numpy.ndarray`
-        Cross spectral density function of `x` and `y`
-
-    Returns
-    -------
-    : :class:`~numpy.ndarray`, optional
-        Phase angle between `x` and `y`
-
-    """
-
-    if np.any(Gxy):
-        return np.angle(Gxy)
-    else:
-        return None
-
-# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
-def rotate_dir(tr1, tr2, direc):
-
-    d = -direc*np.pi/180.+np.pi/2.
-    rot_mat = np.array([[np.cos(d), -np.sin(d)],
-                        [np.sin(d), np.cos(d)]])
-
-    v12 = np.array([tr2, tr1])
-    vxy = np.tensordot(rot_mat, v12, axes=1)
-    tr_2 = vxy[0, :]
-    tr_1 = vxy[1, :]
-
-    return tr_1
-
-# modified from the same functions as in: https://github.com/nfsi-canada/OBStools/blob/master/obstools/atacr/utils.py
-def ftest(res1, pars1, res2, pars2):
-
-    from scipy.stats import f as f_dist
-
-    N1 = len(res1)
-    N2 = len(res2)
-
-    dof1 = N1 - pars1
-    dof2 = N2 - pars2
-
-    Ea_1 = np.sum(res1**2)
-    Ea_2 = np.sum(res2**2)
-
-    Fobs = (Ea_1/dof1)/(Ea_2/dof2)
-
-    P = 1. - (f_dist.cdf(Fobs, dof1, dof2) - f_dist.cdf(1./Fobs, dof1, dof2))
-
-    return P
 
 def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()

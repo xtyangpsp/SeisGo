@@ -629,13 +629,6 @@ def rotation(bigstack,parameters,locs,flag):
 
     return tcorr
 
-####
-def merging(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
-            stack=False,stack_method='linear',stack_win_len=None):
-    print("WARNING: Old function call, will be deprecated in v0.7.x. Function has been renamed to: merge_pairs() with the same options.")
-    merge_pairs(ccfiles,pairlist=pairlist,outdir=outdir,verbose=verbose,to_egf=to_egf,
-                stack=stack,stack_method=stack_method,stack_win_len=stack_win_len)
-
 ###
 def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
             stack=False,stack_method='linear',stack_win_len=None):
