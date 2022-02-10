@@ -1589,7 +1589,7 @@ class DvvData(object):
             mode="wb"
         else:
             mode="ab"
-        with open(file,mode) as dvvf:
+        with open(os.path.join(outdir,file),mode) as dvvf:
             pickle.dump(dvvoutdict,dvvf)
         if v: print('DvvData saved to: '+outdir+'/'+file)
     #
