@@ -186,7 +186,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
 
     tname = sfile.split('/')[-1]
     tmpfile = os.path.join(outdir,tname.split('.')[0]+'.tmp')
-    if not os.path.isdir(outdir):os.makedirs(outdir)
+    if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
     #file to store CC results.
     outfile=os.path.join(outdir,tname)
     fhead,ftail=os.path.split(outfile)
@@ -415,7 +415,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
             if not os.path.isdir(tmp):os.mkdir(tmp)
     if isinstance(pairlist,str):pairlist=[pairlist]
 
-    if not os.path.isdir(outdir):os.makedirs(outdir)
+    if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
     if rotation:
         enz_system = ['EE','EN','EZ','NE','NN','NZ','ZE','ZN','ZZ']
         rtz_components = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
@@ -695,7 +695,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
             if not os.path.isdir(tmp):os.mkdir(tmp)
     if isinstance(pairlist,str):pairlist=[pairlist]
 
-    if not os.path.isdir(outdir):os.makedirs(outdir)
+    if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
 
     for pair in pairlist:
         ttr   = pair.split('_')
@@ -705,7 +705,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
 
         # continue when file is done
         ioutdir=os.path.join(outdir,idir)
-        if not os.path.isdir(ioutdir):os.makedirs(ioutdir)
+        if not os.path.isdir(ioutdir):os.makedirs(ioutdir,exist_ok = True)
 
         if verbose:print('assembling all corrdata ...')
         t0=time.time()

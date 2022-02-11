@@ -978,7 +978,7 @@ class CorrData(object):
 
         #
         fhead=os.path.split(file)[0]
-        if len(fhead) >0 and not os.path.isdir(fhead): os.makedirs(fhead)
+        if len(fhead) >0 and not os.path.isdir(fhead): os.makedirs(fhead,exist_ok = True)
 
         with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
             ccf_ds.add_auxiliary_data(data=self.data, data_type=netsta_pair, path=chan_pair, parameters=parameters)
@@ -995,7 +995,7 @@ class CorrData(object):
         v: verbose, default is True.
         """
         try:
-            if not os.path.isdir(outdir):os.makedirs(outdir)
+            if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
         except Exception as e:
             print(e)
 
