@@ -16,7 +16,7 @@ def seisstack(d,method,par=None):
     """
     this is a wrapper for calling individual stacking functions.
     d: data. 2-d array
-    method: stacking method, one of "linear","pws","robust","acf","nroot","selective",
+    method: stacking method, one of "linear","pws","tf-pws","robust","acf","nroot","selective",
             "cluster"
     par: dictionary containing all parameters for each stacking method. defaults will
         be used if not specified.

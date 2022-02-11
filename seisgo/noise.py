@@ -42,7 +42,17 @@ def compute_fft(trace,win_len,step,stainv=None,
 def assemble_fft(sfile,win_len,step,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,smooth_spec=20,
                     taper_frac=0.05,df=None,exclude_chan=[None],v=True):
-    #only deal with ASDF format for now.
+    """
+    Compute and assemble all FFTData from the raw data file "sfile".
+    sfile: raw data file in ASDF format.
+    win_len,step: segment length and sliding step in seconds.
+    freqmin=None,freqmax=None: frequency range for spectrum whitening/smoothing.
+    time_norm='no',freq_norm='no',smooth=20,smooth_spec=20: normalization choice and smoothing parameters.
+    taper_frac=0.05: taper fraction when sliding through the data into segments.
+    df=None: this is only used for FTN normalization.
+    exclude_chan=[None]: channel to exclude.
+    v=True: verbose option.
+    """
 
     # retrive station information
     ds=pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
@@ -101,8 +111,9 @@ def smooth_source_spect(fft1,cc_method,sn):
     this function smoothes amplitude spectrum of the 2D spectral matrix. (used in S1)
     PARAMETERS:
     ---------------------
-    cc_para: dictionary containing useful cc parameters
     fft1:    source spectrum matrix
+    cc_method: correlaiton method, one of "xcorr", "deconv", "coherency"
+    sn: number of samples in smoothng.
 
     RETURNS:
     ---------------------
@@ -140,11 +151,26 @@ def smooth_source_spect(fft1,cc_method,sn):
 def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
                     xcorr_only=False,substack=False,substack_len=None,smoothspect_N=20,
                     maxstd=10,freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
-                    smooth_N=20,exclude_chan=[None],outdir='.',v=True):
+                    smooth_N=20,exclude_chan=[None],outdir='.',v=True,seperate_pairs=False):
     """
     Wrapper for computing correlation functions. It includes two key steps: 1) compute and assemble
     the FFT of all data in the sfile, into a list of FFTData objects; 2) loop through the FFTData object
     list and do correlation (auto or xcorr) for each source-receiver pair.
+
+    ===PARAMETERS===
+    sfile: raw data file in ASDF format.
+    win_len,step,maxlag,cc_method='xcorr': correlation parameters. cc_method: one of "xcorr", "deconv", "coherency"
+    acorr_only=False: only compute autocorrelation when True.
+    xcorr_only=False: Only compute cross-correlations when True.
+    substack=False,substack_len=None: keep substack or not. If True, specify substack_len (in seconds.)
+    smoothspect_N=20,smooth_N=20: smoothing parametes when rma is used for frequency and time domain, respectively.
+    maxstd=10: drop data segments with std > this threshold.
+    freqmin=None,freqmax=None: frequency range for frequency doman normalizaiton/smoothing.
+    time_norm='no',freq_norm='no': normalization choices.
+    exclude_chan=[None]: this is needed when some channels to be excluded
+    outdir='.': path to save the output ASDF files.
+    v=True: verbose flag
+    seperate_pairs=False: if True, the ASDF file will be saved to subfolders named by station_pair/channel_pair.
 
     ====RETURNS====
     ndata: the number of station-component pairs in the sfile, that have been processed.
@@ -163,6 +189,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     if not os.path.isdir(outdir):os.makedirs(outdir)
     #file to store CC results.
     outfile=os.path.join(outdir,tname)
+    fhead,ftail=os.path.split(outfile)
     # check whether time chunk been processed or not
     if os.path.isfile(tmpfile):
         ftemp = open(tmpfile,'r')
@@ -201,7 +228,14 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
                                         smoothspect_N=smoothspect_N,substack_len=substack_len,
                                         maxstd=maxstd)
 
-                    if corrdata.data is not None: corrdata.to_asdf(file=outfile)
+                    if corrdata.data is not None:
+                        if seperate_pairs:
+                            netsta_pair = corrdata.net[0]+'.'+corrdata.sta[0]+'_'+\
+                                            corrdata.net[1]+'.'+corrdata.sta[1]
+                            chan_pair = corrdata.chan[0]+'_'+corrdata.chan[1]
+                            corrdata.to_asdf(file=os.path.join(fhead,netsta_pair,chan_pair,ftail),v=v)
+                        else:
+                            corrdata.to_asdf(file=outfile,v=v)
 
     # create a stamp to show time chunk being done
     ftmp.write('done')

@@ -20,6 +20,14 @@ MONITORING:
 OBSMASTER:
 1. Moved some funcitons from utils.py to here.
 
+NOISE:
+1. Added seperate_pairs() to convert corrfile from chunks of all pairs to one chunk for each pair.
+2. Added option in do_correlation() to specify the flag of seperate_pairs.
+3. Added comments and descriptions to major functions.
+
+HELPERS:
+1. Added this new module to provide a place showing a summary of helper function using SeisGo.  
+
 ==================================================================
 Changes in v0.7.0
 STACKING:
