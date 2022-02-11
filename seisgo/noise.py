@@ -790,6 +790,38 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
                         corrdict_all[p][c].to_asdf(file=outfile,v=False)
     del corrdict_all
 
+##
+def seperate_pairs(ccfile,pairlist=None,outdir='./CCF_PAIRS',verbose=False):
+    """
+    This function reorganize time chunk xcorr files by seperating station pairs.
+    Each station pair will be in a seperate folder, with all time chunks. This is
+    designed to reduce the computational needs when merging station pairs for later
+    processes. Tree: ourdie/pair/ccomp/chunk1.h5.
+
+    ===== parameters ====
+    ccfile: cross correlaiton file in ASDF format.
+    pairlist: subset of station pairs to extract. Default None to extract all pairs.
+    outdir: root directory to save the output. Default: ./CCF_PAIRS
+    verbose: False
+    """
+    corrdict=extract_corrdata(ccfile)
+
+    pairs_all=list(corrdict.keys())
+    if pairlist is None: pairlist=pairs_all
+
+    fnamebase=os.path.split(ccfile)[-1]
+    for p in pairlist:
+        if p in pairs_all:
+            cc_all=list(corrdict[p].keys()) #all component for this pair,
+            #
+            for c in cc_all:
+                localdir=os.path.join(outdir,p,c)
+                # if not os.path.isdir(localdir): os.makedirs(localdir)
+                outfile=os.path.join(localdir,fnamebase)
+                corrdict[p][c].to_asdf(file=outfile,v=verbose)
+        else:
+            print(p+" is not in the data. Skipped!")
+
 ########################################################
 ################ XCORR ANALYSIS FUNCTIONS ##################
 ########################################################
