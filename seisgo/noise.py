@@ -232,8 +232,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
                         if seperate_pairs:
                             netsta_pair = corrdata.net[0]+'.'+corrdata.sta[0]+'_'+\
                                             corrdata.net[1]+'.'+corrdata.sta[1]
-                            chan_pair = corrdata.chan[0]+'_'+corrdata.chan[1]
-                            corrdata.to_asdf(file=os.path.join(fhead,netsta_pair,chan_pair,ftail),v=v)
+                            corrdata.to_asdf(file=os.path.join(fhead,netsta_pair,ftail),v=v)
                         else:
                             corrdata.to_asdf(file=outfile,v=v)
 
@@ -830,7 +829,7 @@ def seperate_pairs(ccfile,pairlist=None,outdir='./CCF_PAIRS',verbose=False):
     This function reorganize time chunk xcorr files by seperating station pairs.
     Each station pair will be in a seperate folder, with all time chunks. This is
     designed to reduce the computational needs when merging station pairs for later
-    processes. Tree: ourdie/pair/ccomp/chunk1.h5.
+    processes. Tree: ourdie/pair/chunk1.h5.
 
     ===== parameters ====
     ccfile: cross correlaiton file in ASDF format.
@@ -849,7 +848,7 @@ def seperate_pairs(ccfile,pairlist=None,outdir='./CCF_PAIRS',verbose=False):
             cc_all=list(corrdict[p].keys()) #all component for this pair,
             #
             for c in cc_all:
-                localdir=os.path.join(outdir,p,c)
+                localdir=os.path.join(outdir,p)
                 # if not os.path.isdir(localdir): os.makedirs(localdir)
                 outfile=os.path.join(localdir,fnamebase)
                 corrdict[p][c].to_asdf(file=outfile,v=verbose)
