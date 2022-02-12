@@ -11,7 +11,7 @@ from obspy.signal.regression import linear_regression
 from scipy.fftpack import fft,ifft,next_fast_len
 from seisgo import stacking as stack
 from seisgo.types import CorrData, FFTData
-from seisgo import utils
+from seisgo import utils,helpers
 
 #####
 ########################################################
@@ -151,7 +151,7 @@ def smooth_source_spect(fft1,cc_method,sn):
 def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
                     xcorr_only=False,substack=False,substack_len=None,smoothspect_N=20,
                     maxstd=10,freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
-                    smooth_N=20,exclude_chan=[None],outdir='.',v=True,seperate_pairs=False):
+                    smooth_N=20,exclude_chan=[None],outdir='.',v=True,output_structure="raw"):
     """
     Wrapper for computing correlation functions. It includes two key steps: 1) compute and assemble
     the FFT of all data in the sfile, into a list of FFTData objects; 2) loop through the FFTData object
@@ -170,7 +170,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     exclude_chan=[None]: this is needed when some channels to be excluded
     outdir='.': path to save the output ASDF files.
     v=True: verbose flag
-    seperate_pairs=False: if True, the ASDF file will be saved to subfolders named by station_pair/channel_pair.
+    output_structure="raw": output file structure. see `seisgo.helpers.xcorr_output_structure()` for available options..
 
     ====RETURNS====
     ndata: the number of station-component pairs in the sfile, that have been processed.
@@ -183,7 +183,9 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
 
     if acorr_only and xcorr_only:
         raise ValueError('acorr_only and xcorr_only CAN NOT all be True.')
-
+    output_o,output_o_short=helpers.xcorr_output_structure()
+    if output_structure not in output_o and output_structure not in output_o_short:
+        raise ValueError(output_structure + " is not recoganized. must be one of "+str(output_o)+" or "+str(output_o_short))
     tname = sfile.split('/')[-1]
     tmpfile = os.path.join(outdir,tname.split('.')[0]+'.tmp')
     if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
@@ -229,12 +231,22 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
                                         maxstd=maxstd)
 
                     if corrdata.data is not None:
-                        if seperate_pairs:
+                        if output_structure.lower() == "raw" or output_structure.lower() == "r":
+                            corrdata.to_asdf(file=outfile,v=v)
+                        elif output_structure.lower() == "source" or output_structure.lower() == "s":
+                            corrdata.to_asdf(file=os.path.join(fhead,corrdata.net[0]+'.'+corrdata.sta[0],ftail),v=v)
+                        elif output_structure.lower() == "station-pair" or output_structure.lower() == "sp":
                             netsta_pair = corrdata.net[0]+'.'+corrdata.sta[0]+'_'+\
                                             corrdata.net[1]+'.'+corrdata.sta[1]
                             corrdata.to_asdf(file=os.path.join(fhead,netsta_pair,ftail),v=v)
+                        elif output_structure.lower() == "station-component-pair" or output_structure.lower() == "scp":
+                            netsta_pair = corrdata.net[0]+'.'+corrdata.sta[0]+'_'+\
+                                            corrdata.net[1]+'.'+corrdata.sta[1]
+                            chan_pair = corrdata.chan[0]+'_'+corrdata.chan[1]
+                            corrdata.to_asdf(file=os.path.join(fhead,netsta_pair,chan_pair,ftail),v=v)
                         else:
-                            corrdata.to_asdf(file=outfile,v=v)
+                            raise ValueError(output_structure + " is not recoganized. must be one of "+\
+                                    str(output_o)+" or "+str(output_o_short))
 
     # create a stamp to show time chunk being done
     ftmp.write('done')
@@ -824,36 +836,48 @@ def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
     del corrdict_all
 
 ##
-def seperate_pairs(ccfile,pairlist=None,outdir='./CCF_PAIRS',verbose=False):
+def reorganize_corrfile(ccfile,output_structure,pairlist=None,outdir='./CCF_OUT',v=False):
     """
     This function reorganize time chunk xcorr files by seperating station pairs.
     Each station pair will be in a seperate folder, with all time chunks. This is
     designed to reduce the computational needs when merging station pairs for later
-    processes. Tree: ourdie/pair/chunk1.h5.
+    processes.
 
     ===== parameters ====
     ccfile: cross correlaiton file in ASDF format.
-    pairlist: subset of station pairs to extract. Default None to extract all pairs.
-    outdir: root directory to save the output. Default: ./CCF_PAIRS
-    verbose: False
+    output_structure: structure to organize the output files. see `seisgo.helpers.xcorr_output_structure()`
+                    for available options.
+    pairlist: list of station pairs to convert.
+    outdir: root directory to save the output. Default: ./CCF_OUT
+    v: False
     """
-    corrdict=extract_corrdata(ccfile)
+    output_o,output_o_short=helpers.xcorr_output_structure()
+    if output_structure not in output_o and output_structure not in output_o_short:
+        raise ValueError(output_structure + " is not recoganized. must be one of "+str(output_o)+" or "+str(output_o_short))
+
+    corrdict=extract_corrdata(ccfile,pair=pairlist)
 
     pairs_all=list(corrdict.keys())
-    if pairlist is None: pairlist=pairs_all
 
     fnamebase=os.path.split(ccfile)[-1]
-    for p in pairlist:
-        if p in pairs_all:
-            cc_all=list(corrdict[p].keys()) #all component for this pair,
-            #
-            for c in cc_all:
+    for p in pairs_all:
+        cc_all=list(corrdict[p].keys()) #all component for this pair,
+        #
+        for c in cc_all:
+            if output_structure.lower() == "raw" or output_structure.lower() == "r":
+                corrdict[p][c].to_asdf(file=os.path.join(outdir,fnamebase),v=v)
+            elif output_structure.lower() == "source" or output_structure.lower() == "s":
+                localdir=os.path.join(outdir,corrdict[p][c].net[0]+'.'+corrdict[p][c].sta[0])
+                corrdict[p][c].to_asdf(file=os.path.join(localdir,fnamebase),v=v)
+            elif output_structure.lower() == "station-pair" or output_structure.lower() == "sp":
                 localdir=os.path.join(outdir,p)
-                # if not os.path.isdir(localdir): os.makedirs(localdir)
-                outfile=os.path.join(localdir,fnamebase)
-                corrdict[p][c].to_asdf(file=outfile,v=verbose)
-        else:
-            print(p+" is not in the data. Skipped!")
+                corrdict[p][c].to_asdf(file=os.path.join(localdir,fnamebase),v=v)
+            elif output_structure.lower() == "station-component-pair" or output_structure.lower() == "scp":
+                localdir=os.path.join(outdir,p,c)
+                corrdict[p][c].to_asdf(file=os.path.join(localdir,fnamebase),v=v)
+            else:
+                raise ValueError(output_structure + " is not recoganized. must be one of "+\
+                        str(output_o)+" or "+str(output_o_short))
 
 ########################################################
 ################ XCORR ANALYSIS FUNCTIONS ##################

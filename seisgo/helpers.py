@@ -35,6 +35,22 @@ def xcorr_norm_methods(mode="tf"):
     elif mode=="f": return fnorm
     else: return tnorm,fnorm
 
+def xcorr_output_structure():
+    """
+    Options to organize xcorr output files. These options determine the subdirectory
+    under the root data directory.
+
+    Available options:
+    raw: same as raw data, normally by time chunks for all pairs.
+    source: organized by subfolder named with virtual source, with all receiver pairs in the same time chunk file.
+    station-pair: subfolder named by station-pair. all components will be saved in the same chunk file.
+    station-component-pair: subfolder named by station-pair, with lower level folder named by component pair.
+    """
+    o=["raw","source","station-pair","station-component-pair"]
+    o_short=["r","s","sp","scp"]
+
+    return o,o_short
+
 def outdatafile_formats():
     """
     Formats when saving data files.
