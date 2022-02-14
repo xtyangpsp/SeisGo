@@ -514,9 +514,6 @@ def wts_dvv(ref,cur,t,twin,freq,subfreq=True,dvmax=0.05,normalize=True,ndv=100,d
     cwt1, sj, f, coi, _, _ = pycwt.cwt(cur, dt, dj, s0, J, wvn)
     cwt2, sj, f, coi, _, _ = pycwt.cwt(ref, dt, dj, s0, J, wvn)
 
-    # extract real values of cwt
-    rcwt1, rcwt2 = np.real(cwt1), np.real(cwt2)
-
     # zero out data outside frequency band
     if (fmax> np.max(f)) | (fmax <= fmin):
         raise ValueError('Abort: input frequency out of limits!')
@@ -547,6 +544,8 @@ def wts_dvv(ref,cur,t,twin,freq,subfreq=True,dvmax=0.05,normalize=True,ndv=100,d
 
     # directly take advantage of the real-valued parts of wavelet transforms
     else:
+        # extract real values of cwt
+        rcwt1, rcwt2 = np.real(cwt1), np.real(cwt2)
         # initialize variable
         nfreq=len(f_ind)
         dvv, cc, cdp, err = np.zeros(nfreq,dtype=np.float32), np.zeros(nfreq,dtype=np.float32),\
