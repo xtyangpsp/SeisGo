@@ -15,7 +15,69 @@ This is a planned module, to be developed.
 ################################################################
 ################ DISPERSION EXTRACTION FUNCTIONS ###############
 ################################################################
-def get_dispersion_image(data,t,dist,freq,velocity=[0.5,5],dv=0.1):
+def disp_waveform_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morlet'):
+    """
+    Produce dispersion wavefroms with continuous wavelet tranform.
+
+    ===parameters===
+    d: 1-d array data.
+    df: time interval.
+    fmin, fmax: frequency range.
+    dj=1/12, s0=-1, J=-1, wvn='morlet': pycwt.cwt parameters.
+
+    ==returns===
+    dout, fout: narrowband-filtered waveforms and the frequency vector.
+    """
+    ds_cwt, sj, f, coi, _, _ = pycwt.cwt(d, dt, dj, s0, J, wvn)
+    f_ind = np.where((f >= fmin) & (f <= fmax))[0]
+    dout=[]
+    fout=[]
+    for ii in range(len(f_ind)):
+        if ii>0 and ii<len(f_ind)-1: f_ind_temp=f_ind[ii-1:ii+1]
+        elif ii==len(f_ind)-1: f_ind_temp=f_ind[ii-1:ii]
+        elif ii==0:f_ind_temp=f_ind[ii:ii+1]
+        fout.append(np.mean(f[f_ind_temp]))
+        rds_cwt=np.real(pycwt.icwt(ds_cwt[f_ind_temp], sj[f_ind_temp], dt, dj, wvn))
+        ds_win=np.power(rds_cwt,2)
+        dout.append(ds_win/np.max(ds_win))
+    return np.flip(np.array(dout),axis=0), np.flip(fout)
+
+def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=5):
+    """
+    Produce dispersion wavefroms with narrowband filters.
+
+    ===parameters===
+    d: 1-d array data.
+    df: time interval.
+    fmin, fmax: frequency range.
+    df: scale interval. frequency for linear scale, period for non-linear scale
+    fscale: frequency scales. "ln" for linear [default]. "nln" for non-linear scale.
+    fextend: extend individual frequency value to form a band range. default: 5 scale steps.
+
+    ==returns===
+    dout, fout: narrowband-filtered waveforms and the frequency vector.
+    """
+    if fscale=="ln":
+        df=0.01
+        f_all=np.arange(fmin,fmax+fextend*df,df)
+    elif fscale=="nln":
+        df=0.1
+        period=np.array([1/fmax,1/fmin])
+        ptest=2 ** np.arange(np.log2(period.min()*0.8),
+                                           np.log2(period.max()*1.2),df)
+        f_all=np.flip(1/ptest)
+    fout=[]
+    dout=[]
+    din=d.copy()
+
+    for ii in range(len(f_all)-fextend):
+        if ii>= fextend:
+            ds_win=np.power(bandpass(din,f_all[ii-fextend],f_all[ii+fextend],1/dt,corners=4, zerophase=True),2)
+            dout.append(ds_win/np.max(ds_win))
+            fout.append(np.mean([f_all[ii-fextend],f_all[ii+fextend]])) #center frequency
+    return np.array(dout), fout
+#
+def dispersion_image(data,t,dist,freq,velocity=[0.5,5],dv=0.1):
     """
     Produce the dispersion image with given data ensemble.
 

@@ -51,6 +51,14 @@ def xcorr_output_structure():
 
     return o,o_short
 
+def xcorr_sides():
+    """
+    Side options/labels for xcorr data.
+    """
+    o=["a","n","p"]
+
+    return o
+    
 def outdatafile_formats():
     """
     Formats when saving data files.

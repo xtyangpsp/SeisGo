@@ -24,10 +24,12 @@ from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
 from shapely.geometry import Polygon, Point
 import netCDF4 as nc
+from seisgo import helpers
 
 def rms(d):
     return np.sqrt(np.mean(d**2))
-def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=False):
+def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=False,
+                side="a"):
     """
     Get SNRs of the data with given distance, vmin, and vmax. The signal window will be
     computed using vmin and vmax. The noise window will be the same length as the signal
@@ -41,10 +43,11 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
     db: Decibel or not. Default is False.
     getwindow: return the indices of the signal and noise windows. only the start and end indices.
                 Default False.
-
+    side: negative (n) and/or positive (p) or both sides (a) for the given data (time vector). Default: "a"
     =======RETURNS======
     snr: [negative, positive]
-    [sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]: only return these windows when getwindow is True.
+    [sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]: only return these windows when getwindow is True and side=="a".
+    When side != "a" only returns the corresponding window indices.
     """
     d=np.array(d)
     #get window index:
@@ -52,7 +55,10 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
     tmax=extend + dist/vmin
     dt=np.abs(t[1]-t[0])
     shift=int(offset/dt)
-    halfn=int(len(t)/2) + 1
+    if side.lower() == "a":
+        halfn=int(len(t)/2) + 1
+    else:
+        halfn=0
     sig_idx_p=[int(tmin/dt)+halfn,int(tmax/dt)+halfn]
     winlen=sig_idx_p[1]-sig_idx_p[0]+1
     noise_idx_p= [sig_idx_p[0]+shift+winlen,sig_idx_p[1]+shift+winlen]
@@ -65,26 +71,54 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
 
     if d.ndim==1:
         #axis is not used in this case
-        snr_n=rms(np.abs(d[sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[noise_idx_n[0]:noise_idx_n[1]+1]))
-        snr_p=rms(np.abs(d[sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[noise_idx_p[0]:noise_idx_p[1]+1]))
-        snr=[snr_n**2,snr_p**2]
+        if side.lower() == "a":
+            snr_n=rms(np.abs(d[sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[noise_idx_n[0]:noise_idx_n[1]+1]))
+            snr_p=rms(np.abs(d[sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[noise_idx_p[0]:noise_idx_p[1]+1]))
+            snr=[snr_n**2,snr_p**2]
+        elif side.lower() == "n":
+            snr_n=rms(np.abs(d[sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[noise_idx_n[0]:noise_idx_n[1]+1]))
+            snr=snr_n**2
+        elif side.lower() == "p":
+            snr_p=rms(np.abs(d[sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[noise_idx_p[0]:noise_idx_p[1]+1]))
+            snr=snr_p**2
+        else:
+            raise ValueError(side+" is not supported. use one of: "+str(helpers.xcorr_sides()))
+
     elif d.ndim==2:
         #
         if axis==1:dim=0
         else:dim=1
-        snr=np.ndarray((d.shape[dim],2))
-        for i in range(d.shape[dim]):
-            snr_n=rms(np.abs(d[i,sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[i,noise_idx_n[0]:noise_idx_n[1]+1]))
-            snr_p=rms(np.abs(d[i,sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[i,noise_idx_p[0]:noise_idx_p[1]+1]))
-            snr[i,:]=[snr_n**2,snr_p**2]
+        if side.lower() == "a":
+            snr=np.ndarray((d.shape[dim],2))
+            for i in range(d.shape[dim]):
+                snr_n=rms(np.abs(d[i,sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[i,noise_idx_n[0]:noise_idx_n[1]+1]))
+                snr_p=rms(np.abs(d[i,sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[i,noise_idx_p[0]:noise_idx_p[1]+1]))
+                snr[i,:]=[snr_n**2,snr_p**2]
+        elif side.lower() == "n":
+            snr=np.ndarray((d.shape[dim],1))
+            for i in range(d.shape[dim]):
+                snr_n=rms(np.abs(d[i,sig_idx_n[0]:sig_idx_n[1]+1]))/rms(np.abs(d[i,noise_idx_n[0]:noise_idx_n[1]+1]))
+                snr[i]=snr_n**2
+        elif side.lower() == "p":
+            snr=np.ndarray((d.shape[dim],1))
+            for i in range(d.shape[dim]):
+                snr_p=rms(np.abs(d[i,sig_idx_p[0]:sig_idx_p[1]+1]))/rms(np.abs(d[i,noise_idx_p[0]:noise_idx_p[1]+1]))
+                snr[i]=snr_p**2
+        else:
+            raise ValueError(side+" is not supported. use one of: "+str(helpers.xcorr_sides()))
         #
     else:
         raise ValueError("Only handles ndim <=2.")
-        snr=[np.nan,np.nan]
+        snr=None
     if db:
         snr=10*np.log10(snr)
     if getwindow:
-        return snr,[sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]
+        if side.lower() == "a":
+            return snr,[sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]
+        elif side.lower() == "n":
+            return snr,[sig_idx_n,noise_idx_n]
+        elif side.lower() == "p":
+            return snr,[sig_idx_p,noise_idx_p]
     else:
         return snr
 ##
