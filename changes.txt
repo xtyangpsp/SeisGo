@@ -1,3 +1,9 @@
+Updates in v0.7.3
+NOISE:
+1. Remove mpi=False and fixed error in handling wrong file, in extract_corrdata()
+
+
+==================================================================
 Updates in v0.7.2
 All modules: Cleaned up unused functions.
 

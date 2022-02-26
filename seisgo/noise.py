@@ -1083,11 +1083,12 @@ def extract_corrdata(sfile,pair=None,comp=['all'],dataless=False):
     corrdict=dict()
 
     try:
-        ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
+        ds = pyasdf.ASDFDataSet(sfile,mode='r')
         # extract common variables
         spairs_all = ds.auxiliary_data.list()
     except Exception:
-        print("exit! cannot open %s to read"%sfile);sys.exit()
+        print("return empty! cannot open %s to read"%sfile)
+        return corrdict
     if pair is None: pair=spairs_all
 
     overlap_pair=list(set(pair) & set(spairs_all))
