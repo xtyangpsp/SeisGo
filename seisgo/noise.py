@@ -969,9 +969,7 @@ def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
         # load the data from daily compilation
         try:
             ds=pyasdf.ASDFDataSet(f,mpi=False,mode='r')
-        except Exception as e:
-            raise IOError("error openning "+f+":"+str(e))
-        try:
+        
             pairlist   = ds.auxiliary_data.list()
             if getcclist:
                 for p in pairlist:
@@ -1001,8 +999,8 @@ def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
             pairs_all.extend(pairlist)
             pairs_all=sorted(set(pairs_all))
 
-        except Exception:
-            if verbose:print('continue! no data in %s'%(f))
+        except Exception as e:
+            if verbose:print('continue! no data in %s: %s'%(f,str(e)))
             continue
 
     netsta_all=[]

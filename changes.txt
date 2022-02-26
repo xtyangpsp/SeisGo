@@ -1,6 +1,7 @@
 Updates in v0.7.3
 NOISE:
 1. Remove mpi=False and fixed error in handling wrong file, in extract_corrdata()
+2. Fixed error handling in get_stationpairs().
 
 
 ==================================================================
