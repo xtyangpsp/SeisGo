@@ -823,10 +823,10 @@ class CorrData(object):
                 d_p=utils.taper(self.data[nhalfpoint:],
                                             fraction=taper_frac,maxlen=taper_maxlen)
                 d_n=np.flip(utils.taper(self.data[:nhalfpoint+1],
-                                            fraction=taper_frac,maxlen=taper_maxlen),axis=1)
+                                            fraction=taper_frac,maxlen=taper_maxlen))
             else:
                 d_p=self.data[nhalfpoint:]
-                d_n=np.flip(self.data[:nhalfpoint+1],axis=1)
+                d_n=np.flip(self.data[:nhalfpoint+1])
 
         c_n=self.copy()
         c_n.side="N"
