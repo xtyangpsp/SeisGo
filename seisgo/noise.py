@@ -770,6 +770,38 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                 print(str(e)+"--> skipped: "+corrdict_all[ic].id)
 
         del corrdict_all
+###
+def split_sides(cfile,outdir='./PAIRS_SPLIT',taper=True,taper_frac=0.01,taper_maxlen=10,verbose=False):
+    """
+    This is a wrapper of CorrData.split() to seperate negative and positive sides.
+
+
+    ====PARAMETERS====
+    cfile: ASDF file containing xcorrdata.
+    outdir: root directory for output data. Default '/PAIRS_SPLIT'.
+    taper=True,taper_frac=0.01,taper_maxlen=10: all split() parameters. Note that we turn on taper by default.
+    verbose: default False.
+    """
+    fext="h5" #reserve for future development with other file formats.
+    cdataall = extract_corrdata(cfile)
+    ofilebase=os.path.split(cfile)[1].replace('.'+fext,'')
+    ofile_n=os.path.join(outdir,ofilebase+"_n."+fext)
+    ofile_p=os.path.join(outdir,ofilebase+"_p."+fext)
+
+    pairall=list(cdataall.keys())
+    for pair in pairall:
+        ccomp_all=list(cdataall[pair].keys())
+        for c in ccomp_all:
+            if cdataall[pair][c].side.lower() == "a":
+                if cdataall[pair][c].data.size: # only process non-empty data.
+                    n,p=cdataall[pair][c].split(taper=taper,taper_frac=taper_frac,
+                                    taper_maxlen=taper_maxlen,verbose=verbose)
+                    n.to_asdf(file=ofile_n)
+                    p.to_asdf(file=ofile_p)
+                else:
+                    print("data attribute is empty. skipped.")
+            else:
+                raise ValueError("Only splits when side is A. We got side as %s for %s and %s"%(cdataall[pair][c].side,pair,c))
 
 ###
 def merge_chunks(ccfiles,outdir='./MERGED_CHUNKS',verbose=False,to_egf=False,
@@ -969,7 +1001,7 @@ def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
         # load the data from daily compilation
         try:
             ds=pyasdf.ASDFDataSet(f,mpi=False,mode='r')
-        
+
             pairlist   = ds.auxiliary_data.list()
             if getcclist:
                 for p in pairlist:
