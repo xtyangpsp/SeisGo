@@ -122,6 +122,20 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
     else:
         return snr
 ##
+def gaussian(dt,width,shift):
+    """
+    Produce gaussian shaping wavelet.
+    """
+    t0=shift
+    a=width
+
+    t=np.arange(0,2*t0+0.5*dt,dt)
+    nt=len(t)
+    f=np.ndarray((nt))
+    for i in range(nt):
+        tmp=np.exp(-np.power(t[i]-t0,2)/(a*a))
+        f[i]=tmp/(np.sqrt(np.pi)*a)
+    return t,f
 def subsetindex(full,subset):
     """
     Get the indices of the subset of a list.

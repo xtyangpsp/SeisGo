@@ -8,6 +8,7 @@ from obspy.signal.filter import bandpass,highpass,lowpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
 from seisgo import utils,stacking
 from obspy import UTCDateTime
+from scipy import signal
 ######
 class SeismicEngine(object):
     """
@@ -839,7 +840,35 @@ class CorrData(object):
         cout.append(c_p)
 
         return cout
+    #shaping
+    def shaping(self,width,shift=None,wavelet='gaussian',overwrite=False):
+        """
+        convolve the corrdata.data with a wavelet
+        """
+        if shift is None:shift=3*width
+        t0=shift
+        a=width
+        dt=self.dt
+        t,f=utils.gaussian(dt,a,t0)
+        nt=len(t)
+        dout=np.ndarray(self.data.shape)
 
+        if self.substack:
+            npts=self.data.shape[1]
+            for ii in range(self.data.shape[0]):
+                dtemp=signal.convolve(self.data[ii],f)
+                dout[ii]=dtemp[int(nt/2):int(nt/2)+npts]
+        else:
+            npts=self.data.shape[0]
+            dtemp=signal.convolve(self.data,f)
+            dout=dtemp[int(nt/2):int(nt/2)+npts]
+
+        if not overwrite:
+            cdataout=self.copy()
+            cdataout.data=dout
+            return cdataout
+        else:
+            self.data=dout
     #convert to EGF by taking the netagive time derivative of the noise correlation functions.
     def to_egf(self,taper_frac=0.01,taper_maxlen=10,verbose=False):
         """
