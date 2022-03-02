@@ -1011,7 +1011,7 @@ def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
     if stack:
         cdata.stack(method=stack_method,overwrite=True)
         corrtime=obspy.UTCDateTime(cdata.time)
-        ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_all.sac'
+        ofile=str(corrtime).replace(':', '-').replace("0000Z",'Z')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_all.sac'
         cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
 
 #
