@@ -23,6 +23,14 @@ def stack_methods():
 
     return o
 
+def wavelet_labels():
+    """
+    Returns the available wavelets.
+    """
+    o=["gaussian","ricker"]
+
+    return o
+#
 def xcorr_norm_methods(mode="tf"):
     """
     Normalization methods for cross-correlations.
@@ -58,7 +66,7 @@ def xcorr_sides():
     o=["a","n","p"]
 
     return o
-    
+
 def outdatafile_formats():
     """
     Formats when saving data files.

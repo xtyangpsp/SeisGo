@@ -533,7 +533,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     return Stream(trlist),sta_inv_list
 
 def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
-                getstainv=True,water_level=60,samp_freq=None,stainfo=None):
+                getstainv=False,water_level=60,samp_freq=None,stainfo=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
 
@@ -544,7 +544,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
     freqmin: minimum frequency in removing responses. default is 0.001
     freqmax: maximum frequency in removing responses. default is 0.499*sample_rate
     rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
-    getstainv: get station inventory or not, default is True.
+    getstainv: get station inventory or not, default is False.
     stainfo:  pandas dataframe contaning station information: network,station,latitudie,longitude,elevation
 
     ==== RETURNS ====

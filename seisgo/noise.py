@@ -977,7 +977,44 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         fname=filenamebase+'_'+comp+'_peakamp.txt'
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
+#
+def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
+                        stack_method='robust',output_format="sac",verbose=True):
+    """
+    This is a wrapper to apply shaping wavelet to corrdata.data and save to files.
 
+    =====PARAMETERS======
+    ccfile: file containing correlation data.
+    wavelet,width,shift: shaping wavelet parameters. See seisgo.types.CorrData.shaping() for details.
+    outdir: output directory. Default is current folder:"."
+    comp: correlation component. Default: "ZZ"
+    stack=True,stack_method='robust': save stack after shaping? Default is True.
+    output_format: format to save the shapped data. Default "sac".
+    verbose: Default: True
+
+    =====RETURNS====
+    No return.
+    """
+    cdataall=extract_corrdata(ccfile)
+    pair=list(cdataall.keys())[0]
+    outdir0=os.path.join(outdir,pair)
+
+    cdata=cdataall[pair][comp]
+
+    # CONVOLVE
+    cdata.shaping(width,shift,wavelet=wavelet,overwrite=True)
+
+    #save individual NCFs
+    cdata.save(output_format,outdir=outdir0,v=verbose)
+
+    #stack and overwrite
+    if stack:
+        cdata.stack(method=stack_method,overwrite=True)
+        corrtime=obspy.UTCDateTime(cdata.time)
+        ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_all.sac'
+        cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
+
+#
 def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
     """
     Extract unique station pairs from all cc files in ASDF format.

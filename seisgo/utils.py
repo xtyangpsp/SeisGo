@@ -125,17 +125,60 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
 def gaussian(dt,width,shift):
     """
     Produce gaussian shaping wavelet.
+
+    Here the equation is consistent with the source time function in FWANT.
+
+    $g = (\exp{-(t - t0)^2}/a^2)/\sqrt{\pi}a$
+
+    where $a$ is the width paramter for gaussian function, i.e., sigma. $t0$ is the
+    time shift parameter.
+
+    ===parameters===
+    dt: sampling interval.
+    width: gaussian sigma.
+    shift:time shift of the center.
+
+    ===RETURNS===
+    t: time vector of the wavelet.
+    g: gaussian function.
     """
     t0=shift
     a=width
 
     t=np.arange(0,2*t0+0.5*dt,dt)
     nt=len(t)
-    f=np.ndarray((nt))
-    for i in range(nt):
-        tmp=np.exp(-np.power(t[i]-t0,2)/(a*a))
-        f[i]=tmp/(np.sqrt(np.pi)*a)
-    return t,f
+    g=np.ndarray((nt))
+    tmp=np.exp(-np.power(t-t0,2)/(a*a))
+    g=tmp/(np.sqrt(np.pi)*a)
+    return t,g
+##
+def ricker(dt,fc,shift):
+    """
+    Produce Ricker shaping wavelet.
+
+    Here the equation is consistent with the source time function in FWANT.
+
+    ===parameters===
+    dt: sampling interval.
+    fc: gaussian sigma.
+    shift:time shift of the center.
+
+    ===RETURNS===
+    t: time vector of the wavelet.
+    r: ricker function.
+    """
+    t0=shift
+    f0=np.sqrt(np.pi)/2.0
+    t=np.arange(0,2*t0+0.5*dt,dt)
+
+    nt=len(t)
+
+    u=(t - t0)*2.0*np.pi*fc
+    r=(np.power(u,2)/4 - 0.5)*np.exp(-np.power(u,2)/4)*f0
+    #
+    r = -1.0*r #this is to make the main lobe positive.
+    return t,r
+#
 def subsetindex(full,subset):
     """
     Get the indices of the subset of a list.
@@ -147,7 +190,7 @@ def subsetindex(full,subset):
 
     return idx
 #
-def get_filelist(dir,extension=None,pattern=None,sort=True):
+def get_filelist(dir=None,extension=None,pattern=None,sort=True):
     """
     Get list of files with absolute path, by specifying the format extension.
 
@@ -160,6 +203,8 @@ def get_filelist(dir,extension=None,pattern=None,sort=True):
     ============RETURN=============
     flist: the list of file names with paths.
     """
+    if dir is None:
+        dir="."
     if extension is None:
         flist=[os.path.join(dir,f) for f in os.listdir(dir)]
     else:
@@ -671,51 +716,7 @@ def get_tt(event_lat, event_long, sta_lat, sta_long, depth_km,model="iasp91",typ
 
     return tt,ph
 
-def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
-    '''
-    this function removes the instrument response using response spectrum from evalresp.
-    the response spectrum is evaluated based on RESP/PZ files before inverted using the obspy
-    function of invert_spectrum. a module of create_resp.py is provided in directory of 'additional_modules'
-    to create the response spectrum
-    PARAMETERS:
-    ----------------------
-    source: obspy stream object of targeted noise data
-    resp_file: numpy data file of response spectrum
-    downsamp_freq: sampling rate of the source data
-    pre_filt: pre-defined filter parameters
-    RETURNS:
-    ----------------------
-    source: obspy stream object of noise data with instrument response removed
-    '''
-    #--------resp_file is the inverted spectrum response---------
-    respz = np.load(resp_file)
-    nrespz= respz[1][:]
-    spec_freq = max(respz[0])
-
-    #-------on current trace----------
-    nfft = _npts2nfft(source[0].stats.npts)
-    sps  = int(source[0].stats.sampling_rate)
-
-    #---------do the interpolation if needed--------
-    if spec_freq < 0.5*sps:
-        raise ValueError('spectrum file has peak freq smaller than the data, abort!')
-    else:
-        indx = np.where(respz[0]<=0.5*sps)
-        nfreq = np.linspace(0,0.5*sps,nfft//2+1)
-        nrespz= np.interp(nfreq,np.real(respz[0][indx]),respz[1][indx])
-
-    #----do interpolation if necessary-----
-    source_spect = np.fft.rfft(source[0].data,n=nfft)
-
-    #-----nrespz is inversed (water-leveled) spectrum-----
-    source_spect *= nrespz
-    source[0].data = np.fft.irfft(source_spect)[0:source[0].stats.npts]
-
-    if pre_filt is not None:
-        source[0].data = np.float32(bandpass(source[0].data,pre_filt[0],pre_filt[-1],df=sps,corners=4,zerophase=True))
-
-    return source
-
+#modified from NoisePy function
 def stats2inv(stats,locs=None,format=None):
     '''
     this function creates inventory given the stats parameters in an obspy stream or a station list.
@@ -926,13 +927,14 @@ def get_tracetag(tr):
 # 3. Added mode with option to plot overlapping figures.
 def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                title=[],outfile='test.ps',xlimit=[],subplotpar=[],              \
-               mode="subplot",spacing=2.0,colors=[],verbose=False):
+               mode="subplot",spacing=2.0,colors=[],verbose=False,scale=1):
     """
     mode: subplot, overlap, or gather. In gather mode, traces will be offset and normalized.
     """
+    tr_list=list(tr_list)
     plt.figure(figsize=size)
     ntr=len(tr_list)
-    if len(subplotpar)==0 and mode=="subplot":
+    if len(subplotpar)==0 and mode.lower()=="subplot":
         subplotpar=(ntr,1)
 
     myymin=[]
@@ -1011,11 +1013,11 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
         elif mode=="gather":
             if itr==1:ax=plt.subplot(1,1,1)
             if len(colors)==0:
-                plt.plot(tt,itr-1+0.5*tc.data/np.max(np.abs(tc.data)))
+                plt.plot(tt,itr-1+0.5*scale*tc.data/np.max(np.abs(tc.data)))
             elif len(colors)==1:
-                plt.plot(tt,itr-1+0.5*tc.data/np.max(np.abs(tc.data)),colors[0])
+                plt.plot(tt,itr-1+0.5*scale*tc.data/np.max(np.abs(tc.data)),colors[0])
             else:
-                plt.plot(tt,itr-1+0.5*tc.data/np.max(np.abs(tc.data)),colors[itr-1])
+                plt.plot(tt,itr-1+0.5*scale*tc.data/np.max(np.abs(tc.data)),colors[itr-1])
             plt.xlabel("time (s)")
             plt.text(xlimit[0]+10,itr-1+0.2,tc.stats.network+"."+tc.stats.station,
                     horizontalalignment='left',verticalalignment='center',fontsize=11)
@@ -1467,16 +1469,7 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
         ds.add_auxiliary_data(data,data_type,data_path,parameters=parameters,
                             provenance_id=provenance_id)
 
-def get_cc(s1,s_ref):
-    # returns the correlation coefficient between waveforms in s1 against reference
-    # waveform s_ref.
-    #
-    cc=np.zeros(s1.shape[0])
-    s_ref_norm = np.linalg.norm(s_ref)
-    for i in range(s1.shape[0]):
-        cc[i]=np.sum(np.multiply(s1[i,:],s_ref))/np.linalg.norm(s1[i,:])/s_ref_norm
-    return cc
-
+#modified from NoisePy function
 @jit(nopython = True)
 def moving_ave(A,N):
     '''
@@ -1578,7 +1571,7 @@ def ftn(data,dt,fl,fh,df=None,taper_frac=None,taper_maxlen=20,max_abs=2,
         dftn=taper(dftn,fraction=taper_frac,maxlen=taper_maxlen)
 
     return dftn
-
+#modified from NoisePy function
 def mad(arr):
     """
     Median Absolute Deviation: MAD = median(|Xi- median(X)|)
@@ -1596,7 +1589,7 @@ def mad(arr):
         data = np.ma.median(np.ma.abs(arr-med))
     return data
 
-
+#modified from NoisePy function
 def detrend(data):
     '''
     this function removes the signal trend based on QR decomposion
@@ -1628,7 +1621,7 @@ def detrend(data):
             coeff = np.dot(rq,data[ii])
             data[ii] = data[ii] - np.dot(X,coeff)
     return data
-
+#modified from NoisePy function
 def demean(data,axis=-1):
     '''
     this function remove the mean of the signal
@@ -1653,7 +1646,7 @@ def demean(data,axis=-1):
                 data[:,ii] = data[:,ii]-m[ii]
 
     return data
-
+#modified from NoisePy function
 def taper(data,fraction=0.05,maxlen=20):
     '''
     this function applies a cosine taper using obspy functions
@@ -1696,100 +1689,7 @@ def taper(data,fraction=0.05,maxlen=20):
         for ii in range(data.shape[0]):
             data[ii] *= win
     return data
-
-
-def whiten(data, fft_para):
-    '''
-    This function takes 1-dimensional timeseries array, transforms to frequency domain using fft,
-    whitens the amplitude of the spectrum in frequency domain between *freqmin* and *freqmax*
-    and returns the whitened fft.
-    PARAMETERS:
-    ----------------------
-    data: numpy.ndarray contains the 1D time series to whiten
-    fft_para: dict containing all fft_cc parameters such as
-        dt: The sampling space of the `data`
-        freqmin: The lower frequency bound
-        freqmax: The upper frequency bound
-        smooth_N: integer, it defines the half window length to smooth
-        freq_norm: whitening method between 'one-bit' and 'RMA'
-    RETURNS:
-    ----------------------
-    FFTRawSign: numpy.ndarray contains the FFT of the whitened input trace between the frequency bounds
-    '''
-
-    # load parameters
-    delta   = fft_para['dt']
-    freqmin = fft_para['freqmin']
-    freqmax = fft_para['freqmax']
-    smooth_N  = fft_para['smooth_N']
-    freq_norm = fft_para['freq_norm']
-
-    # Speed up FFT by padding to optimal size for FFTPACK
-    if data.ndim == 1:
-        axis = 0
-    elif data.ndim == 2:
-        axis = 1
-
-    Nfft = int(next_fast_len(int(data.shape[axis])))
-
-    Napod = 100
-    Nfft = int(Nfft)
-    freqVec = scipy.fftpack.fftfreq(Nfft, d=delta)[:Nfft // 2]
-    J = np.where((freqVec >= freqmin) & (freqVec <= freqmax))[0]
-    low = J[0] - Napod
-    if low <= 0:
-        low = 1
-
-    left = J[0]
-    right = J[-1]
-    high = J[-1] + Napod
-    if high > Nfft/2:
-        high = int(Nfft//2)
-
-    FFTRawSign = scipy.fftpack.fft(data, Nfft,axis=axis)
-    # Left tapering:
-    if axis == 1:
-        FFTRawSign[:,0:low] *= 0
-        FFTRawSign[:,low:left] = np.cos(
-            np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
-            1j * np.angle(FFTRawSign[:,low:left]))
-        # Pass band:
-        if freq_norm == 'phase_only':
-            FFTRawSign[:,left:right] = np.exp(1j * np.angle(FFTRawSign[:,left:right]))
-        elif freq_norm == 'rma':
-            for ii in range(data.shape[0]):
-                tave = moving_ave(np.abs(FFTRawSign[ii,left:right]),smooth_N)
-                FFTRawSign[ii,left:right] = FFTRawSign[ii,left:right]/tave
-        # Right tapering:
-        FFTRawSign[:,right:high] = np.cos(
-            np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
-            1j * np.angle(FFTRawSign[:,right:high]))
-        FFTRawSign[:,high:Nfft//2] *= 0
-
-        # Hermitian symmetry (because the input is real)
-        FFTRawSign[:,-(Nfft//2)+1:] = np.flip(np.conj(FFTRawSign[:,1:(Nfft//2)]),axis=axis)
-    else:
-        FFTRawSign[0:low] *= 0
-        FFTRawSign[low:left] = np.cos(
-            np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
-            1j * np.angle(FFTRawSign[low:left]))
-        # Pass band:
-        if freq_norm == 'phase_only':
-            FFTRawSign[left:right] = np.exp(1j * np.angle(FFTRawSign[left:right]))
-        elif freq_norm == 'rma':
-            tave = moving_ave(np.abs(FFTRawSign[left:right]),smooth_N)
-            FFTRawSign[left:right] = FFTRawSign[left:right]/tave
-        # Right tapering:
-        FFTRawSign[right:high] = np.cos(
-            np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
-            1j * np.angle(FFTRawSign[right:high]))
-        FFTRawSign[high:Nfft//2] *= 0
-
-        # Hermitian symmetry (because the input is real)
-        FFTRawSign[-(Nfft//2)+1:] = FFTRawSign[1:(Nfft//2)].conjugate()[::-1]
-
-    return FFTRawSign
-
+#modified from NoisePy function
 def check_sample_gaps(stream,date_info):
     """
     this function checks sampling rate and find gaps of all traces in stream.
@@ -1824,7 +1724,7 @@ def check_sample_gaps(stream,date_info):
 
     return stream
 
-
+#modified from NoisePy function
 def portion_gaps(stream,date_info):
     '''
     this function tracks the gaps (npts) from the accumulated difference between starttime and endtime
@@ -1851,7 +1751,7 @@ def portion_gaps(stream,date_info):
     if npts==0:pgaps=1
     return pgaps
 
-
+#modified from NoisePy function
 def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
     '''
     this function removes the instrument response using response spectrum from evalresp.
@@ -1954,7 +1854,6 @@ def extract_waveform(sfile,net,sta,comp=None,get_stainv=False):
         return tr,inv
     else:
         return tr
-
 
 def xcorr(x, y, maxlags=10):
     Nx = len(x)

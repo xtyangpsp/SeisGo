@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from obspy.io.sac.sactrace import SACTrace
 from obspy.signal.filter import bandpass,highpass,lowpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
-from seisgo import utils,stacking
+from seisgo import utils,stacking,helpers
 from obspy import UTCDateTime
 from scipy import signal
 ######
@@ -841,26 +841,37 @@ class CorrData(object):
 
         return cout
     #shaping
-    def shaping(self,width,shift=None,wavelet='gaussian',overwrite=False):
+    def shaping(self,width,shift,wavelet='gaussian',overwrite=True):
         """
-        convolve the corrdata.data with a wavelet
+        convolve with a shaping wavelet.
+
+        ====PARAMETERS====
+        width: if gaussian, sigma of the shaping wavelet. if ricker: distance
+            between the two side lobes.
+        shift: half length of the wavelet. This will determine the shift of
+                the wavelet center.
+        wavelet: type of wavelet. default gaussian. Options: gaussian or ricker.
         """
-        if shift is None:shift=3*width
-        t0=shift
-        a=width
+        if wavelet.lower() not in helpers.wavelet_labels():
+            raise ValueError(wavelet+" not supported.")
         dt=self.dt
-        t,f=utils.gaussian(dt,a,t0)
+        if wavelet.lower() == "gaussian":
+            t,w=utils.gaussian(dt,width,shift)
+        elif wavelet.lower() == "ricker":
+            t,w=utils.ricker(dt,1/width,shift)
+        else:
+            raise ValueError(wavelet+" not supported.")
         nt=len(t)
         dout=np.ndarray(self.data.shape)
 
         if self.substack:
             npts=self.data.shape[1]
             for ii in range(self.data.shape[0]):
-                dtemp=signal.convolve(self.data[ii],f)
+                dtemp=signal.convolve(self.data[ii],w)
                 dout[ii]=dtemp[int(nt/2):int(nt/2)+npts]
         else:
             npts=self.data.shape[0]
-            dtemp=signal.convolve(self.data,f)
+            dtemp=signal.convolve(self.data,w)
             dout=dtemp[int(nt/2):int(nt/2)+npts]
 
         if not overwrite:
@@ -953,8 +964,21 @@ class CorrData(object):
                 self.data=lowpass(self.data,fmax,1/self.dt,corners=corners, zerophase=zerophase)
             elif fmax is None:
                 self.data=lhighpass(self.data,fmin,1/self.dt,corners=corners, zerophase=zerophase)
-
-    def to_asdf(self,file,v=True):
+#
+    def save(self,format,file=None,outdir=None,v=True):
+        """
+        Wrapper to save CorrData to file.
+        format: required from user. "sac" or "asdf".
+        file: filename. Will automatically determine one if None.
+        outdir: output directory. Default None.
+        v: verbose. Default True.
+        """
+        if format.lower() == "sac":
+            self.to_sac(file=file,outdir=outdir,v=v)
+        elif format.lower() == "asdf":
+            self.to_asdf(file=file,outdir=outdir,v=v)
+#
+    def to_asdf(self,file=None,outdir=None,v=True):
         """
         Save CorrData object to asdf file.
         file: file name, which is required.
@@ -1006,6 +1030,18 @@ class CorrData(object):
             parameters['time_mean']=np.mean(self.time)
 
         #
+        if file is None:
+            if not self.substack:
+                corrtime=obspy.UTCDateTime(self.time)
+            else:
+                corrtime=obspy.UTCDateTime(self.time[0])
+            file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.h5'
+            if outdir is none:
+                outdir="."
+            file=os.path.join(outdir,file)
+        elif outdir is not None:
+            file=os.path.join(outdir,file)
+
         fhead=os.path.split(file)[0]
         if len(fhead) >0 and not os.path.isdir(fhead): os.makedirs(fhead,exist_ok = True)
 
@@ -1014,7 +1050,7 @@ class CorrData(object):
         if v: print('CorrData saved to: '+file)
 
 
-    def to_sac(self,outdir='.',file=None,v=True):
+    def to_sac(self,file=None,outdir=None,v=True):
         """
         Save CorrData object to sac file.
 
@@ -1023,6 +1059,8 @@ class CorrData(object):
         file: specify file name, ONLY when there is only one trace. i.e., substack is False.
         v: verbose, default is True.
         """
+        if outdir is None:
+            outdir="."
         try:
             if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
         except Exception as e:
@@ -1039,6 +1077,11 @@ class CorrData(object):
             b=-self.lag
         else:
             b=0.0
+        #
+        network=self.net[1] #network for receiver.
+        station=self.sta[1]
+        evname=self.net[0]+"."+self.sta[0]
+        comp = self.cc_comp
         if not self.substack:
             corrtime=obspy.UTCDateTime(self.time)
             nzyear=corrtime.year
@@ -1052,7 +1095,8 @@ class CorrData(object):
                 file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
             sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                            b=b,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
-                           evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data)
+                           evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data,
+                           kevnm=evname,knetwk=network,kstnm=station,kcmpnm=comp)
 
             sacfile  = os.path.join(outdir,file)
             sac.write(sacfile,byteorder='big')
@@ -1074,7 +1118,8 @@ class CorrData(object):
                     sacfile  = os.path.join(outdir,file)
                 sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                                b=b,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
-                               evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data[i,:])
+                               evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data[i,:],
+                               kevnm=evname,knetwk=network,kstnm=station,kcmpnm=comp)
 
                 sac.write(sacfile,byteorder='big')
                 if v: print('saved sac to: '+sacfile)
