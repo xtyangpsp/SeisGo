@@ -1035,8 +1035,8 @@ class CorrData(object):
                 corrtime=obspy.UTCDateTime(self.time)
             else:
                 corrtime=obspy.UTCDateTime(self.time[0])
-            file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.h5'
-            if outdir is none:
+            file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+self.side+'.h5'
+            if outdir is None:
                 outdir="."
             file=os.path.join(outdir,file)
         elif outdir is not None:
@@ -1048,7 +1048,6 @@ class CorrData(object):
         with pyasdf.ASDFDataSet(file,mpi=False) as ccf_ds:
             ccf_ds.add_auxiliary_data(data=self.data, data_type=netsta_pair, path=chan_pair, parameters=parameters)
         if v: print('CorrData saved to: '+file)
-
 
     def to_sac(self,file=None,outdir=None,v=True):
         """
@@ -1092,7 +1091,7 @@ class CorrData(object):
             nzmsec=corrtime.microsecond
 
             if file is None:
-                file=str(corrtime).replace(':', '-').replace("0000Z",'Z')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
+                file=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
             sac = SACTrace(nzyear=nzyear,nzjday=nzjday,nzhour=nzhour,nzmin=nzmin,nzsec=nzsec,nzmsec=nzmsec,
                            b=b,delta=self.dt,stla=rlat,stlo=rlon,stel=sele,evla=slat,evlo=slon,evdp=rele,
                            evel=rele,dist=self.dist,az=self.az,baz=self.baz,data=self.data,
@@ -1112,7 +1111,7 @@ class CorrData(object):
                 nzsec=corrtime.second
                 nzmsec=corrtime.microsecond
                 if file is None:
-                    ofile=str(corrtime).replace(':', '-').replace("0000Z",'Z')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
+                    ofile=str(corrtime).replace(':', '-')+'_'+self.id+'_'+self.cc_comp+'_'+side+'.sac'
                     sacfile  = os.path.join(outdir,ofile)
                 else:
                     sacfile  = os.path.join(outdir,file)

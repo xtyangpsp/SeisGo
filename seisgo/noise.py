@@ -979,7 +979,7 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         print('data was saved to: '+fname)
 #
 def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
-                        stack_method='robust',output_format="sac",verbose=True):
+                        stack_method='robust',output_format="asdf",verbose=True):
     """
     This is a wrapper to apply shaping wavelet to corrdata.data and save to files.
 
@@ -989,29 +989,44 @@ def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
     outdir: output directory. Default is current folder:"."
     comp: correlation component. Default: "ZZ"
     stack=True,stack_method='robust': save stack after shaping? Default is True.
-    output_format: format to save the shapped data. Default "sac".
+    output_format: format to save the shapped data. Default "asdf".
     verbose: Default: True
 
     =====RETURNS====
     No return.
     """
+    if output_format.lower() == "sac":
+        fext="sac"
+    elif output_format.lower() == "asdf":
+        fext="h5"
+    else:
+        raise ValueError(output_format+" is not recoganized. use sac or asdf.")
+
     cdataall=extract_corrdata(ccfile)
     pair=list(cdataall.keys())[0]
-    outdir0=os.path.join(outdir,pair)
 
     cdata=cdataall[pair][comp]
 
     # CONVOLVE
     cdata.shaping(width,shift,wavelet=wavelet,overwrite=True)
-
+    #
+    fbase=cdata.id+'_'+cdata.cc_comp+'_'+cdata.side
     #save individual NCFs
-    cdata.save(output_format,outdir=outdir0,v=verbose)
+    if output_format.lower() == "sac":
+        outdir0=os.path.join(outdir,pair)
+        cdata.save(output_format,outdir=outdir0,v=verbose)
+    elif output_format.lower() == "asdf":
+        outdir0=outdir
+        cdata.save(output_format,file=fbase+"."+fext,outdir=outdir0,v=verbose)
 
     #stack and overwrite
     if stack:
         cdata.stack(method=stack_method,overwrite=True)
-        corrtime=obspy.UTCDateTime(cdata.time)
-        ofile=str(corrtime).replace(':', '-').replace("0000Z",'Z')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_all.sac'
+        if output_format.lower() == "sac":
+            corrtime=obspy.UTCDateTime(cdata.time)
+            ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_all.'+fext
+        elif output_format.lower() == "asdf":
+            ofile =  fbase+"_all."+fext
         cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
 
 #
