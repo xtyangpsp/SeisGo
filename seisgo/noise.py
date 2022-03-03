@@ -1010,7 +1010,7 @@ def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
     # CONVOLVE
     cdata.shaping(width,shift,wavelet=wavelet,overwrite=True)
     #
-    fbase=cdata.id+'_'+cdata.cc_comp+'_'+cdata.side
+    fbase=pair+'_'+comp+'_'+cdata.side
     #save individual NCFs
     if output_format.lower() == "sac":
         outdir0=os.path.join(outdir,pair)
@@ -1024,9 +1024,9 @@ def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
         cdata.stack(method=stack_method,overwrite=True)
         if output_format.lower() == "sac":
             corrtime=obspy.UTCDateTime(cdata.time)
-            ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_all.'+fext
+            ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_stack.'+fext
         elif output_format.lower() == "asdf":
-            ofile =  fbase+"_all."+fext
+            ofile =  fbase+"_stack."+fext
         cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
 
 #
