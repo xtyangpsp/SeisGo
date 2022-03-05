@@ -1002,7 +1002,12 @@ class CorrData(object):
             dist_unit=self.misc['dist_unit']
         else:
             dist_unit=''
-        parameters = {'dt':self.dt,
+        parameters = {
+            'net':self.net,
+            'sta':self.sta,
+            'chan':self.chan,
+            'loc':self.loc,
+            'dt':self.dt,
             'maxlag':np.float32(self.lag),
             'dist':np.float32(self.dist),
             'dist_unit':dist_unit,
@@ -1021,7 +1026,8 @@ class CorrData(object):
             'substack':self.substack,
             'comp':self.cc_comp,
             'type':self.type,
-            'side':self.side}
+            'side':self.side,
+            'stack_method':self.stack_method}
 
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.

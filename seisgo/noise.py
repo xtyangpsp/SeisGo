@@ -1219,7 +1219,10 @@ def extract_corrdata(sfile,pair=None,comp=['all'],dataless=False):
                     if "time_mean" in list(para.keys()):
                         tmean=para["time_mean"]
                         ttime = np.float64(ttime) + tmean
-
+                    if "stack_method" in list(para.keys()):
+                        stack_method=para["stack_method"]
+                    else:
+                        stack_method=None
                     if not dataless: data = np.array(ds.auxiliary_data[spair][ipath].data)
                     else: data = None
                 except Exception:
@@ -1230,7 +1233,7 @@ def extract_corrdata(sfile,pair=None,comp=['all'],dataless=False):
                                                 chan=[schan,rchan],lon=[slon,rlon],lat=[slat,rlat],
                                                 ele=[sele,rele],cc_comp=cc_comp,dt=dt,lag=maxlag,
                                                 cc_len=cc_len,cc_step=cc_step,dist=dist,az=az,
-                                                baz=baz,time=ttime,data=data,
+                                                baz=baz,time=ttime,data=data,stack_method=stack_method,
                                                 substack=substack,side=side,misc=para)
                 if "type" in  list(para.keys()): corrdict[spair][cc_comp].type=para['type']
 
