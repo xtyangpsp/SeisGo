@@ -115,6 +115,7 @@ setup(
                         'plotly',
                         'kaleido',
                         'minisom',
-                        'stockwell'
+                        'stockwell',
+                        'kneed'
         ]
 )

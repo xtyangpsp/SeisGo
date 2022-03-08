@@ -8,12 +8,61 @@ from seisgo import utils
 from tslearn.utils import to_time_series, to_time_series_dataset
 from tslearn.clustering import TimeSeriesKMeans
 from minisom import MiniSom
-
+from kneed import KneeLocator
 ######
-def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
+def vpcluster_evaluate_kmean(ts,nrange,smooth=False,smooth_n=3,plot=True,njob=1,
+                        metric='euclidean',max_iter_barycenter=100, random_state=0):
+    """
+
+    """
+    distortion=[]
+    for n in nrange:
+        distortion.append(TimeSeriesKMeans(n_clusters=int(n), n_jobs=njob,\
+                metric=metric, max_iter_barycenter=max_iter_barycenter, \
+                random_state=random_state,verbose=False).fit(ts).inertia_)
+
+    if smooth:
+        ys=utils.box_smooth(distortion,smooth_n)
+        ys[0]=distortion[0]
+        ys[-1]=distortion[-1]
+    else:
+        ys = distortion
+
+
+    nbest=list(KneeLocator(nrange, ys, S=1, curve="convex", direction="decreasing").all_knees)[0]
+    if plot:
+        plt.figure(figsize=(8,4))
+        plt.plot(nrange,distortion,'o',label='data')
+        plt.plot(nrange,ys,'r-',label='smoothed')
+        plt.vlines(nbest,np.min(ys),np.max(ys),label='knee')
+        plt.xlabel('number of clusters',fontsize=12)
+        plt.ylabel('sum of squares within centers',fontsize=12)
+        plt.xticks(nrange)
+        plt.legend()
+        plt.show()
+
+    return nbest
+def vpcluster_kmean(lat, lon, dep,vmodel,ncluster,spacing=1,njob=1,zrange=None,dz=None,
                          verbose=False,plot=True,savefig=True,figbase='kmean',
-                      metric='dtw',max_iter_barycenter=100, random_state=0,save=True,
+                      metric='euclidean',max_iter_barycenter=100, random_state=0,save=True,
                       source='vmodel',tag='v',figsize=None):
+    """
+    zrange: target depth range for clustering. Default None, will use full range.
+    dz: depth grid interval. If given, will interpolate the depth profiles.
+    """
+    if zrange is None:
+        zrange=[np.min(dep),np.max(dep)]
+
+    didx=np.where((dep>= zrange[0]) & (dep<= zrange[1]))[0]
+    v=vmodel[didx]
+    depth=dep[didx]
+
+    if dz is not None: #do interpolation at depth direction.
+        print("interpolation of depth at the interval of: %6.2f km"%(dz))
+        zvec=np.arange(np.min(depth),np.max(depth)+0.5*dz,dz)
+    else:
+        zvec = depth
+
     all_v = []
     lat_subidx=[int(x) for x in np.arange(0,len(lat),spacing)]
     lon_subidx=[int(x) for x in np.arange(0,len(lon),spacing)]
@@ -26,7 +75,11 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
             for pp in range(v.shape[0]):
                 v0[pp]=v[pp,i,j]
             if not np.isnan(v0).any() :
-                all_v.append(v0)
+                if dz is not None:
+                    vtemp=np.interp(zvec,depth,v0)
+                    all_v.append(vtemp)
+                else:
+                    all_v.append(v0)
                 lat0.append(lat[i])
                 lon0.append(lon[j])
                 count += 1
@@ -51,7 +104,7 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
     outdict['method']="k-means"
     outdict['source']=source
     outdict['tag']=tag
-    outdict['depth']=depth
+    outdict['depth']=zvec
     outdict['model']=km
     outdict['pred']=cdata
     outdict['para']={'n_clusters':ncluster,'n_jobs':njob,'metric':metric,
@@ -88,8 +141,8 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
             else:
                 plt.subplot(int(np.ceil(ncluster/6)), 6, yi + 1)
             for xx in cdata[yi]:
-                plt.plot(depth,xx, "k-", alpha=.2)
-            plt.plot(depth,km.cluster_centers_[yi].ravel(), "r-")
+                plt.plot(zvec,xx, "k-", alpha=.2)
+            plt.plot(zvec,km.cluster_centers_[yi].ravel(), "r-")
             plt.text(0.65, 0.15, 'Cluster %d' % (yi + 1),
                      transform=plt.gca().transAxes)
             plt.title(f"Cluster {yi+1}")
@@ -130,7 +183,7 @@ def vmodel_kmean_depth(lat, lon, depth,v,ncluster,spacing=1,njob=1,
         return outdict
 
 #
-def vmodel_som_depth(lat, lon, depth,v,grid_size=None,spacing=1,niteration=50000,sigma=0.3,
+def vpcluster_som(lat, lon, depth,v,grid_size=None,spacing=1,niteration=50000,sigma=0.3,
                      rate=0.1,verbose=False,plot=True,savefig=True,figbase='som',
                       save=True,source='vmodel',tag='v',figsize=None):
     all_v = []

@@ -1468,7 +1468,18 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
 
         ds.add_auxiliary_data(data,data_type,data_path,parameters=parameters,
                             provenance_id=provenance_id)
+def box_smooth(d, box,mode='same'):
+    """
+    d: 1-d array
+    box: number of box points.
+    mode: smooth/convolve mode. same option as for numpy.convolve:
+     https://numpy.org/doc/stable/reference/generated/numpy.convolve.html
+    """
+    b = np.ones(box)/box
 
+    d_smooth = np.convolve(d, b, mode=mode)
+
+    return d_smooth
 #modified from NoisePy function
 @jit(nopython = True)
 def moving_ave(A,N):

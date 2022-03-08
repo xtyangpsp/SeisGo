@@ -8,15 +8,20 @@ NOISE:
 TYPES:
 1. Added CorrData.shaping() to shape the data with wavelet.
 2. Added CorrData.save() to wrap saving functions.
+3. In CorrData.to_asdf(), save stack_method.
 
 UTILS:
 1. Added gaussian() and ricker() as the shaping wavelets.
+2. Added box_smooth().
 
 DOWNLOADERS:
 1. In read_data(), changed default to False for getstainv.
 
 HELPERS:
 1. Added wavelet_labels().
+
+MONITORING:
+1. Added vpcluster_evaluate_kmean() to find the optimal number of clusters.
 
 ==================================================================
 Updates in v0.7.2
