@@ -1027,7 +1027,7 @@ class CorrData(object):
             'comp':self.cc_comp,
             'type':self.type,
             'side':self.side,
-            'stack_method':self.stack_method}
+            'stack_method':str(self.stack_method)}
 
         #check time size to avoid error. make sure it is not > 64kb
         #this is a temporary fix, though the ultimate fix will rely on HDF to lift the limit.

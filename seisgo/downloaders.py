@@ -124,9 +124,9 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
     locs0 = pd.DataFrame(dict)
     locs=locs0.drop_duplicates(ignore_index=True) #remove duplicate inputs/stations
     if fname is not None:
-        fsplit=fname.split('/')[:-1]
-        fdir=os.path.join(*fsplit)
-        if not os.path.isdir(fdir):os.makedirs(fdir)
+        fhead,ftail=os.path.split(fname)
+        if len(fhead)>0:
+            if not os.path.isdir(fdir):os.makedirs(fdir)
         locs.to_csv(fname, index=False)
 
     return locs
