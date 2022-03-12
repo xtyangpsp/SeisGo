@@ -402,7 +402,7 @@ class FFTData(object):
             if normalize: ampN[i,:]=amp[i,:]/np.max(np.abs(amp[i,:]))
             else: ampN[i,:]=amp[i,:]
             tmarks.append(obspy.UTCDateTime(ydata[i]).strftime(time_format))
-        plt.figure(figsize=figsize)
+        plt.figure(figsize=figsize,facecolor='w')
         ax=plt.subplot(111)
         plt.imshow(ampN,aspect='auto',extent=[f.min(),f.max(),ampN.shape[0],0],cmap=cmap)
         plt.xscale('log')
@@ -1222,7 +1222,7 @@ class CorrData(object):
             else:
                 tick_inc = 2
 
-            fig = plt.figure(figsize=figsize)
+            fig = plt.figure(figsize=figsize,facecolor='w')
             ax = fig.add_subplot(6,1,(1,4))
             if side.lower()=="a":
                 extent=[-lag0,lag0,nwin,0]
@@ -1292,7 +1292,7 @@ class CorrData(object):
             else:
                 tx=np.arange(0,lag0+0.5*dt,dt)
             if len(tx)>len(data):tx=tx[:-1]
-            plt.figure(figsize=figsize)
+            plt.figure(figsize=figsize,facecolor='w')
             ax=plt.gca()
             plt.plot(tx,data,'k-',linewidth=1)
             if freqmin is not None and freqmax is not None:
@@ -1361,7 +1361,7 @@ class CorrData(object):
             cdatan=None
             nplot=1
 
-        plt.figure(figsize=figsize)
+        plt.figure(figsize=figsize,facecolor='w')
         cdata_all=[cdatan,cdatap]
         for ii,cdata in enumerate(cdata_all):
             if cdata is not None:
