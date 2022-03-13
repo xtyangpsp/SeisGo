@@ -58,13 +58,13 @@ def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=5):
     dout, fout: narrowband-filtered waveforms and the frequency vector.
     """
     if fscale=="ln":
-        df=0.01
+        if df is None: df=0.01
         f_all=np.arange(fmin,fmax+fextend*df,df)
     elif fscale=="nln":
-        df=0.1
+        if df is None: df=0.1
         period=np.array([1/fmax,1/fmin])
-        ptest=2 ** np.arange(np.log2(period.min()*0.8),
-                                           np.log2(period.max()*1.2),df)
+        ptest=2 ** np.arange(np.log2(period.min()-fextend*df),
+                            np.log2(period.max()+4*fextend*df),df)
         f_all=np.flip(1/ptest)
     fout=[]
     dout=[]

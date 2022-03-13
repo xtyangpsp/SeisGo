@@ -29,7 +29,7 @@ from seisgo import helpers
 def rms(d):
     return np.sqrt(np.mean(d**2))
 def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=False,
-                side="a"):
+                side="a",shorten_noise=False):
     """
     Get SNRs of the data with given distance, vmin, and vmax. The signal window will be
     computed using vmin and vmax. The noise window will be the same length as the signal
@@ -44,6 +44,8 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
     getwindow: return the indices of the signal and noise windows. only the start and end indices.
                 Default False.
     side: negative (n) and/or positive (p) or both sides (a) for the given data (time vector). Default: "a"
+    shorten_noise: force noise window to fit the data length after the signal window. Default False.
+                    If True, the noise window will be smaller than the signal window.
     =======RETURNS======
     snr: [negative, positive]
     [sig_idx_p,noise_idx_p],[sig_idx_n,noise_idx_n]: only return these windows when getwindow is True and side=="a".
@@ -64,7 +66,11 @@ def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=Fals
     noise_idx_p= [sig_idx_p[0]+shift+winlen,sig_idx_p[1]+shift+winlen]
 
     if noise_idx_p[1] > len(t) - 1:
-        raise ValueError("Noise window end [%d]is larger than the data length [%d]. Please adjust it."%(noise_idx_p[1],len(t)-1))
+        if shorten_noise:
+            print("Noise window end [%d]is larger than the data length [%d]. Force it to stop at the end."%(noise_idx_p[1],len(t)-1))
+            noise_idx_p[1] = len(t) - 1
+        else:
+            raise ValueError("Noise window end [%d]is larger than the data length [%d]. Please adjust it."%(noise_idx_p[1],len(t)-1))
 
     sig_idx_n=[len(t) - sig_idx_p[1], len(t) - sig_idx_p[0]]
     noise_idx_n=[len(t) - noise_idx_p[1], len(t) - noise_idx_p[0]]
