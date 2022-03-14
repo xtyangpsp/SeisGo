@@ -63,19 +63,24 @@ def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=5):
     elif fscale=="nln":
         if df is None: df=0.1
         period=np.array([1/fmax,1/fmin])
-        ptest=2 ** np.arange(np.log2(period.min()-fextend*df),
-                            np.log2(period.max()+4*fextend*df),df)
+        ptest=2 ** np.arange(np.log2(period.min())-np.log2(fextend*fextend*df),
+                    np.log2(period.max())+np.log2(fextend*fextend*df),df)
         f_all=np.flip(1/ptest)
-    fout=[]
-    dout=[]
+    fout_temp=[]
+    dout_temp=[]
     din=d.copy()
 
     for ii in range(len(f_all)-fextend):
         if ii>= fextend:
             ds_win=np.power(bandpass(din,f_all[ii-fextend],f_all[ii+fextend],1/dt,corners=4, zerophase=True),2)
-            dout.append(ds_win/np.max(ds_win))
-            fout.append(np.mean([f_all[ii-fextend],f_all[ii+fextend]])) #center frequency
-    return np.array(dout), fout
+            dout_temp.append(ds_win/np.max(ds_win))
+            fout_temp.append(np.mean([f_all[ii-fextend],f_all[ii+fextend]])) #center frequency
+    fout_temp=np.array(fout_temp)
+    f_ind=np.where((fout_temp>=fmin) & (fout_temp<=fmax))[0]
+    fout=fout_temp[f_ind]
+    dout_temp=np.array(dout_temp)
+    dout = dout_temp[f_ind]
+    return dout, fout
 #
 def dispersion_image(data,t,dist,freq,velocity=[0.5,5],dv=0.1):
     """
