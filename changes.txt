@@ -23,6 +23,9 @@ HELPERS:
 MONITORING:
 1. Added vpcluster_evaluate_kmean() to find the optimal number of clusters.
 
+DISPERSION:
+1. Improved frequency steps in disp_waveform_bp().
+
 ==================================================================
 Updates in v0.7.2
 All modules: Cleaned up unused functions.
