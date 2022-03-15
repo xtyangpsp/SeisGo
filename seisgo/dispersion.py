@@ -42,7 +42,7 @@ def disp_waveform_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morlet'):
         dout.append(ds_win/np.max(ds_win))
     return np.flip(np.array(dout),axis=0), np.flip(fout)
 
-def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=5):
+def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=10):
     """
     Produce dispersion wavefroms with narrowband filters.
 
@@ -59,7 +59,7 @@ def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=5):
     """
     if fscale=="ln":
         if df is None: df=0.01
-        f_all=np.arange(fmin,fmax+fextend*df,df)
+        f_all=np.arange(fmin-fextend*df,fmax+fextend*df,df)
     elif fscale=="nln":
         if df is None: df=0.1
         period=np.array([1/fmax,1/fmin])
@@ -71,10 +71,10 @@ def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=5):
     din=d.copy()
 
     for ii in range(len(f_all)-fextend):
-        if ii>= fextend:
-            ds_win=np.power(bandpass(din,f_all[ii-fextend],f_all[ii+fextend],1/dt,corners=4, zerophase=True),2)
-            dout_temp.append(ds_win/np.max(ds_win))
-            fout_temp.append(np.mean([f_all[ii-fextend],f_all[ii+fextend]])) #center frequency
+        if f_all[ii]>=1/(2*dt) or f_all[ii+fextend]>=1/(2*dt): continue
+        ds_win=np.power(bandpass(din,f_all[ii],f_all[ii+fextend],1/dt,corners=4, zerophase=True),2)
+        dout_temp.append(ds_win/np.max(ds_win))
+        fout_temp.append(np.mean([f_all[ii],f_all[ii+fextend]])) #center frequency
     fout_temp=np.array(fout_temp)
     f_ind=np.where((fout_temp>=fmin) & (fout_temp<=fmax))[0]
     fout=fout_temp[f_ind]
