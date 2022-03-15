@@ -63,8 +63,8 @@ def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=10):
     elif fscale=="nln":
         if df is None: df=0.1
         period=np.array([1/fmax,1/fmin])
-        ptest=2 ** np.arange(np.log2(period.min())-np.log2(fextend*fextend*df),
-                    np.log2(period.max())+np.log2(fextend*fextend*df),df)
+        ptest=2 ** np.arange(np.log2(0.1*period.min()),
+                    np.log2(2*period.max()),df)
         f_all=np.flip(1/ptest)
     fout_temp=[]
     dout_temp=[]
