@@ -26,6 +26,9 @@ MONITORING:
 DISPERSION:
 1. Improved frequency steps in disp_waveform_bp().
 
+STACKING:
+1. Synced with stackmaster functions.
+
 ==================================================================
 Updates in v0.7.2
 All modules: Cleaned up unused functions.
