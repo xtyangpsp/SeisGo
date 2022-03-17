@@ -4,6 +4,7 @@ NOISE:
 2. Fixed error handling in get_stationpairs().
 3. Added split_sides() to split corrfile sides and save separately.
 4. Added shaping_corrdata() to wrap shaping function, convolving with wavelet.
+5. Added split option in merge_pairs().
 
 TYPES:
 1. Added CorrData.shaping() to shape the data with wavelet.

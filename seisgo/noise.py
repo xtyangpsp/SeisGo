@@ -676,7 +676,8 @@ def rotation(bigstack,parameters,locs,flag):
 
 ###
 def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
-            stack=False,stack_method='linear',stack_win_len=None):
+            stack=False,stack_method='linear',stack_win_len=None,split=False,taper=True,
+            taper_frac=0.01,taper_maxlen=10):
     """
     This is a wrapper function that merges all data for the same station pair
     to a single CorrData object. It calls CorrData.merge() to assemble all CorrData.
@@ -721,8 +722,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
         if verbose:print('assembling all corrdata ...')
         t0=time.time()
         corrdict_all=dict() #all components for the single station pair
-        # txtract=np.zeros(len(ccfiles),dtype=np.float32)
-        # tmerge=np.zeros(len(ccfiles),dtype=np.float32)
+
         tparameters=None
         for i,ifile in enumerate(ccfiles):
             # tt00=time.time()
@@ -741,9 +741,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                     else:corrdict_all[c]=corrdict[pair][c]
             del corrdict
                 # tmerge[i]=time.time()-tt11
-        #
-        # if flag:print('extract time:'+str(np.sum(txtract)))
-        # if flag:print('merge time:'+str(np.sum(tmerge)))
+
         t1=time.time()
         if verbose:print('finished assembling in %6.2fs ...'%(t1-t0))
         #get length info from anyone of the corrdata, assuming all corrdata having the same length.
@@ -765,7 +763,13 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                     corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len)
                 if to_egf:
                     corrdict_all[ic].to_egf()
-                corrdict_all[ic].to_asdf(file=merged_h5)
+                if split:
+                    n,p=corrdict_all[ic].split(taper=taper,taper_frac=taper_frac,
+                                    taper_maxlen=taper_maxlen,verbose=verbose)
+                    n.to_asdf(file=pair+'_'+n.side+'.h5')
+                    p.to_asdf(file=pair+'_'+p.side+'.h5')
+                else:
+                    corrdict_all[ic].to_asdf(file=merged_h5)
             except Exception as e:
                 print(str(e)+"--> skipped: "+corrdict_all[ic].id)
 
