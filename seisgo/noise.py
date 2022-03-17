@@ -754,6 +754,9 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
         outfn = pair+'.h5'
         if verbose:print('save to %s'%(outfn))
         merged_h5 = os.path.join(ioutdir,outfn)
+        if split:
+            file_n=os.path.join(ioutdir,pair+'_N.h5')
+            file_p=os.path.join(ioutdir,pair+'_P.h5')
         for ic in cc_comp:
             #save components.
             #convert corrdata to empirical Green's functions by
@@ -766,8 +769,8 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                 if split:
                     n,p=corrdict_all[ic].split(taper=taper,taper_frac=taper_frac,
                                     taper_maxlen=taper_maxlen,verbose=verbose)
-                    n.to_asdf(file=pair+'_'+n.side+'.h5')
-                    p.to_asdf(file=pair+'_'+p.side+'.h5')
+                    n.to_asdf(file=file_n)
+                    p.to_asdf(file=file_p)
                 else:
                     corrdict_all[ic].to_asdf(file=merged_h5)
             except Exception as e:
