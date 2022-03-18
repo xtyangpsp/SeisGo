@@ -42,7 +42,7 @@ def vpcluster_evaluate_kmean(ts,nrange,smooth=False,smooth_n=3,plot=True,njob=1,
         plt.show()
 
     return nbest
-def vpcluster_kmean(lat, lon, dep,vmodel,ncluster,spacing=1,njob=1,zrange=None,dz=None,
+def vpcluster_kmean(lat, lon, dep,vmodel,ncluster=None,nrange=None,spacing=1,njob=1,zrange=None,dz=None,
                          verbose=False,plot=True,savefig=True,figbase='kmean',
                       metric='euclidean',max_iter_barycenter=100, random_state=0,save=True,
                       source='vmodel',tag='v',figsize=None):
@@ -85,6 +85,15 @@ def vpcluster_kmean(lat, lon, dep,vmodel,ncluster,spacing=1,njob=1,zrange=None,d
                 count += 1
 
     ts = to_time_series_dataset(all_v)
+
+    # determine the best number of clusters if ncluster is None.
+    if ncluster is None:
+        print('ncluster is None. Determine the best. This may take a few minutes.')
+        if nrange is None:
+            nrange=np.arange(2,21,1)
+        ncluster = vpcluster_evaluate_kmean(ts,nrange,smooth=True,smooth_n=3,plot=True,njob=njob,
+                                metric=metric,max_iter_barycenter=max_iter_barycenter,
+                                random_state=random_state):
     km = TimeSeriesKMeans(n_clusters=ncluster, n_jobs=njob,metric=metric, verbose=verbose,
                           max_iter_barycenter=max_iter_barycenter, random_state=random_state)
     y_pred = km.fit_predict(ts)
