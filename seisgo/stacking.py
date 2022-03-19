@@ -336,7 +336,7 @@ def clusterstack(d,h=0.75,win=None,axis=0,normalize=True,plot=False):
         cidx.append(np.where((y_pred==yi))[0])
         center=km.cluster_centers_[yi].ravel()#np.squeeze(np.mean(ts[y_pred == yi].T,axis=2))
         centers_all.append(center)
-        snr=np.max(np.abs(center[win[0]:win[1]]))/utils.rms(np.abs(center))
+        snr=np.max(np.abs(center[win[0]:win[1]]))/rms(np.abs(center))
         snr_all.append(snr)
 
     #
