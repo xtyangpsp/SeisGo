@@ -31,13 +31,17 @@ def vpcluster_evaluate_kmean(ts,nrange,smooth=False,smooth_n=3,plot=True,njob=1,
 
     nbest=list(KneeLocator(nrange, ys, S=1, curve="convex", direction="decreasing").all_knees)[0]
     if plot:
-        plt.figure(figsize=(8,4))
+        plt.figure(figsize=(8,4),facecolor='w')
         plt.plot(nrange,distortion,'o',label='data')
-        plt.plot(nrange,ys,'r-',label='smoothed')
+        if smooth:
+            plt.plot(nrange,ys,'r-',label='smoothed')
+        else:
+            plt.plot(nrange,ys,'r-')
         plt.vlines(nbest,np.min(ys),np.max(ys),label='knee')
         plt.xlabel('number of clusters',fontsize=12)
-        plt.ylabel('sum of squares within centers',fontsize=12)
-        plt.xticks(nrange)
+        plt.ylabel('sum of distance to center',fontsize=12)
+        plt.xticks(nrange,fontsize=12)
+        plt.yticks(fontsize=12)
         plt.legend()
         plt.show()
 
@@ -45,7 +49,7 @@ def vpcluster_evaluate_kmean(ts,nrange,smooth=False,smooth_n=3,plot=True,njob=1,
 def vpcluster_kmean(lat, lon, dep,vmodel,ncluster=None,nrange=None,spacing=1,njob=1,zrange=None,dz=None,
                          verbose=False,plot=True,savefig=True,figbase='kmean',
                       metric='euclidean',max_iter_barycenter=100, random_state=0,save=True,
-                      source='vmodel',tag='v',figsize=None):
+                      source='vmodel',tag='v',figsize=None,smooth_evaluate=False):
     """
     zrange: target depth range for clustering. Default None, will use full range.
     dz: depth grid interval. If given, will interpolate the depth profiles.
@@ -91,9 +95,9 @@ def vpcluster_kmean(lat, lon, dep,vmodel,ncluster=None,nrange=None,spacing=1,njo
         print('ncluster is None. Determine the best. This may take a few minutes.')
         if nrange is None:
             nrange=np.arange(2,21,1)
-        ncluster = vpcluster_evaluate_kmean(ts,nrange,smooth=True,smooth_n=3,plot=True,njob=njob,
+        ncluster = vpcluster_evaluate_kmean(ts,nrange,smooth=smooth_evaluate,smooth_n=3,plot=True,njob=njob,
                                 metric=metric,max_iter_barycenter=max_iter_barycenter,
-                                random_state=random_state):
+                                random_state=random_state)
     km = TimeSeriesKMeans(n_clusters=ncluster, n_jobs=njob,metric=metric, verbose=verbose,
                           max_iter_barycenter=max_iter_barycenter, random_state=random_state)
     y_pred = km.fit_predict(ts)
@@ -131,11 +135,11 @@ def vpcluster_kmean(lat, lon, dep,vmodel,ncluster=None,nrange=None,spacing=1,njo
         ###########
         if figsize is None:
             if ncluster<4:
-                plt.figure(figsize=(13, 4))
+                plt.figure(figsize=(13, 4),facecolor='w')
             else:
-                plt.figure(figsize=(13, 9))
+                plt.figure(figsize=(13, 9),facecolor='w')
         else:
-            plt.figure(figsize=figsize)
+            plt.figure(figsize=figsize,facecolor='w')
         for yi in range(ncluster):
             if ncluster<4:
                 plt.subplot(1, ncluster, yi + 1)
@@ -263,11 +267,11 @@ def vpcluster_som(lat, lon, depth,v,grid_size=None,spacing=1,niteration=50000,si
         ncluster=len(cdata)
         if figsize is None:
             if ncluster<4:
-                plt.figure(figsize=(13, 4))
+                plt.figure(figsize=(13, 4),facecolor='w')
             else:
-                plt.figure(figsize=(13, 9))
+                plt.figure(figsize=(13, 9),facecolor='w')
         else:
-            plt.figure(figsize=figsize)
+            plt.figure(figsize=figsize,facecolor='w')
         for i in range(len(cdata)):
             if ncluster<4:
                 plt.subplot(1, ncluster, i + 1)

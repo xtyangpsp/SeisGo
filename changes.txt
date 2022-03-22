@@ -30,6 +30,9 @@ DISPERSION:
 STACKING:
 1. Synced with stackmaster functions.
 
+CLUSTERING:
+1. Automatically determine the optimal number of clusters.
+
 ==================================================================
 Updates in v0.7.2
 All modules: Cleaned up unused functions.
