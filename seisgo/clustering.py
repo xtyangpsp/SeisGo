@@ -37,7 +37,7 @@ def vpcluster_evaluate_kmean(ts,nrange,smooth=False,smooth_n=3,plot=True,njob=1,
             plt.plot(nrange,ys,'r-',label='smoothed')
         else:
             plt.plot(nrange,ys,'r-')
-        plt.vlines(nbest,np.min(ys),np.max(ys),label='knee')
+        plt.vlines(nbest,np.min(ys),np.max(ys),label='knee:'+str(nbest))
         plt.xlabel('number of clusters',fontsize=12)
         plt.ylabel('sum of distance to center',fontsize=12)
         plt.xticks(nrange,fontsize=12)

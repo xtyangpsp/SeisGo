@@ -1,6 +1,6 @@
 Updates in v0.7.3
 NOISE:
-1. Remove mpi=False and fixed error in handling wrong file, in extract_corrdata()
+1. Added mpi option and fixed error in handling wrong file, in extract_corrdata()
 2. Fixed error handling in get_stationpairs().
 3. Added split_sides() to split corrfile sides and save separately.
 4. Added shaping_corrdata() to wrap shaping function, convolving with wavelet.

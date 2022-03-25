@@ -1147,7 +1147,7 @@ def get_cctimerange(ccfiles,verbose=False):
 
     return ts,te
 
-def extract_corrdata(sfile,pair=None,comp=['all'],dataless=False):
+def extract_corrdata(sfile,pair=None,comp=['all'],mpi=False,dataless=False):
     '''
     extract the 2D matrix of the cross-correlation functions and the metadata for a certain time-chunck.
     PARAMETERS:
@@ -1172,7 +1172,7 @@ def extract_corrdata(sfile,pair=None,comp=['all'],dataless=False):
     corrdict=dict()
 
     try:
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
+        ds = pyasdf.ASDFDataSet(sfile,mode='r',mpi=mpi)
         # extract common variables
         spairs_all = ds.auxiliary_data.list()
     except Exception:
