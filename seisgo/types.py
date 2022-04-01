@@ -393,9 +393,9 @@ class FFTData(object):
             tick_inc = 2
         f=np.linspace(0,0.5/dt,Nfft2)
         if db:
-            amp=10*np.log10(np.abs(self.data[:Nfft2]))
+            amp=10*np.log10(np.abs(self.data[:,:Nfft2]))
         else:
-            amp=np.abs(self.data[:Nfft2])
+            amp=np.abs(self.data[:,:Nfft2])
         ampN=np.ndarray((amp.shape[0],amp.shape[1]))
         tmarks=[]
         for i in range(amp.shape[0]):
