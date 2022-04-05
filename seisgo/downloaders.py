@@ -126,7 +126,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
     if fname is not None:
         fhead,ftail=os.path.split(fname)
         if len(fhead)>0:
-            if not os.path.isdir(fdir):os.makedirs(fdir)
+            if not os.path.isdir(fhead):os.makedirs(fhead)
         locs.to_csv(fname, index=False)
 
     return locs
