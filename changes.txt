@@ -10,6 +10,7 @@ TYPES:
 1. Added CorrData.shaping() to shape the data with wavelet.
 2. Added CorrData.save() to wrap saving functions.
 3. In CorrData.to_asdf(), save stack_method.
+4. Fixed a bug in CorrData.to_egf() where the zero lag was not handled correctly. The negative side was wrong.
 
 UTILS:
 1. Added gaussian() and ricker() as the shaping wavelets.

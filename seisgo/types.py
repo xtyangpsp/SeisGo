@@ -909,27 +909,29 @@ class CorrData(object):
             egf=np.zeros(self.data.shape,dtype=self.data.dtype)
             if self.substack:
                 if side.lower()=="a":
-                    nhalfpoint=np.int(self.data.shape[1]/2)
+                    nhalfpoint=int(self.data.shape[1]/2)
                     #positive side
                     egf[:,nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[:,nhalfpoint:],axis=1)/dt,
                                                     fraction=taper_frac,maxlen=taper_maxlen)
                     #negative side
-                    egf[:,:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:,:nhalfpoint+1],axis=1),
+                    egf[:,:nhalfpoint+1]=np.flip(utils.taper(-1.0*np.gradient(np.flip(self.data[:,:nhalfpoint+1],axis=1),
                                                     axis=1)/dt,fraction=taper_frac,maxlen=taper_maxlen),axis=1)
-                    egf[:,[0,nhalfpoint,-1]]=0
+                    egf[:,[0,-1]]=0
+                    egf[:,nhalfpoint]=np.mean(egf[:,nhalfpoint-1:nhalfpoint+1],axis=1)
                 else:
                     egf=utils.taper(-1.0*np.gradient(self.data,axis=1)/dt,
                                                     fraction=taper_frac,maxlen=taper_maxlen)
             else:
                 if side.lower()=="a":
-                    nhalfpoint=np.int(self.data.shape[0]/2)
+                    nhalfpoint=int(self.data.shape[0]/2)
                     #positive side
                     egf[nhalfpoint:]=utils.taper(-1.0*np.gradient(self.data[nhalfpoint:])/dt,
                                                 fraction=taper_frac,maxlen=taper_maxlen)
                     #negative side
-                    egf[:nhalfpoint+1]=np.flip(utils.taper(np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
+                    egf[:nhalfpoint+1]=np.flip(utils.taper(-1.0*np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
                                                 fraction=taper_frac,maxlen=taper_maxlen))
-                    egf[[0,nhalfpoint,-1]]=0
+                    egf[0,-1]=0
+                    egf[nhalfpoint]=np.mean(egf[nhalfpoint-1:nhalfpoint+1])
                 else:
                     egf=utils.taper(-1.0*np.gradient(self.data)/dt,
                                                 fraction=taper_frac,maxlen=taper_maxlen)
