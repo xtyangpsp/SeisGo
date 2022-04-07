@@ -211,11 +211,13 @@ class FFTData(object):
                 white = dataS
 
             #-----to whiten or not------
-            Nfft = int(next_fast_len(int(dataS.shape[1])))
+
             if white.ndim == 1:
                 axis = 0
             elif white.ndim == 2:
                 axis = 1
+                
+            Nfft = int(next_fast_len(int(dataS.shape[axis])))
             fft_white = fft(white, Nfft, axis=axis) # return FFT
 
             ##

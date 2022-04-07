@@ -1,3 +1,14 @@
+Updates in v0.7.4
+UTILS:
+1. Added spectral whitening function: whiten(), for time series data.
+
+MONITORING:
+1. Added whitening option in get_dvv().
+
+TYPES:
+1. FFTData, fixed a minor bug when getting Nfft for single trace data.
+
+==================================================================
 Updates in v0.7.3
 NOISE:
 1. Added mpi option and fixed error in handling wrong file, in extract_corrdata()

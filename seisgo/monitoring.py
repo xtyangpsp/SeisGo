@@ -22,9 +22,10 @@ Note by Congcong: several utility functions are modified based on https://github
 ################ WRAPPER FUNCTIONS ##################
 ########################################################
 def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resolution=None,
-            vmin=1.0,normalize=True,method='wts',dvmax=0.05,subfreq=True,
-            plot=False,figsize=(8,8),savefig=False,figdir='.',save=False,
-            outdir='.',outfile=None,format=None,nproc=None,v=False):
+            vmin=1.0,normalize=True,whiten='no',whiten_smooth=20, whiten_pad=100,
+            method='wts',dvmax=0.05,subfreq=True,plot=False,figsize=(8,8),
+            savefig=False,figdir='.',save=False,outdir='.',outfile=None,
+            format=None,nproc=None,v=False):
     """
     Compute dvv with given corrdata object, with options to save dvvdata to file.
 
@@ -42,6 +43,8 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         dvv.
     stack_method: stacking method to get the reference trace.
     normalize: Ture or False for data normalization in measuring dvv.
+    whiten='no',whiten_smooth=20, whiten_pad=100: parameters for whitening the trace before measuring dv/v.
+                whiten: default is 'no', could be 'phase_only' or 'rma'.
     method: dvv measuring method.
     subfreq: keep all frequencies in the dvv result. default is True. Otherwise, only get one dvv result.
     plot: Default is False. It determines whether plots the corrdata and the measuring time windows.
@@ -105,6 +108,10 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         # loop through each cur waveforms
         for ii in range(nwin):
             cur[ii] /= np.max(np.abs(cur[ii]))
+    #do whitening if specified.
+    if whiten != 'no':
+        ref = utils.whiten(ref,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
+        cur = utils.whiten(cur,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
     for ii in range(nwin):
         # get cc coeffient
         pcor_cc[ii] = np.corrcoef(ref[pwin_indx],cur[ii,pwin_indx])[0,1]

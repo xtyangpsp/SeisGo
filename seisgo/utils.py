@@ -17,7 +17,7 @@ from obspy.core import Stream, Trace, read
 from obspy.core.util.base import _get_function_from_entry_point
 from obspy.signal.util import _npts2nfft
 from obspy.signal.filter import bandpass
-from scipy.fftpack import fft,ifft,next_fast_len
+from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.geodetics.base import locations2degrees
@@ -1588,6 +1588,91 @@ def ftn(data,dt,fl,fh,df=None,taper_frac=None,taper_maxlen=20,max_abs=2,
         dftn=taper(dftn,fraction=taper_frac,maxlen=taper_maxlen)
 
     return dftn
+
+#modified from a NoisePy function
+def whiten(data,dt,fmin,fmax,method='phase_only',smooth=20,pad=100):
+    """
+    Spectral whitening.
+
+    ====PARAMETERS====
+    data: time series data, can be 1 or 2 dimensions.
+    dt: time sampling interval.
+    fmin, fmax: frequency range to whiten.
+    method: whitening method. Could be 'phase_only', which is pure whitening to flat spectrum,
+            and 'rma', which is a running mean average smoothing. Default: phase_only
+    smooth: smoothing length, only needed for 'rma'. Default: 20.
+    pad: taper of the whitening extending the frequency range (number of samples in frequency).
+            Default: 100.
+
+    =========RETURNS====
+    outdata: time-domain data after spectral whitening.
+    """
+
+    if data.ndim == 1:
+        axis = 0
+    elif data.ndim == 2:
+        axis = 1
+    Nfft = int(next_fast_len(int(data.shape[axis])))
+    FFTRawSign = fft(data, Nfft, axis=axis) # return FFT
+
+    freqVec = fftfreq(Nfft, d=dt)[:Nfft // 2]
+    J = np.where((freqVec >= fmin) & (freqVec <= fmax))[0]
+    low = J[0] - pad
+    if low <= 0:
+        low = 1
+
+    left = J[0]
+    right = J[-1]
+    high = J[-1] + pad
+    if high > Nfft/2:
+        high = int(Nfft//2)
+
+    # Left tapering:
+    if axis == 1:
+        FFTRawSign[:,0:low] *= 0
+        FFTRawSign[:,low:left] = np.cos(
+            np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[:,low:left]))
+        # Pass band:
+        if method == 'phase_only':
+            FFTRawSign[:,left:right] = np.exp(1j * np.angle(FFTRawSign[:,left:right]))
+        elif method == 'rma':
+            for ii in range(self.data.shape[0]):
+                tave = moving_ave(np.abs(FFTRawSign[ii,left:right]),smooth)
+                FFTRawSign[ii,left:right] = FFTRawSign[ii,left:right]/tave
+        # Right tapering:
+        FFTRawSign[:,right:high] = np.cos(
+            np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[:,right:high]))
+        FFTRawSign[:,high:Nfft//2] *= 0
+
+        # Hermitian symmetry (because the input is real)
+        FFTRawSign[:,-(Nfft//2)+1:] = np.flip(np.conj(FFTRawSign[:,1:(Nfft//2)]),axis=axis)
+    else:
+        FFTRawSign[0:low] *= 0
+        FFTRawSign[low:left] = np.cos(
+            np.linspace(np.pi / 2., np.pi, left - low)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[low:left]))
+        # Pass band:
+        if method == 'phase_only':
+            FFTRawSign[left:right] = np.exp(1j * np.angle(FFTRawSign[left:right]))
+        elif method == 'rma':
+            tave = moving_ave(np.abs(FFTRawSign[left:right]),smooth)
+            FFTRawSign[left:right] = FFTRawSign[left:right]/tave
+        # Right tapering:
+        FFTRawSign[right:high] = np.cos(
+            np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
+            1j * np.angle(FFTRawSign[right:high]))
+        FFTRawSign[high:Nfft//2] *= 0
+
+        # Hermitian symmetry (because the input is real)
+        FFTRawSign[-(Nfft//2)+1:] = FFTRawSign[1:(Nfft//2)].conjugate()[::-1]
+    ##re-assign back to self.data.
+    outdata=ifft(FFTRawSign)
+
+    ##
+    return outdata
+
 #modified from NoisePy function
 def mad(arr):
     """
