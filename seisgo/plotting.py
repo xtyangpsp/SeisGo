@@ -198,7 +198,7 @@ def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(
         else: plt.colorbar(label='PSD')
     else:
         if normalize: psdN=psd[1:]/np.max(np.abs(psd[1:]))
-        else: psdN[i,:]=psd[1:]
+        else: psdN=psd[1:]
 
         plt.plot(f,psdN)
     if xrange is None:plt.xlim([f[1],f[-1]])

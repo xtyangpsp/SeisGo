@@ -8,6 +8,9 @@ MONITORING:
 TYPES:
 1. FFTData, fixed a minor bug when getting Nfft for single trace data.
 
+PLOTTING:
+1. plot_psd() bug fixed
+
 ==================================================================
 Updates in v0.7.3
 NOISE:

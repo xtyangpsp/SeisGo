@@ -1298,15 +1298,19 @@ def psd(d,s,axis=-1,db=False):
         print('data has >2 dimension. skip demean.')
     else:
         d=detrend(demean(d))
-
-    ft=fft(d,axis=axis)
+    if d.ndim == 1:
+        axis = 0
+    elif d.ndim == 2:
+        axis = 1
+    Nfft = int(next_fast_len(int(d.shape[axis])))
+    Nfft2 = int(Nfft//2)
+    ft=fft(d,Nfft,axis=axis)
     psd=np.square(np.abs(ft))/s
-    N=int(psd.shape[-1]/2)
-    f=np.linspace(0, s/2, N)
+    f=np.linspace(0, s/2, Nfft2)
     if d.ndim ==1:
-        psd=psd[:N]
+        psd=psd[:Nfft2]
     elif d.ndim==2:
-        psd=psd[:,:N]
+        psd=psd[:,:Nfft2]
     if db:
         psd=10*np.log10(np.abs(psd))
     return f,psd
@@ -1613,9 +1617,9 @@ def whiten(data,dt,fmin,fmax,method='phase_only',smooth=20,pad=100):
     elif data.ndim == 2:
         axis = 1
     Nfft = int(next_fast_len(int(data.shape[axis])))
+    Nfft2 = int(Nfft//2)
     FFTRawSign = fft(data, Nfft, axis=axis) # return FFT
-
-    freqVec = fftfreq(Nfft, d=dt)[:Nfft // 2]
+    freqVec = fftfreq(Nfft, d=dt)[:Nfft2]
     J = np.where((freqVec >= fmin) & (freqVec <= fmax))[0]
     low = J[0] - pad
     if low <= 0:
@@ -1625,7 +1629,7 @@ def whiten(data,dt,fmin,fmax,method='phase_only',smooth=20,pad=100):
     right = J[-1]
     high = J[-1] + pad
     if high > Nfft/2:
-        high = int(Nfft//2)
+        high = Nfft2
 
     # Left tapering:
     if axis == 1:
@@ -1644,10 +1648,12 @@ def whiten(data,dt,fmin,fmax,method='phase_only',smooth=20,pad=100):
         FFTRawSign[:,right:high] = np.cos(
             np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
             1j * np.angle(FFTRawSign[:,right:high]))
-        FFTRawSign[:,high:Nfft//2] *= 0
+        FFTRawSign[:,high:Nfft2] *= 0
 
         # Hermitian symmetry (because the input is real)
-        FFTRawSign[:,-(Nfft//2)+1:] = np.flip(np.conj(FFTRawSign[:,1:(Nfft//2)]),axis=axis)
+        FFTRawSign[:,-Nfft2+1:] = np.flip(np.conj(FFTRawSign[:,1:Nfft2]),axis=axis)
+        ##re-assign back to data.
+        outdata=np.real(ifft(FFTRawSign, Nfft,axis=axis))[:,:data.shape[axis]]
     else:
         FFTRawSign[0:low] *= 0
         FFTRawSign[low:left] = np.cos(
@@ -1663,13 +1669,13 @@ def whiten(data,dt,fmin,fmax,method='phase_only',smooth=20,pad=100):
         FFTRawSign[right:high] = np.cos(
             np.linspace(0., np.pi / 2., high - right)) ** 2 * np.exp(
             1j * np.angle(FFTRawSign[right:high]))
-        FFTRawSign[high:Nfft//2] *= 0
+        FFTRawSign[high:Nfft2] *= 0
 
         # Hermitian symmetry (because the input is real)
-        FFTRawSign[-(Nfft//2)+1:] = FFTRawSign[1:(Nfft//2)].conjugate()[::-1]
-    ##re-assign back to self.data.
-    outdata=ifft(FFTRawSign)
+        FFTRawSign[-Nfft2+1:] = FFTRawSign[1:Nfft2].conjugate()[::-1]
 
+        ##re-assign back to data.
+        outdata=np.real(ifft(FFTRawSign, Nfft,axis=axis))[:data.shape[axis]]
     ##
     return outdata
 
