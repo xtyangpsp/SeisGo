@@ -216,7 +216,7 @@ class FFTData(object):
                 axis = 0
             elif white.ndim == 2:
                 axis = 1
-                
+
             Nfft = int(next_fast_len(int(dataS.shape[axis])))
             fft_white = fft(white, Nfft, axis=axis) # return FFT
 
@@ -843,7 +843,7 @@ class CorrData(object):
 
         return cout
     #shaping
-    def shaping(self,width,shift,wavelet='gaussian',overwrite=True):
+    def shaping(self,width,shift,wavelet='gaussian',overwrite=True,trim_end=False):
         """
         convolve with a shaping wavelet.
 
@@ -853,6 +853,7 @@ class CorrData(object):
         shift: half length of the wavelet. This will determine the shift of
                 the wavelet center.
         wavelet: type of wavelet. default gaussian. Options: gaussian or ricker.
+        trim_end: trim the end of the result. otherwise, trim both start and end.
         """
         if wavelet.lower() not in helpers.wavelet_labels():
             raise ValueError(wavelet+" not supported.")
@@ -870,11 +871,17 @@ class CorrData(object):
             npts=self.data.shape[1]
             for ii in range(self.data.shape[0]):
                 dtemp=signal.convolve(self.data[ii],w)
-                dout[ii]=dtemp[int(nt/2):int(nt/2)+npts]
+                if trim_end:
+                    dout[ii]=dtemp[:npts]
+                else:
+                    dout[ii]=dtemp[int(nt/2):int(nt/2)+npts]
         else:
             npts=self.data.shape[0]
             dtemp=signal.convolve(self.data,w)
-            dout=dtemp[int(nt/2):int(nt/2)+npts]
+            if trim_end:
+                dout=dtemp[:npts]
+            else:
+                dout=dtemp[int(nt/2):int(nt/2)+npts]
 
         if not overwrite:
             cdataout=self.copy()

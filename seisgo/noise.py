@@ -985,7 +985,7 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 #
-def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
+def shaping_corrdata(ccfile,wavelet,width,shift,trim_end=False,outdir=".",comp="ZZ",stack=True,
                         stack_method='robust',output_format="asdf",verbose=True):
     """
     This is a wrapper to apply shaping wavelet to corrdata.data and save to files.
@@ -1015,7 +1015,7 @@ def shaping_corrdata(ccfile,wavelet,width,shift,outdir=".",comp="ZZ",stack=True,
     cdata=cdataall[pair][comp]
 
     # CONVOLVE
-    cdata.shaping(width,shift,wavelet=wavelet,overwrite=True)
+    cdata.shaping(width,shift,wavelet=wavelet,trim_end=trim_end,overwrite=True)
     #
     fbase=pair+'_'+comp+'_'+cdata.side
     #save individual NCFs

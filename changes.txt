@@ -7,6 +7,7 @@ MONITORING:
 
 TYPES:
 1. FFTData, fixed a minor bug when getting Nfft for single trace data.
+2. CorrData shaping: trim_end option to accommodate the need by FWANT.
 
 PLOTTING:
 1. plot_psd() bug fixed
