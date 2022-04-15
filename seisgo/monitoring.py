@@ -6,7 +6,7 @@ from obspy.signal.regression import linear_regression
 from obspy.signal.filter import bandpass
 from obspy import UTCDateTime
 from seisgo.types import DvvData
-from seisgo import utils
+from seisgo import utils,helpers
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 import pyasdf
@@ -59,7 +59,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     format: data file format: "asdf" or "pickle". Default is None, which will be determined by file extension.
     v: verbose. Default False.
     """
-    method_all=['wts','ts'] #list of all available methods.
+    method_all=helpers.dvv_methods() #list of all available methods.
     if method.lower() == "ts":
         subfreq=False
     if method.lower() not in method_all:

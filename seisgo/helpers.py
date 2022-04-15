@@ -22,6 +22,13 @@ def stack_methods():
     o=["linear","pws","tf-pws","robust","acf","nroot","selective","cluster"]
 
     return o
+def dvv_methods():
+    """
+    Returns available dv/v measuring methods.
+    """
+    o=['wts','ts']
+
+    return o
 
 def wavelet_labels():
     """
