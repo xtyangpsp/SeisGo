@@ -402,7 +402,7 @@ def read_ncmodel2d(dfile,var,metadata=False):
         return lat,lon,val
 #
 #
-def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False,
+def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,stats=False,surface=False,
                         lon_correction=0.0):
     """
     Extract seismic model within polygons from 3d or 2d model in netCDF format.
@@ -459,7 +459,7 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,allstats=False,surface=False
             ix,iy=points_in_polygon(d,lon,lat)
             for k in range(val_mean.shape[1]):
                 val_mean[idx,k]=np.nanmean(np.nanmean(val[k,iy,ix]))
-                if allstats:
+                if stats:
                     val_median[idx,k]=np.nanmedian(np.nanmedian(val[k,iy,ix]))
                     val_min[idx,k]=np.nanmin(np.nanmin(val[k,iy,ix]))
                     val_max[idx,k]=np.nanmax(np.nanmax(val[k,iy,ix]))

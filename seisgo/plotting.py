@@ -297,6 +297,162 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
     else:
         fig.show()
 
+#############
+def plot_splitting_map_gmt(sks_meas_all, boxcoordinates,
+                       dcoord=0.5,
+                       figname='splitting_map.png',
+                       frame=["a2f1", "WSen"],
+                       topo_data="@earth_relief_01m",
+                       colormap=None,
+                       proj="M3.5i",
+                       markerstyle="cc",
+                       markersizescale=0.05*2,
+                       markerstyle_nocmap="c0.1c",
+                       markercolor="blue",
+                       pencolor='black',
+                       penwidth="1p",
+                       dtscale=0.5,
+                       measurement_cmap=True,
+                       markercolormap="viridis",
+                       colorbar=False,
+                      legend=True):
+    '''
+    Plot the shear wave splitting measurements using pygmt
+
+    Modified from: https://www.earthinversion.com/techniques/how-to-plot-shear-wave-splitting-measurements-using-pygmt/
+
+    param sks_meas_all: pandas dataframe with `Longitude`, `Latitude`, `phi`, and `dt` columns.
+    param boxcoordinates: list with minimum longitude, maximum longitude, minimum latitude, maximum latitude
+    param dcoord: offset of the map from the given coordinates
+    param figname: output figure name
+    param topo_data: topographic data str
+    param colormap: colormap for the topographic data. Defaults to None
+    param proj: projection of the map
+    param measurement_cmap: boolean. plot markers using the colormap
+    param markerstyle: marker style for colormapped markers
+    param markerstyle_nocmap: marker style without colormap
+    param markercolor: marker color without colormap
+    param pencolor: pen color for the splitting lines
+    param dtscale: scale for delay time on the map
+    '''
+    minlon, maxlon = boxcoordinates[0], boxcoordinates[1]
+    minlat, maxlat = boxcoordinates[2], boxcoordinates[3]
+    minlon, maxlon, minlat, maxlat = (
+        minlon - dcoord,
+        maxlon + dcoord,
+        minlat - dcoord,
+        maxlat + dcoord,
+    )
+
+    res = "h"
+
+    fig = gmt.Figure()
+    gmt.config(MAP_FRAME_TYPE="plain")
+
+    fig.basemap(region=[minlon, maxlon, minlat, maxlat],
+                projection=proj, frame=frame)
+
+    if colormap is not None:
+        gmt.makecpt(cmap=colormap, series="-12000/9000/1000",
+                      continuous=True)
+        fig.grdimage(
+            grid=topo_data,
+            shading=True,
+            cmap=colormap,
+        )
+
+        fig.coast(
+            frame=frame,
+            resolution=res,
+            shorelines=["1/0.2p,black", "2/0.05p,gray"],
+            borders=1,
+        )
+    else:
+        fig.coast(land="lightgray", water="lightblue", resolution=res,
+                  shorelines=["1/0.2p,black", "2/0.05p,gray"],
+                  borders=["2/0.5p,120,solid","1/1.5p,black,dashed"],)
+
+    phivals = 90-sks_meas_all['phi'].values
+    dtvals = dtscale*sks_meas_all['dt'].values
+    if measurement_cmap:
+        gmt.makecpt(cmap=markercolormap, series=[
+            round(sks_meas_all['dt'].min()-0.05, 1), round(sks_meas_all['dt'].max()+0.05, 1)])
+        fig.plot(
+            x=sks_meas_all['Longitude'],
+            y=sks_meas_all['Latitude'],
+            size=markersizescale*2**dtvals,
+            color=sks_meas_all['dt'],
+            cmap=True,
+            style=markerstyle,
+            pen="black",
+        )
+
+    else:
+        fig.plot(
+            x=sks_meas_all['Longitude'].values,
+            y=sks_meas_all['Latitude'].values,
+            style=markerstyle_nocmap,
+            color=markercolor,
+            pen="black",
+            label="Station",
+        )
+
+    fig.plot(
+        x=sks_meas_all['Longitude'],
+        y=sks_meas_all['Latitude'],
+        style="v0i+e",
+        pen=[pencolor, penwidth],
+        direction=[
+            phivals,
+            dtvals/2,
+        ],  # angle (from xaxis) and magnitude
+    )
+    fig.plot(
+        x=sks_meas_all['Longitude'],
+        y=sks_meas_all['Latitude'],
+        style="v0i+e",
+        pen=[pencolor, penwidth],
+        direction=[
+            180+phivals,
+            dtvals/2,
+        ],  # angle (from xaxis) and magnitude
+    )
+    for i,d in enumerate(outlines2):
+        if tags2[i]=='"NA-MC"':pass
+        elif 'basin' in tags2[i].lower() or 'rift' in tags2[i].lower() or 'mcr' in tags2[i].lower():
+            fig.plot(x=d[:,0],y=d[:,1],pen="1.5p,purple")
+        else:
+            fig.plot(x=d[:,0],y=d[:,1],pen="1.5p,purple,-")
+
+    if legend:
+        delaytimearrays = [1.0, 2.0, 3.0]
+        ydiff = 0.3
+        xdiff = 3
+        yloc = (maxlat-dcoord+2*ydiff)
+        xloc = minlon+dcoord
+        fig.plot(x=xloc+xdiff/2+0.05, y=yloc-len(delaytimearrays)/2*ydiff-0.05, style=f"r{len(delaytimearrays)}/{len(delaytimearrays)/2}",
+                 color="white", pen="0.5p,black")
+
+        xloc += xdiff
+        for dltime in delaytimearrays:
+            yloc -= ydiff
+            fig.plot(
+                x=xloc-xdiff,
+                y=yloc,
+                style="v0i+e",
+                pen=[pencolor, penwidth],
+                direction=[
+                    [0],
+                    [dtscale*dltime],
+                ],  # angle (from xaxis) and magnitude
+            )
+            fig.text(x=xloc, y=yloc,
+                     text=f"{dltime} s", font="0.3c,Helvetica")
+    if colorbar:
+        fig.colorbar(frame=["a0.5", "y+ls"])
+    fig.savefig(figname, crop=True, dpi=300)
+#     fig.show()
+
 #############################################################################
 ###############PLOTTING XCORR RESULTS AS THE OUTPUT OF SEISGO ##########################
 #############################################################################

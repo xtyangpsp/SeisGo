@@ -86,6 +86,7 @@ def robust(d,epsilon=1E-5,maxstep=10,win=None,stat=False,ref=None):
         return d
     res  = 9E9  # residuals
     w = np.ones(d.shape[0])
+    small_number=1E-15
     nstep=0
     if ref is None:
         newstack = np.median(d,axis=0)
@@ -101,8 +102,10 @@ def robust(d,epsilon=1E-5,maxstep=10,win=None,stat=False,ref=None):
             crap_dot = np.sum(crap)
             di_norm = np.linalg.norm(dtemp)
             ri_norm = np.linalg.norm(dtemp -  crap_dot*stack[win[0]:win[1]])
-            w[i]  = np.abs(crap_dot) /di_norm/ri_norm#/len(cc_array[:,1])
-        # print(w)
+            if ri_norm < small_number:
+                w[i]=0
+            else:
+                w[i]  = np.abs(crap_dot) /di_norm/ri_norm
         w =w /np.sum(w)
         newstack =np.sum( (w*d.T).T,axis=0)#/len(cc_array[:,1])
         res = np.linalg.norm(newstack-stack,ord=1)/np.linalg.norm(newstack)/len(d[:,1])
