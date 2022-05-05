@@ -12,6 +12,9 @@ TYPES:
 PLOTTING:
 1. plot_psd() bug fixed
 
+STACKING:
+1. Fixed a bug in robust stacking when the trace amplitudes are anomalously small.
+
 ==================================================================
 Updates in v0.7.3
 NOISE:
