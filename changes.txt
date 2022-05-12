@@ -15,6 +15,9 @@ PLOTTING:
 STACKING:
 1. Fixed a bug in robust stacking when the trace amplitudes are anomalously small.
 
+DOWNLOADERS:
+1. ms2asdf(): added option to specify response file.
+
 ==================================================================
 Updates in v0.7.3
 NOISE:

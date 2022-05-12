@@ -630,7 +630,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
     else:
         return Stream(tr_all)
 
-def ms2asdf(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out='VEL',
+def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=None,rm_resp_out='VEL',
                 water_level=60,samp_freq=None,outdir='.',stainfo=None,outfile=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
@@ -639,6 +639,7 @@ def ms2asdf(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out
     files: local data file or a list of files.
     rm_resp: 'no'[default], 'spectrum', 'RESP', 'polozeros', or 'inv'.
     respdir: directory for response files, default is '.'
+    respfile: response file or station xml. default None, looking for NET.STA.xml
     freqmin: minimum frequency in removing responses. default is 0.001
     freqmax: maximum frequency in removing responses. default is 0.499*sample_rate
     rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
@@ -666,14 +667,20 @@ def ms2asdf(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out
         if rm_resp != 'no':
             if rm_resp == 'spectrum':
                 print('remove response using spectrum')
-                specfile = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if respfile is not None:
+                    specfile=[respfile]
+                else:
+                    specfile = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
                 if len(specfile)==0:
                     raise ValueError('no response sepctrum found for %s' % netstachan)
                 tr = utils.resp_spectrum(tr,specfile[0],fs,pre_filt)
 
             elif rm_resp == 'RESP':
                 print('remove response using RESP files')
-                resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
+                if respfile is None:
+                    resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
+                else:
+                    resp = [respfile]
                 print(resp)
                 if len(resp)==0:
                     raise ValueError('no RESP files found for %s' % netstachan)
@@ -682,13 +689,20 @@ def ms2asdf(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_out
 
             elif rm_resp == 'polozeros':
                 print('remove response using polos and zeros')
-                paz_sts = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
+                if respfile is not None:
+                    paz_sts = [respfile]
+                else:
+                    paz_sts = glob.glob(os.path.join(respdir,'*'+netstachan+'*'))
                 if len(paz_sts)==0:
                     raise ValueError('no polozeros found for %s' % netstachan)
                 tr.simulate(paz_remove=paz_sts[0],pre_filt=pre_filt)
             elif rm_resp == 'inv':
                 print('remove response using inventory')
-                inv = read_inventory(os.path.join(respdir,'*'+net+"."+sta+'*.xml'))
+                if respfile is not None:
+                    invfile=respfile
+                else:
+                    invfile='*'+net+"."+sta+'*.xml'
+                inv = read_inventory(os.path.join(respdir,invfile))
                 tr.remove_response(inventory=inv,pre_filt=pre_filt,output=rm_resp_out,water_level=water_level)
             else:
                 raise ValueError('no such option for rm_resp! please double check!')
