@@ -15,7 +15,7 @@ This is a planned module, to be developed.
 ################################################################
 ################ DISPERSION EXTRACTION FUNCTIONS ###############
 ################################################################
-def disp_waveform_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morlet'):
+def get_dispersion_waveforms_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morlet'):
     """
     Produce dispersion wavefroms with continuous wavelet tranform.
 
@@ -42,38 +42,40 @@ def disp_waveform_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morlet'):
         dout.append(ds_win/np.max(ds_win))
     return np.flip(np.array(dout),axis=0), np.flip(fout)
 
-def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=10):
+def get_dispersion_waveforms(d, dt,fmin,fmax,dp=None,fscale='ln',fextend=10):
     """
     Produce dispersion wavefroms with narrowband filters.
 
     ===parameters===
     d: 1-d array data.
-    df: time interval.
+    dt: sampling interval.
     fmin, fmax: frequency range.
-    df: scale interval. frequency for linear scale, period for non-linear scale
+    dp: period increment in seconds. default 1 s.
     fscale: frequency scales. "ln" for linear [default]. "nln" for non-linear scale.
     fextend: extend individual frequency value to form a band range. default: 5 scale steps.
 
     ==returns===
     dout, fout: narrowband-filtered waveforms and the frequency vector.
     """
+    period=np.array([1/fmax - fextend*dp,1/fmin + fextend*dp])
+    if period[0] < 2*dt: period[0]=2.01*dt
+    if dp is None: dp=1
+
     if fscale=="ln":
-        if df is None: df=0.01
-        f_all=np.arange(fmin-fextend*df,fmax+fextend*df,df)
+        # f_all=np.arange(fmin-fextend*df,fmax+fextend*df,df)
+        ptest=np.arange(period.min(),period.max(),dp)
     elif fscale=="nln":
-        if df is None: df=0.1
-        period=np.array([1/fmax,1/fmin])
         ptest=2 ** np.arange(np.log2(0.1*period.min()),
-                    np.log2(2*period.max()),df)
-        f_all=np.flip(1/ptest)
+                    np.log2(2*period.max()),dp)
+    f_all=np.flip(1/ptest)
     fout_temp=[]
     dout_temp=[]
     din=d.copy()
 
     for ii in range(len(f_all)-fextend):
         if f_all[ii]>=1/(2*dt) or f_all[ii+fextend]>=1/(2*dt): continue
-        ds_win=np.power(bandpass(din,f_all[ii],f_all[ii+fextend],1/dt,corners=4, zerophase=True),2)
-        dout_temp.append(ds_win/np.max(ds_win))
+        ds_win=bandpass(din,f_all[ii],f_all[ii+fextend],1/dt,corners=4, zerophase=True)
+        dout_temp.append(ds_win/np.max(np.abs(ds_win)))
         fout_temp.append(np.mean([f_all[ii],f_all[ii+fextend]])) #center frequency
     fout_temp=np.array(fout_temp)
     f_ind=np.where((fout_temp>=fmin) & (fout_temp<=fmax))[0]
@@ -81,29 +83,10 @@ def disp_waveform_bp(d, dt,fmin,fmax,df=None,fscale='ln',fextend=10):
     dout_temp=np.array(dout_temp)
     dout = dout_temp[f_ind]
     return dout, fout
-#
-def dispersion_image(data,t,dist,freq,velocity=[0.5,5],dv=0.1):
-    """
-    Produce the dispersion image with given data ensemble.
-
-    ==PARAMETERS===
-    data: 2-D matrix of the surface wave data.
-    t: time vector for the data.
-    dist: distance vector corresponding to the data matrix, must be in the
-            same order as data.
-    freq: [min,max] frequency for dispersion image.
-    velocity: velocity range in [min,max] for the dispersion image. Default: [0.5,5]
-    dv: velocity increment. Default: 0.1
-    """
-    print("Place holder function.")
-
-    aout=[] #amplitude
-    pout=[] # phase
-    return aout,pout
 
 # function to extract the dispersion from the image
 # modified from NoisePy.
-def extract_dispersion(amp,vel):
+def extract_dispersion_curve(amp,vel):
     '''
     this function takes the dispersion image as input, tracks the global maxinum on
     the spectrum amplitude
