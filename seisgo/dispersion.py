@@ -42,29 +42,29 @@ def get_dispersion_waveforms_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morl
         dout.append(ds_win/np.max(ds_win))
     return np.flip(np.array(dout),axis=0), np.flip(fout)
 
-def get_dispersion_waveforms(d, dt,fmin,fmax,dp=None,fscale='ln',fextend=10):
+def get_dispersion_waveforms(d, dt,pmin,pmax,dp=None,pscale='ln',extend=10):
     """
     Produce dispersion wavefroms with narrowband filters.
 
     ===parameters===
     d: 1-d array data.
     dt: sampling interval.
-    fmin, fmax: frequency range.
+    pmin, pmax: period range.
     dp: period increment in seconds. default 1 s.
-    fscale: frequency scales. "ln" for linear [default]. "nln" for non-linear scale.
-    fextend: extend individual frequency value to form a band range. default: 5 scale steps.
+    pscale: period scales. "ln" for linear [default]. "nln" for non-linear scale.
+    extend: extend individual period value to form a band range. default: 5 scale steps.
 
     ==returns===
-    dout, fout: narrowband-filtered waveforms and the frequency vector.
+    dout, pout: narrowband-filtered waveforms and the period vector.
     """
-    period=np.array([1/fmax - fextend*dp,1/fmin + fextend*dp])
+    period=np.array([pmin - extend*dp,pmax + extend*dp])
     if period[0] < 2*dt: period[0]=2.01*dt
     if dp is None: dp=1
 
-    if fscale=="ln":
-        # f_all=np.arange(fmin-fextend*df,fmax+fextend*df,df)
+    if pscale=="ln":
+        # f_all=np.arange(fmin-extend*df,fmax+extend*df,df)
         ptest=np.arange(period.min(),period.max(),dp)
-    elif fscale=="nln":
+    elif pscale=="nln":
         ptest=2 ** np.arange(np.log2(0.1*period.min()),
                     np.log2(2*period.max()),dp)
     f_all=np.flip(1/ptest)
@@ -72,18 +72,105 @@ def get_dispersion_waveforms(d, dt,fmin,fmax,dp=None,fscale='ln',fextend=10):
     dout_temp=[]
     din=d.copy()
 
-    for ii in range(len(f_all)-fextend):
-        if f_all[ii]>=1/(2*dt) or f_all[ii+fextend]>=1/(2*dt): continue
-        ds_win=bandpass(din,f_all[ii],f_all[ii+fextend],1/dt,corners=4, zerophase=True)
+    for ii in range(len(f_all)-extend):
+        if f_all[ii]>=1/(2*dt) or f_all[ii+extend]>=1/(2*dt): continue
+        ds_win=bandpass(din,f_all[ii],f_all[ii+extend],1/dt,corners=4, zerophase=True)
         dout_temp.append(ds_win/np.max(np.abs(ds_win)))
-        fout_temp.append(np.mean([f_all[ii],f_all[ii+fextend]])) #center frequency
+        fout_temp.append(np.mean([f_all[ii],f_all[ii+extend]])) #center frequency
     fout_temp=np.array(fout_temp)
-    f_ind=np.where((fout_temp>=fmin) & (fout_temp<=fmax))[0]
+    f_ind=np.where((fout_temp>=1/pmax) & (fout_temp<=1/pmin))[0]
     fout=fout_temp[f_ind]
     dout_temp=np.array(dout_temp)
     dout = dout_temp[f_ind]
-    return dout, fout
+    pout = 1/fout
+    return dout, pout
+##
+def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
+                        verbose=False):
+    """
+    Uses phase-shift method. Park et al. (1998): http://www.masw.com/files/DispersionImaingScheme-1.pdf
 
+    =====PARAMETERS====
+    g: waveform gather for all distances (traces). It should be a numpy array.
+    t: time vector.
+    d: distance vector corresponding to the waveforms in `g`
+    pmin: minimum period.
+    pmax: maximum period.
+    vmin: minimum phase velocity to search.
+    vmax: maximum phase velocity to search.
+    dp: period increment. default is 1.
+    dv: velocity increment in searching. default is 0.1
+    window: number of wavelength when slicing the time segments in computing summed energy. default is 1.
+    pscale: period vector scale in applying narrowband filters. default is 'ln' for linear scale.
+    pband_extend: number of period increments to extend in filtering. defult is 5.
+
+    =====RETURNS====
+    dout: dispersion information showing the normalized energy for each velocity value for each frequency.
+    vout: velocity vector used in searching.
+    pout: period vector.
+    """
+
+    dt=np.abs(t[1]-t[0])
+    if t[0]<-1.0*dt and t[-1]> dt: #two sides.
+        side='a'
+        zero_idx=int((len(t)-1)/2)
+    elif t[0]<-1.0*dt:
+        side='n'
+        zero_idx=len(t)-1
+    elif t[-1]>dt:
+        side='p'
+        zero_idx=0
+    if verbose: print('working on side: '+side)
+    dfiltered_all=[]
+    dist_final=[]
+    for k in range(g.shape[0]):
+        dtemp,pout=get_dispersion_waveforms(g[k]/np.max(np.abs(g[k])),dt,pmin,
+                                        pmax,dp=dp,pscale=pscale,extend=pband_extend)
+        dfiltered_all.append(dtemp)
+    dfiltered_all=np.array(dfiltered_all)
+    vout=np.arange(vmin,vmax+0.5*dv,dv)
+    dout_n_all=[]
+    dout_p_all=[]
+    for k in range(len(pout)):
+        win_length=window*pout[k]
+        win_len_samples=int(win_length/dt)+1
+        dout_n=[]
+        dout_p=[]
+
+        d_in=dfiltered_all[:,k,:]
+        for i,v in enumerate(vout):
+            #subset by distance
+            mindist=1.5*v*pout[k] #at least 1.5 wavelength.
+            dist_idx=np.where((d >= mindist))[0]
+            if len(dist_idx) >5:
+                if side=='a' or side=='n':
+                    dvec=[]
+                    for j in dist_idx: #distance, loop through traces
+                        tmin=d[j]/v
+                        tmin_idx=zero_idx - int(tmin/dt)
+                        dsec=d_in[j][tmin_idx - win_len_samples : tmin_idx]
+                        if not any(np.isnan(dsec)):
+                            dvec.append(dsec)
+                    dout_n.append(np.sum(np.power(np.mean(dvec,axis=1),2)))
+
+                if side=='a' or side=='p':
+                    dvec=[]
+                    for j in dist_idx: #distance, loop through traces
+                        tmin=d[j]/v
+                        tmin_idx=zero_idx + int(tmin/dt)
+                        dsec=d_in[j][tmin_idx : tmin_idx + win_len_samples]
+                        if not any(np.isnan(dsec)):
+                            dvec.append(dsec)
+                    dout_p.append(np.sum(np.power(np.mean(dvec,axis=1),2)))
+        dout_n /= np.max(dout_n)
+        dout_p /= np.max(dout_p)
+        dout_n_all.append(dout_n)
+        dout_p_all.append(dout_p)
+    #
+    dout=np.squeeze(np.array([dout_n_all,dout_p_all]))
+
+
+    return dout,vout,pout
 # function to extract the dispersion from the image
 # modified from NoisePy.
 def extract_dispersion_curve(amp,vel):

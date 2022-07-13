@@ -20,6 +20,7 @@ DOWNLOADERS:
 
 DISPERSION:
 1. get_dispersion_waveforms: Use period to get the evenly-spaced period vector.
+2. get_dispersion_image: new function to extract dispersion image in velocity-period domain/space.
 
 ==================================================================
 Updates in v0.7.3
