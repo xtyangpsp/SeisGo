@@ -1,4 +1,4 @@
-import obspy,scipy,time,pycwt,pickle
+import obspy,scipy,time,pycwt,pickle,os
 import numpy as np
 from obspy.signal.invsim import cosine_taper
 from scipy.fftpack import fft,ifft,next_fast_len
