@@ -1854,9 +1854,9 @@ class DvvData(object):
         ##### SAVING ######
         if save:
             if not os.path.isdir(figdir):os.mkdir(figdir)
-            if figname is None: figname = figdir+'/'+'dvv_'+self.id+'_'+self.cc_comp+'_'+side+\
-                    '_'+str(cc_min)+'_'+str(np.min(self.freq))+"_"+str(np.max(self.freq))+"Hz"
-            plt.savefig(figname+'.'+format, format=format, dpi=300, facecolor = 'white')
+            if figname is None: figname = 'dvv_'+self.id+'_'+self.cc_comp+'_'+side+\
+                    '_'+str(cc_min)+'_'+str(np.min(self.freq))+"_"+str(np.max(self.freq))+"Hz"+'.'+format
+            plt.savefig(figdir+'/'+figname, format=format, dpi=300, facecolor = 'white')
             plt.close()
         else:
             plt.show()
