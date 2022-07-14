@@ -262,8 +262,8 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         if savefig:
             if not os.path.isdir(figdir):os.mkdir(figdir)
             if figname is None:
-                figname = figdir+'/xcc_'+cdata.id
-            plt.savefig(figname+'_'+cc_comp+'.'+figformat, format=figformat, dpi=300, facecolor = 'white')
+                figname = figdir+'/xcc_'+cdata.id+'_'+cc_comp+'.'+figformat
+            plt.savefig(figname, format=figformat, dpi=300, facecolor = 'white')
             plt.close()
         else:
             plt.show()

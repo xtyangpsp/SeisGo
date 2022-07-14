@@ -1,3 +1,8 @@
+Updates in v0.7.5
+MONITORING:
+1. get_dvv: improved plot saving.
+
+===================================================================
 Updates in v0.7.4
 UTILS:
 1. Added spectral whitening function: whiten(), for time series data.
