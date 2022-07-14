@@ -24,7 +24,7 @@ Note by Congcong: several utility functions are modified based on https://github
 def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,whiten='no',whiten_smooth=20, whiten_pad=100,
             method='wts',dvmax=0.05,subfreq=True,plot=False,figsize=(8,8),
-            savefig=False,figdir='.',save=False,outdir='.',outfile=None,
+            savefig=False,figdir='.',figname=None,figformat='png',save=False,outdir='.',outfile=None,
             format=None,nproc=None,v=False):
     """
     Compute dvv with given corrdata object, with options to save dvvdata to file.
@@ -51,6 +51,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         Plotting for dvvdata is currently seperated as a dvvdata.plot() method.
     savefig: Default False. Save plot or not.
     figdir: directory to save the figure.
+    figname: figure name, excluding directory.
     save: this flag is for the dvvdata result. if true, the result will be saved to an ASDF file.
         Othersie, it returns the dvvdata object. Default is False.
     outdir: this is the directory to save the dvvdata.
@@ -260,9 +261,9 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         ##### SAVING ######
         if savefig:
             if not os.path.isdir(figdir):os.mkdir(figdir)
-            ccfilebase=ccfile
-            outfname = figdir+'/xcc_'+cdata.id
-            plt.savefig(outfname+'_'+cc_comp+'.'+format, format=format, dpi=300, facecolor = 'white')
+            if figname is None:
+                figname = figdir+'/xcc_'+cdata.id
+            plt.savefig(figname+'_'+cc_comp+'.'+figformat, format=figformat, dpi=300, facecolor = 'white')
             plt.close()
         else:
             plt.show()
