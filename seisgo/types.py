@@ -1732,7 +1732,7 @@ class DvvData(object):
     ##plot
     def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
             figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1,
-            crange=None,side="a",errorbar=True):
+            crange=None,side="a",errorbar=True,markersize=5):
         """
         Plot DvvData.
 
@@ -1749,6 +1749,7 @@ class DvvData(object):
         ytick_precision: precision of displaying frequency labels on y axis (default is 1)
         side: which side to plot. default is "a" for both negative and positive sides.
         errorbar: plot errobar or not for single frequency only. Default True.
+        markersize: markersize for single frequency plots only. Default is 5.
         """
         nvdata=self.data1.copy()
         pvdata=self.data2.copy()
@@ -1835,16 +1836,16 @@ class DvvData(object):
             plt.hlines(0,np.min(self.time)-xext,np.max(self.time)+xext,colors='k')
             if side.lower()=="a" or side.lower()=="n":
                 if errorbar:
-                    plt.errorbar(self.time,nvdata,yerr=self.error1,fmt="o",markersize=5,
+                    plt.errorbar(self.time,nvdata,yerr=self.error1,fmt="o",markersize=markersize,
                                 capsize=3,label="negative")
                 else:
-                    plt.plot(self.time,nvdata,".-",markersize=8,label="negative")
+                    plt.plot(self.time,nvdata,".-",markersize=markersize,label="negative")
             if side.lower()=="a" or side.lower()=="p":
                 if errorbar:
-                    plt.errorbar(self.time,pvdata,yerr=self.error2,fmt="^",markersize=5,
+                    plt.errorbar(self.time,pvdata,yerr=self.error2,fmt="^",markersize=markersize,
                                 capsize=3,label="positive")
                 else:
-                    plt.plot(self.time,pvdata,markersize=8,label="positive")
+                    plt.plot(self.time,pvdata,".-",markersize=markersize,label="positive")
 
             plt.ylabel('dv/v (%)',fontsize=12)
             plt.xlim([np.min(self.time)-xext,np.max(self.time)+xext])
