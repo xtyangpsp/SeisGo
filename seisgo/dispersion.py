@@ -101,6 +101,8 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     dp: period increment. default is 1.
     dv: velocity increment in searching. default is 0.1
     window: number of wavelength when slicing the time segments in computing summed energy. default is 1.
+            Window can be a two-element array [min,max], when the window size will be interpolated between
+            the minimum and the maximum.
     pscale: period vector scale in applying narrowband filters. default is 'ln' for linear scale.
     pband_extend: number of period increments to extend in filtering. defult is 5.
 
@@ -109,6 +111,8 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     vout: velocity vector used in searching.
     pout: period vector.
     """
+    if len(np.array(window).shape) < 1:
+        window=[window,window]
 
     dt=np.abs(t[1]-t[0])
     if t[0]<-1.0*dt and t[-1]> dt: #two sides.
@@ -131,8 +135,9 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     vout=np.arange(vmin,vmax+0.5*dv,dv)
     dout_n_all=[]
     dout_p_all=[]
+    window_vector=np.linspace(window[1],window[0],len(pout))
     for k in range(len(pout)):
-        win_length=window*pout[k]
+        win_length=window_vector[k]*pout[k]
         win_len_samples=int(win_length/dt)+1
         dout_n=[]
         dout_p=[]
