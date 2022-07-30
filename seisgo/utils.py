@@ -1038,8 +1038,8 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                     plt.xlim(xlimit)
                 plt.ylim([-0.7,ntr-0.3])
                 if len(freq)>0:
-                    plt.text(np.mean(xlimit),0.85*np.max(myymax),"["+str(freq[0])+", "+str(freq[1])+"] Hz",\
-                             horizontalalignment='center',verticalalignment='center',fontsize=14)
+                    plt.text(np.mean(xlimit),0.95*ntr,"["+str(freq[0])+", "+str(freq[1])+"] Hz",\
+                             horizontalalignment='center',verticalalignment='center',fontsize=12)
         else:
             raise ValueError("mode: %s is not recoganized. Can ONLY be: subplot, overlap, or gather."%(mode))
 
