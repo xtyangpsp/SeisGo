@@ -932,8 +932,9 @@ def get_tracetag(tr):
 # 2. determine freqmax as the Nyquist frequency, if not specified
 # 3. Added mode with option to plot overlapping figures.
 def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
-               title=[],outfile='test.ps',xlimit=[],subplotpar=[],              \
-               mode="subplot",spacing=2.0,colors=[],verbose=False,scale=1):
+               title=[],outfile='trace.png',xlimit=[],subplotpar=[],              \
+               mode="subplot",spacing=2.0,colors=[],verbose=False,scale=1,
+               savefig=False):
     """
     mode: subplot, overlap, or gather. In gather mode, traces will be offset and normalized.
     """
@@ -969,7 +970,7 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
 
         if mode=="subplot":
             ax=plt.subplot(subplotpar[0],subplotpar[1],itr)
-            plt.tight_layout(pad=spacing)
+
             if len(colors)==0:
                 plt.plot(tt,tc.data)
             elif len(colors)==1:
@@ -992,6 +993,7 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                 plt.text(np.mean(xlimit),0.9*np.max(tc.data[imin:imax]),\
                         "["+str(freq[0])+", "+str(freq[1])+"] Hz", \
                          horizontalalignment='center',verticalalignment='center',fontsize=12)
+            plt.tight_layout(pad=spacing)
         elif mode=="overlap":
             if itr==1:ax=plt.subplot(1,1,1)
             if len(colors)==0:
@@ -1018,12 +1020,18 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                              horizontalalignment='center',verticalalignment='center',fontsize=14)
         elif mode=="gather":
             if itr==1:ax=plt.subplot(1,1,1)
-            if len(colors)==0:
-                plt.plot(tt,itr-1+0.5*scale*tc.data/np.max(np.abs(tc.data)))
-            elif len(colors)==1:
-                plt.plot(tt,itr-1+0.5*scale*tc.data/np.max(np.abs(tc.data)),colors[0])
+            if len(xlimit)>0:
+                # get maximum for normalization.
+                tindx=np.where((tt>=xlimit[0] & tt<=xlimit[1]))[0]
+                trace_max=np.max(np.abs(tc.data[tindx]))
             else:
-                plt.plot(tt,itr-1+0.5*scale*tc.data/np.max(np.abs(tc.data)),colors[itr-1])
+                trace_max=np.max(np.abs(tc.data))
+            if len(colors)==0:
+                plt.plot(tt,itr-1+0.5*scale*tc.data/trace_max)
+            elif len(colors)==1:
+                plt.plot(tt,itr-1+0.5*scale*tc.data/trace_max,colors[0])
+            else:
+                plt.plot(tt,itr-1+0.5*scale*tc.data/trace_max,colors[itr-1])
             plt.xlabel("time (s)")
             plt.text(xlimit[0]+10,itr-1+0.2,tc.stats.network+"."+tc.stats.station,
                     horizontalalignment='left',verticalalignment='center',fontsize=11)
@@ -1033,7 +1041,15 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
                 if len(ylabels)>0:
                     plt.ylabel(ylabels[0])
                 if len(title)>0:
-                    plt.title(title)
+                    if len(freq)>0:
+                        plt.title(title+": ["+str(freq[0])+", "+str(freq[1])+"] Hz")
+                    else:
+                        plt.title(title)
+                else:
+                    if len(freq)>0:
+                        plt.title("gather: ["+str(freq[0])+", "+str(freq[1])+"] Hz")
+                    else:
+                        plt.title("gather")
                 if len(xlimit)>0:
                     plt.xlim(xlimit)
                 plt.ylim([-0.7,ntr-0.3])
@@ -1043,9 +1059,11 @@ def plot_trace(tr_list,freq=[],size=(10,9),ylabels=[],datalabels=[],\
         else:
             raise ValueError("mode: %s is not recoganized. Can ONLY be: subplot, overlap, or gather."%(mode))
 
-    plt.savefig(outfile,orientation='landscape')
-    plt.show()
-    plt.close()
+    if savefig:
+        plt.savefig(outfile)
+        plt.close()
+    else:
+        plt.show()
 
 def check_overlap(t1,t2,error=0):
     """
