@@ -4,7 +4,10 @@ MONITORING:
 
 DISPERSION:
 1. get_dispersion_image: use adaptive window size for different periods, increasing with periods.
-  This is optionsal.
+  This is options. Options to specify minimum number of trace and minimum number of wavelength.
+
+DOWNLOADERS:
+1. read_data(): minor bug fixes.
 
 ===================================================================
 Updates in v0.7.4
