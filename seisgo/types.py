@@ -412,9 +412,10 @@ class FFTData(object):
             plt.xlim(xrange)
         else:
             plt.xlim([f[1],f[-1]])
-        plt.xlabel('frequency (Hz)')
+        plt.xlabel('frequency (Hz)', fontsize=12)
+        plt.title('PSD for '+self.id,fontsize=13)
         ax.set_yticks(np.arange(0,nwin,tick_inc))
-        ax.set_yticklabels(tmarks[0:nwin:tick_inc])
+        ax.set_yticklabels(tmarks[0:nwin:tick_inc], fontsize=12)
         if crange is not None:plt.clim(crange)
         if normalize:
             if db:
