@@ -86,7 +86,7 @@ def get_dispersion_waveforms(d, dt,pmin,pmax,dp=None,pscale='ln',extend=10):
     return dout, pout
 ##
 def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
-                        verbose=False):
+                        verbose=False,min_trace=5,min_wavelength=1.5):
     """
     Uses phase-shift method. Park et al. (1998): http://www.masw.com/files/DispersionImaingScheme-1.pdf
 
@@ -105,6 +105,9 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
             the minimum and the maximum.
     pscale: period vector scale in applying narrowband filters. default is 'ln' for linear scale.
     pband_extend: number of period increments to extend in filtering. defult is 5.
+    verbose: verbose mode. default False.
+    min_trace: minimum trace to consider. default 5.
+    min_wavelength: minimum wavelength to satisfy far-field. default 1.5.
 
     =====RETURNS====
     dout: dispersion information showing the normalized energy for each velocity value for each frequency.
@@ -145,9 +148,9 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
         d_in=dfiltered_all[:,k,:]
         for i,v in enumerate(vout):
             #subset by distance
-            mindist=1.5*v*pout[k] #at least 1.5 wavelength.
+            mindist=min_wavelength*v*pout[k] #at least 1.5 wavelength.
             dist_idx=np.where((d >= mindist))[0]
-            if len(dist_idx) >5:
+            if len(dist_idx) >min_trace:
                 if side=='a' or side=='n':
                     dvec=[]
                     for j in dist_idx: #distance, loop through traces
@@ -167,13 +170,20 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
                         if not any(np.isnan(dsec)):
                             dvec.append(dsec)
                     dout_p.append(np.sum(np.power(np.mean(dvec,axis=1),2)))
-        dout_n /= np.max(dout_n)
-        dout_p /= np.max(dout_p)
+            else:
+                if side=='a' or side=='n':
+                    dout_n.append(np.nan)
+
+                if side=='a' or side=='p':
+                    dout_p.append(np.nan)
+
+        dout_n /= np.nanmax(dout_n)
         dout_n_all.append(dout_n)
+
+        dout_p /= np.nanmax(dout_p)
         dout_p_all.append(dout_p)
     #
-    dout=np.squeeze(np.array([dout_n_all,dout_p_all]))
-
+    dout=np.squeeze(np.array([dout_n_all,dout_p_all],dtype=np.float64))
 
     return dout,vout,pout
 # function to extract the dispersion from the image
