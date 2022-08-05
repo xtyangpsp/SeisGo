@@ -619,7 +619,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         tr_all.append(tr[0])
 
         if getstainv:
-            if isinstance(stainfo,pd.DataFrame) or isinstance(stainfo,dict):
+            if isinstance(stainfo,pd.DataFrame) or isinstance(stainfo,dict) or stainfo is None:
                 inv_all.append(utils.stats2inv(tr[0].stats,locs=stainfo))
             else:
                 inv_all.append(read_inventory(stainfo))
