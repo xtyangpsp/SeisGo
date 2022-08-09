@@ -1142,7 +1142,8 @@ class CorrData(object):
                 if v: print('saved sac to: '+sacfile)
 
     def plot(self,freqmin=None,freqmax=None,lag=None,save=False,figdir=None,figsize=(10,8),
-            figname=None,format='png',stack_method='linear',get_stack=False,stack_par=None):
+            figname=None,format='png',stack_method='linear',get_stack=False,stack_par=None,
+            time_format='%Y-%m-%dT%H:%M:%S'):
         """
         Plotting method for CorrData. It is the same as seisgo.plotting.plot_corrdata(), with exactly the same arguments.
         Display the 2D matrix of the cross-correlation functions for a certain time-chunck.
@@ -1154,8 +1155,11 @@ class CorrData(object):
         save: Save figure, default is False
         figdir: only applies when save is True.
         figsize: Matplotlib figsize, default is (10,8).
+        format: figure format when saving. default png. Use pyplot's convention.
         stack_method: method to get the stack, default is 'linear'
         get_stack: returns the sacked trace if True. Default is False.
+        stack_par: dictionary to store stacking parameters. Default None.
+        time_format: format when labeling the individual traces. Default: '%Y-%m-%dT%H:%M:%S'
         """
         # open data for read
         if save:
@@ -1222,7 +1226,7 @@ class CorrData(object):
                 amax[ii] = np.max(np.abs(data[ii]))
                 data_normalizd[ii] = data[ii]/amax[ii]
                 timestamp[ii] = obspy.UTCDateTime(ttime[ii])
-                tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime('%Y-%m-%dT%H:%M:%S'))
+                tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime(time_format))
 
             dstack = stacking.seisstack(data,method=stack_method,par=stack_par)
             del data
@@ -1297,7 +1301,7 @@ class CorrData(object):
             amax = np.max(np.abs(data))
             data /= amax
             timestamp = obspy.UTCDateTime(ttime)
-            tmarks=obspy.UTCDateTime(ttime).strftime('%Y-%m-%dT%H:%M:%S')
+            tmarks=obspy.UTCDateTime(ttime).strftime(time_format)
 
             if side.lower()=="a":
                 tx=np.arange(-lag0,lag0+0.5*dt,dt)
