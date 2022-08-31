@@ -35,7 +35,7 @@ This package is under active development. The currently available modules are li
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seisgo` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seisgo -c conda-forge jupyter numpy<=1.22.4 scipy pandas numba pycwt python obspy mpi4py stackwell
+$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py stackwell
 $ conda activate seisgo
 ```
 
@@ -97,6 +97,24 @@ $ python
 | ZH     | True     | Vertical and rotated horizontal            |
 | ZP-H   | True     | Vertical, pressure, and rotated horizontal |
 ------------------------------------------------------------------
+```
+
+4. Trouble shooting
+
+* Stockwell errors with numpy importing errors (`numpy.core.multiarray errors`) and/or fftw errors. Some libraries (e.g., FFTW) used by stockwell are only compatible with numpy <= 1.22.4.
+
+Try the following steps:
+```
+$ conda activate seisgo
+$ pip uninstall numpy
+$ pip uninstall stockwell
+$ conda install -c conda-forge stockwell numpy==1.22.4
+```
+* NETCDF4 errors. You may need to mannual install/reinstall netcdf4 by:
+
+```
+$ pip uninstall netcdf4
+$ pip install netcdf4
 ```
 
 ## Update SeisGo
