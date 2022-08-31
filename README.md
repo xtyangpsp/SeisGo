@@ -35,7 +35,7 @@ This package is under active development. The currently available modules are li
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seisgo` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py stackwell
+$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py stockwell
 $ conda activate seisgo
 ```
 
