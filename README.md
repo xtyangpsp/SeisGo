@@ -35,11 +35,17 @@ This package is under active development. The currently available modules are li
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seisgo` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python obspy mpi4py stockwell
+$ conda create -n seisgo -c conda-forge jupyter numpy==1.22.4 scipy pandas numba pycwt python cartopy obspy mpi4py stockwell
 $ conda activate seisgo
 ```
 
-The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests.
+The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests. You can create jupyter kernel:
+
+```
+$ conda activate seisgo
+$ pip install --user ipykernel
+$ python -m ipykernel install --user --name=seisgo
+```
 
 **Install PyGMT plotting funcitons**
 
