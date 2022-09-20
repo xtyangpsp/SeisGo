@@ -8,6 +8,7 @@ DISPERSION:
 
 DOWNLOADERS:
 1. read_data(): minor bug fixes.
+2. get_data() and get_sta_list(): added flexibility of specifying the source, which could be a Client object.
 
 ===================================================================
 Updates in v0.7.4

@@ -268,7 +268,7 @@ def correct_orientations(tr1,tr2,orient):
     trN=tr1.copy()
     trN.stats.channel=chan2[0:2]+'N'
 
-    angle=360 - oh1 #rotation angle to rotate tr1 to trN
+    angle=np.deg2rad(360 - oh1) #rotation angle to rotate tr1 to trN
     rot_mat = np.array([[np.cos(angle), -np.sin(angle)],
                         [np.sin(angle), np.cos(angle)]])
     v12 = np.array([data2, data1])
