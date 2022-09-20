@@ -25,7 +25,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
     maxseischan: default 3. this is used to avoid duplicates when, for example, both EH* and BH* channels are listed.
                 The funciton will search by order in chan_list, and stop when maximum seismic channels are found.
                 pressure channels are dealt with seperatedly.
-    source: obspy Client source. Check obspy for the list of viable sources. Default is "IRIS"
+    source: obspy Client source. Check obspy for the list of viable sources. Default is "IRIS". It can also be a Client object.
     lamin, lamax,lomin,lomax: box region for the search. optional.
     pressure_chan: list of pressure channels. This is used when counting the number of seismic channels. pressure channels
                 are not counted. we could avoid duplicates but still keep the channels we want.
@@ -37,10 +37,18 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
     lon = [];
     lat = [];
     elev = []
-    if source == 'IRISPH5':
-        client=Client(service_mappings={'station':'http://service.iris.edu/ph5ws/station/1'})
+    if isinstance(source,str):
+        if source == 'IRISPH5':
+            client=Client(service_mappings={'station':'http://service.iris.edu/ph5ws/station/1'})
+        else:
+            client=Client(source)
+    elif isinstance(source,obspy.clients.fdsn.client.Client) or \
+         isinstance(source,obspy.clients.fdsn.routing.federator_routing_client.FederatorRoutingClient) or \
+         isinstance(source,obspy.clients.fdsn.routing.eidaws_routing_client.EIDAWSRoutingClient):
+        client = source
     else:
-        client=Client(source)
+        raise ValueError(str(type(source))+" is not supported.")
+
     # time tags
     if not isinstance(starttime,obspy.core.utcdatetime.UTCDateTime) and starttime is not None:
         starttime_UTC = obspy.UTCDateTime(starttime)
@@ -146,7 +154,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
             network, station, and channel names for the request.
     starttime, endtime : UTCDateTime
             Starting and ending date time for the request.
-    source : string
+    source : string.  It can also be a Client object.
             Client names.
             To get a list of available clients:
             >> from obspy.clients.fdsn.header import URL_MAPPINGS
@@ -168,12 +176,19 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     sacheader : bool
             Key sacheader information in a dictionary using the SAC header naming convention.
     """
-
-    if source == 'IRISPH5':
-        client=Client(service_mappings={'dataselect':'http://service.iris.edu/ph5ws/dataselect/1',
+    if isinstance(source,str):
+        if source == 'IRISPH5':
+            client=Client(service_mappings={'dataselect':'http://service.iris.edu/ph5ws/dataselect/1',
                         'station':'http://service.iris.edu/ph5ws/station/1'})
+        else:
+            client=Client(source)
+    elif isinstance(source,obspy.clients.fdsn.client.Client) or \
+         isinstance(source,obspy.clients.fdsn.routing.federator_routing_client.FederatorRoutingClient) or \
+         isinstance(source,obspy.clients.fdsn.routing.eidaws_routing_client.EIDAWSRoutingClient):
+        client = source
     else:
-        client=Client(source)
+        raise ValueError(str(type(source))+" is not supported.")
+        
     tr = None
     sac=dict() #place holder to save some sac headers.
     #check arguments
