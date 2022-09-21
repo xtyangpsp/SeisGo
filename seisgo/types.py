@@ -536,8 +536,10 @@ class CorrData(object):
         """
         #sanity check: stop merging and raise error if the two objects have different IDs.
         if c1.id != c2.id:
+            print("IDs: "+c1.id+" + "+c2.id)
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
         if c1.side != c2.side:
+            print("sides: "+c1.side+" + "+c2.side)
             raise ValueError('The object to be merged has a different side values. Cannot merge!')
         if not c1.substack:
             time1=np.reshape(c1.time,(1))
@@ -575,6 +577,7 @@ class CorrData(object):
         """
         #sanity check: stop merging and raise error if the two objects have different IDs.
         if self.id != c.id:
+            print("IDs: "+self.id+" + "+c.id)
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
         if not self.substack:
             stime=np.reshape(self.time.copy(),(1))
