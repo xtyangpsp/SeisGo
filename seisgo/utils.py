@@ -214,7 +214,7 @@ def get_filelist(dir=None,extension=None,pattern=None,sort=True):
     if extension is None:
         flist=[os.path.join(dir,f) for f in os.listdir(dir)]
     else:
-        flist=[os.path.join(dir,f) for f in os.listdir(dir) if f[-len(extension):].lower()==extension]
+        flist=[os.path.join(dir,f) for f in os.listdir(dir) if f[-len(extension):].lower()==extension.lower()]
     if pattern is not None:
         flist2=[]
         for f in flist:
