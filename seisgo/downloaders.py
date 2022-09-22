@@ -188,7 +188,7 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
         client = source
     else:
         raise ValueError(str(type(source))+" is not supported.")
-        
+
     tr = None
     sac=dict() #place holder to save some sac headers.
     #check arguments
@@ -578,8 +578,9 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         pre_filt = set_filter(fs, freqmin,freqmax)
         net=tr[0].stats.network
         sta=tr[0].stats.station
+        loc=tr[0].stats.location
         chan=tr[0].stats.channel
-        netstachan=net+"."+sta+"."+chan
+        netstachan=net+"."+sta+"."+str(loc)+"."+chan
         date_info = {'starttime':tr[0].stats.starttime,'endtime':tr[0].stats.endtime}
         if rm_resp != 'no':
             if rm_resp == 'spectrum':
