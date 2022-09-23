@@ -281,11 +281,16 @@ def selective(d,cc_min,epsilon=1E-5,maxstep=10,win=None,stat=False,ref=None):
 
         # find good waveforms
         indx = np.where(cof>=cc_min)[0]
-        if not len(indx): raise ValueError('cannot find good waveforms inside selective stacking')
-        oldstack = newstack
-        newstack = np.mean(d[indx],axis=0)
-        res = np.linalg.norm(newstack-oldstack)/(np.linalg.norm(newstack)*M)
         nstep +=1
+        if not len(indx):
+            newstack=np.ndarray((d.shape[1],))
+            newstack.fill(np.nan)
+            print('cannot find good waveforms inside selective stacking')
+            break
+        else
+            oldstack = newstack
+            newstack = np.mean(d[indx],axis=0)
+            res = np.linalg.norm(newstack-oldstack)/(np.linalg.norm(newstack)*M)
     if stat:
         return newstack, nstep
     else:
