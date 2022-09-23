@@ -287,7 +287,7 @@ def selective(d,cc_min,epsilon=1E-5,maxstep=10,win=None,stat=False,ref=None):
             newstack.fill(np.nan)
             print('cannot find good waveforms inside selective stacking')
             break
-        else
+        else:
             oldstack = newstack
             newstack = np.mean(d[indx],axis=0)
             res = np.linalg.norm(newstack-oldstack)/(np.linalg.norm(newstack)*M)
