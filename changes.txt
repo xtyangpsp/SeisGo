@@ -1,14 +1,20 @@
 Updates in v0.7.5
 MONITORING:
-1. get_dvv: improved plot saving.
+1. get_dvv: improved plot saving. Fixed a bug where stack_method was not specified for substacking.
 
 DISPERSION:
 1. get_dispersion_image: use adaptive window size for different periods, increasing with periods.
   This is options. Options to specify minimum number of trace and minimum number of wavelength.
+  * added option to specify energy type, "power_sum" or "envelope".
+2. renamed get_dispersion_waveforms() to narrowband_waveforms to avoid using the word "dispersion".
 
 DOWNLOADERS:
 1. read_data(): minor bug fixes.
 2. get_data() and get_sta_list(): added flexibility of specifying the source, which could be a Client object.
+3. download(): added verbose to calling getdata().
+
+STACKING:
+1. Added handling of small data size, i.e., 1 trace, which will return the data without stacking.
 
 ===================================================================
 Updates in v0.7.4

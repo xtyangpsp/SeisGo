@@ -41,7 +41,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         phase (for xcorr)
     resolution: in seconds, specifying the temporal resolution (resampling/substacking) before measuring
         dvv.
-    stack_method: stacking method to get the reference trace.
+    stack_method: stacking method to get the reference trace (if not given) and the short-window substacks. default is 'linear'.
     normalize: Ture or False for data normalization in measuring dvv.
     whiten='no',whiten_smooth=20, whiten_pad=100: parameters for whitening the trace before measuring dv/v.
                 whiten: default is 'no', could be 'phase_only' or 'rma'.
@@ -72,7 +72,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     #demean and detrend
     datatemp=cdata.data.copy()
     cdata.data=utils.demean(utils.detrend(datatemp))
-    if resolution is not None: cdata.stack(resolution)
+    if resolution is not None: cdata.stack(win_len=resolution,method=stack_method,overwrite=True)
     if ref is None: ref=cdata.stack(method=stack_method,overwrite=False)
 
     nwin=cdata.data.shape[0]
@@ -238,7 +238,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
         ax1.autoscale(enable=True, axis='x', tight=True)
         ax1.grid(True)
-        ax1.legend(['stack: '+stack_method],loc='upper right')
+        ax1.legend(['reference'],loc='upper right')
 
         # the cross-correlation coefficient
         xticks=np.int16(np.linspace(0,nwin-1,6))
@@ -250,6 +250,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         ax2.plot(cdata.time,pcor_cc,'co-',markersize=2,linewidth=1)
         ax2.set_xticks(cdata.time[xticks])
         ax2.set_xticklabels(xticklabel,fontsize=12)
+        ax2.set_title('substacked with '+stack_method,fonsize=12)
         # ax2.set_xticks(timestamp[0:nwin:tick_inc])
         ax2.set_xlim([min(cdata.time),max(cdata.time)])
         ax2.set_ylabel('cc coeff')

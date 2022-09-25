@@ -367,6 +367,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     respdir: directory containing response information. currently NOT used in this function.
     qc: When True, does QC to clean up the trace. default True.
     event: ObsPy Event object for earthquake data. the event qml data will be saved into ASDF.
+    verbose: verbose flag. print some intermediate steps/info if True. Default False.
     =============RETURNS============
     trlist: Obspy Stream containing all traces. Note that when savetofile is True, the return will be an empty Stream.
     sta_inv_list: inventory list of the stations. Empty when getstainv is False.
@@ -459,7 +460,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
             try:
                 output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
                                         samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
-                                       pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv)
+                                       pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv,verbose=verbose)
             except Exception as e:
                 print(e, 'for', ista)
                 time.sleep(1)  # sleep for 1 second before next try.

@@ -42,7 +42,7 @@ def get_dispersion_waveforms_cwt(d, dt,fmin,fmax,dj=1/12, s0=-1, J=-1, wvn='morl
         dout.append(ds_win/np.max(ds_win))
     return np.flip(np.array(dout),axis=0), np.flip(fout)
 
-def get_dispersion_waveforms(d, dt,pmin,pmax,dp=None,pscale='ln',extend=10):
+def narrowband_waveforms(d, dt,pmin,pmax,dp=1,pscale='ln',extend=10):
     """
     Produce dispersion wavefroms with narrowband filters.
 
@@ -59,7 +59,6 @@ def get_dispersion_waveforms(d, dt,pmin,pmax,dp=None,pscale='ln',extend=10):
     """
     period=np.array([pmin - extend*dp,pmax + extend*dp])
     if period[0] < 2*dt: period[0]=2.01*dt
-    if dp is None: dp=1
 
     if pscale=="ln":
         # f_all=np.arange(fmin-extend*df,fmax+extend*df,df)
@@ -86,7 +85,7 @@ def get_dispersion_waveforms(d, dt,pmin,pmax,dp=None,pscale='ln',extend=10):
     return dout, pout
 ##
 def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
-                        verbose=False,min_trace=5,min_wavelength=1.5):
+                        verbose=False,min_trace=5,min_wavelength=1.5,energy_type='envelope'):
     """
     Uses phase-shift method. Park et al. (1998): http://www.masw.com/files/DispersionImaingScheme-1.pdf
 
@@ -108,12 +107,17 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     verbose: verbose mode. default False.
     min_trace: minimum trace to consider. default 5.
     min_wavelength: minimum wavelength to satisfy far-field. default 1.5.
+    energy_type: method to compute maximum energy, 'envelope' or 'power_sum'. Default is 'envelope'
 
     =====RETURNS====
     dout: dispersion information showing the normalized energy for each velocity value for each frequency.
     vout: velocity vector used in searching.
     pout: period vector.
     """
+    #validate options.
+    energy_type_list=['power_sum','envelope']
+    if energy_type.lower() not in energy_type_list:
+        raise ValueError(energy_type+" is not a recoganized energy type. Use one of "+energy_type_list)
     if len(np.array(window).shape) < 1:
         window=[window,window]
 
@@ -131,7 +135,7 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     dfiltered_all=[]
     dist_final=[]
     for k in range(g.shape[0]):
-        dtemp,pout=get_dispersion_waveforms(g[k]/np.max(np.abs(g[k])),dt,pmin,
+        dtemp,pout=narrowband_waveforms(g[k]/np.max(np.abs(g[k])),dt,pmin,
                                         pmax,dp=dp,pscale=pscale,extend=pband_extend)
         dfiltered_all.append(dtemp)
     dfiltered_all=np.array(dfiltered_all)
@@ -159,7 +163,11 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
                         dsec=d_in[j][tmin_idx - win_len_samples : tmin_idx]
                         if not any(np.isnan(dsec)):
                             dvec.append(dsec)
-                    dout_n.append(np.sum(np.power(np.mean(dvec,axis=1),2)))
+                    if energy_type.lower() == 'power_sum':
+                        peak_energy=np.sum(np.power(np.mean(dvec,axis=1),2))
+                    elif energy_type.lower() == 'envelope':
+                        peak_energy=np.max(np.abs(hilbert(np.mean(dvec,axis=1))))
+                    dout_n.append(peak_energy)
 
                 if side=='a' or side=='p':
                     dvec=[]
@@ -169,7 +177,12 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
                         dsec=d_in[j][tmin_idx : tmin_idx + win_len_samples]
                         if not any(np.isnan(dsec)):
                             dvec.append(dsec)
-                    dout_p.append(np.sum(np.power(np.mean(dvec,axis=1),2)))
+                    #
+                    if energy_type.lower() == 'power_sum':
+                        peak_energy=np.sum(np.power(np.mean(dvec,axis=1),2))
+                    elif energy_type.lower() == 'envelope':
+                        peak_energy=np.max(np.abs(hilbert(np.mean(dvec,axis=1))))
+                    dout_p.append(peak_energy)
             else:
                 if side=='a' or side=='n':
                     dout_n.append(np.nan)
