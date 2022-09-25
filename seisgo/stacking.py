@@ -23,7 +23,7 @@ def stack(d,method,par=None):
     ds: stacked data, which may be a list depending on the method.
     """
     method_list=["linear","pws","robust","acf","nroot","selective",
-            "cluster","tfpws"]
+            "cluster","tfpws","tfpws-dost"]
     if method not in method_list:
         raise ValueError("$s not recoganized. use one of $s"%(method,str(method_list)))
     par0={"axis":0,"p":2,"g":1,"cc_min":0.0,"epsilon":1E-5,"maxstep":10,
@@ -39,6 +39,8 @@ def stack(d,method,par=None):
         ds = pws(d,p=par['p'])
     elif method.lower() == 'tfpws':
         ds = tfpws(d,p=par['p'])
+    elif method.lower() == 'tfpws-dost':
+        ds = tfpws_dost(d,p=par['p'])
     elif method.lower() == 'robust':
         ds = robust(d,epsilon=par['epsilon'],maxstep=par['maxstep'],win=par["win"],
                 stat=par['stat'],ref=par['ref'])
@@ -405,6 +407,7 @@ def tfpws(d,p=2,axis=0):
     ---------------------
     d: N length array of time series data (numpy.ndarray)
     p: exponent for phase stack (int). default is 2
+    axis: axis to stack, default is 0.
 
     RETURNS:
     ---------------------
@@ -415,8 +418,8 @@ def tfpws(d,p=2,axis=0):
         return d
     N,M = d.shape
     if N >=2:
-        #get the ST of the linear stack first
         lstack=np.mean(d,axis=axis)
+        #get the ST of the linear stack first
         stock_ls=st.st(lstack)
 
         #run a ST to get the dimension of ST result
@@ -435,3 +438,146 @@ def tfpws(d,p=2,axis=0):
         newstack=d[0].copy()
     #
     return newstack
+
+def tfpws_dost(d,p=2,axis=0):
+    '''
+    Performs time-frequency domain phase-weighted stack on array of time series using DOST (Discrete
+    orthogonal stockwell transform).
+    $C_{ps} = |(\sum{S*e^{i2\pi}/|S|})/M|^p$, where $C_{ps}$ is the phase weight. Then
+	$S_{pws} = C_{ps}*S_{ls}$, where $S_{ls}$ is the Discrete Orthonormal S transform
+	of the linear stack of the whole data.
+
+    DOST stacking was implemented by Jared Bryan.
+
+    Reference for tf-PWS:
+    Schimmel, M., Stutzmann, E., & Gallart, J. (2011). Using instantaneous phase
+    coherence for signal extraction from ambient noise data at a local to a
+    global scale. Geophysical Journal International, 184(1), 494–506.
+    https://doi.org/10.1111/j.1365-246X.2010.04861.x
+
+    Reference for DOST:
+    U. Battisti, L. Riba, "Window-dependent bases for efficient representations of the
+	Stockwell transform", Applied and Computational Harmonic Analysis, 23 February 2015,
+	http://dx.doi.org/10.1016/j.acha.2015.02.002.
+
+    PARAMETERS:
+    ---------------------
+    d: N length array of time series data (numpy.ndarray)
+    p: exponent for phase stack (int). default is 2
+    axis: axis to stack, default is 0.
+
+    RETURNS:
+    ---------------------
+    newstack: Phase weighted stack of time series data (numpy.ndarray)
+    '''
+    if d.ndim == 1:
+        print('2D matrix is needed')
+        return d
+    N,M = d.shape
+    if N >=2:
+        lstack=np.mean(d,axis=axis)
+        #get the dost of the linear stack first
+    	stock_ls_dost=DOST(lstack) # initialize dost object
+    	stock_ls=stock_ls_dost.dost(stock_ls_dost.data) # calculate the dost
+
+    	# calculate dost for first trace to know its shape
+    	stock_dost=DOST(d[0])
+    	stock_temp=stock_dost.dost(stock_dost.data)
+    	# initialize stack
+    	phase_stack=np.zeros(len(stock_temp),dtype='complex128')
+    	# calculate the dost for each trace to be stacked
+    	for i in range(d.shape[0]):
+    		if i>0: # zero index has been computed
+    			stock_dost=DOST(d[i])
+    			stock_temp=stock_dost.dost(stock_dost.data)
+    		phase_stack+=np.multiply(stock_temp,np.angle(stock_temp))/np.abs(stock_temp)
+
+    	phase_stack = np.abs(phase_stack/N)**p
+
+    	pwstock=np.multiply(phase_stack,stock_ls)
+    	recdostIn = stock_dost.idost(pwstock)
+    	newstack = recdostIn[:M] # trim padding
+    else:
+        newstack=d[0].copy()
+    #
+    return newstack
+#################################
+####### stacking needed utilities.
+################################
+#
+class DOST:
+    """
+    Discrete orthonormal stockwell transform.
+
+    The implementation was translated by Jared Bryan from the MATLAB by:
+	U. Battisti, L. Riba, "Window-dependent bases for efficient representations of the
+	Stockwell transform", Applied and Computational Harmonic Analysis, 23 February 2015,
+	http://dx.doi.org/10.1016/j.acha.2015.02.002.
+
+    """
+	def __init__(self, data):
+		# make sure data length is a power of 2
+		if np.ceil(np.log2(len(data)))==np.floor(np.log2(len(data))):
+			# length of data already a power of 2
+			self.data=data
+		else:
+			# pad data to nearest power of 2
+			self.data=self.pad(data)
+
+	def pad(self,data):
+		"""Zero pad data such that its length is a power of 2"""
+		N=int(2**np.ceil(np.log2(len(data))))
+		pad_end=np.zeros(int(N-len(data)))
+		data=np.concatenate((data,pad_end))
+
+		return data
+
+	def fourier(self, d):
+		"""Normalize and center fft"""
+		fftIn=(1/np.sqrt(len(d))) * np.fft.fftshift(np.fft.fft(np.fft.ifftshift(d)))
+		return fftIn
+
+	def ifourier(self,d):
+		"""Normalize and center ifft"""
+		ifftIn=np.sqrt(len(d)) * np.fft.fftshift(np.fft.ifft(np.fft.ifftshift(d)))
+		return ifftIn
+
+	def dostbw(self,D):
+		"""Calculate size of the DOST bandwidths"""
+		arr=[0]
+		arr.extend(np.arange(np.log2(D)-2, -1e-9, -1))
+		arr.extend([0])
+		arr.extend(np.arange(0, np.log2(D)-2+1e-9))
+		arr=2**np.array(arr)
+		return arr
+
+	def dost(self,d):
+		"""Discrete Orthonormal Stockwell Transform"""
+		d_dost=self.fourier(d)
+		D=len(d)
+		bw=self.dostbw(D)
+		k=0
+		for i in bw:
+			i=int(i)
+			if i==1:
+				k=k+i
+			else:
+				d_dost[k:k+i] = self.ifourier(d_dost[k:k+i])
+				k=k+i
+		return d_dost
+
+	def idost(self,d):
+		"""Inverse Discrete Orthonormal Stockwell Transform"""
+		d_idost=d
+		D=len(d)
+		bw=self.dostbw(D)
+		k=0
+		for i in bw:
+			i=int(i)
+			if i==1:
+				k=k+i
+			else:
+				d_idost[k:k+i] = self.fourier(d_idost[k:k+i])
+				k=k+i
+		d_idost = self.ifourier(d_idost)
+		return d_idost
