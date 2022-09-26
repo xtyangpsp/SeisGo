@@ -420,20 +420,21 @@ def tfpws(d,p=2,axis=0):
     if N >=2:
         lstack=np.mean(d,axis=axis)
         #get the ST of the linear stack first
-        stock_ls=st.st(lstack)
+        stock_ls=st.st(power2pad(lstack))
 
         #run a ST to get the dimension of ST result
-        stock_temp=st.st(d[0])
+        stock_temp=st.st(power2pad(d[0]))
         phase_stack=np.zeros((stock_temp.shape[0],stock_temp.shape[1]),dtype='complex128')
         for i in range(N):
             if i>0: #zero index has been computed.
-                stock_temp=st.st(d[i])
+                stock_temp=st.st(power2pad(d[i]))
             phase_stack += np.multiply(stock_temp,np.angle(stock_temp))/np.abs(stock_temp)
         #
         phase_stack = np.abs(phase_stack/N)**p
 
         pwstock=np.multiply(phase_stack,stock_ls)
-        newstack=st.ist(pwstock)
+        recdostIn=np.real(st.ist(pwstock))
+        newstack=recdostIn[:M] # trim padding
     else:
         newstack=d[0].copy()
     #
@@ -477,44 +478,42 @@ def tfpws_dost(d,p=2,axis=0):
     if N >=2:
         lstack=np.mean(d,axis=axis)
         #get the dost of the linear stack first
-    	stock_ls_dost=DOST(lstack) # initialize dost object
-    	stock_ls=stock_ls_dost.dost(stock_ls_dost.data) # calculate the dost
+        stock_ls_dost=DOST(lstack) # initialize dost object
+        stock_ls=stock_ls_dost.dost(stock_ls_dost.data) # calculate the dost
 
     	# calculate dost for first trace to know its shape
-    	stock_dost=DOST(d[0])
-    	stock_temp=stock_dost.dost(stock_dost.data)
+        stock_dost=DOST(d[0])
+        stock_temp=stock_dost.dost(stock_dost.data)
     	# initialize stack
-    	phase_stack=np.zeros(len(stock_temp),dtype='complex128')
+        phase_stack=np.zeros(len(stock_temp),dtype='complex128')
     	# calculate the dost for each trace to be stacked
-    	for i in range(d.shape[0]):
-    		if i>0: # zero index has been computed
-    			stock_dost=DOST(d[i])
-    			stock_temp=stock_dost.dost(stock_dost.data)
-    		phase_stack+=np.multiply(stock_temp,np.angle(stock_temp))/np.abs(stock_temp)
+        for i in range(d.shape[0]):
+        	if i>0: # zero index has been computed
+        		stock_dost=DOST(d[i])
+        		stock_temp=stock_dost.dost(stock_dost.data)
+        	phase_stack+=np.multiply(stock_temp,np.angle(stock_temp))/np.abs(stock_temp)
 
-    	phase_stack = np.abs(phase_stack/N)**p
+        phase_stack = np.abs(phase_stack/N)**p
 
-    	pwstock=np.multiply(phase_stack,stock_ls)
-    	recdostIn = stock_dost.idost(pwstock)
-    	newstack = recdostIn[:M] # trim padding
+        pwstock=np.multiply(phase_stack,stock_ls)
+        recdostIn = np.real(stock_dost.idost(pwstock))
+        newstack = recdostIn[:M] # trim padding
     else:
         newstack=d[0].copy()
     #
     return newstack
+
 #################################
 ####### stacking needed utilities.
 ################################
 #
+def power2pad(data):
+	"""Zero pad data such that its length is a power of 2"""
+	N=int(2**np.ceil(np.log2(len(data))))
+	pad_end=np.zeros(int(N-len(data)))
+
+	return np.concatenate((data,pad_end))
 class DOST:
-    """
-    Discrete orthonormal stockwell transform.
-
-    The implementation was translated by Jared Bryan from the MATLAB by:
-	U. Battisti, L. Riba, "Window-dependent bases for efficient representations of the
-	Stockwell transform", Applied and Computational Harmonic Analysis, 23 February 2015,
-	http://dx.doi.org/10.1016/j.acha.2015.02.002.
-
-    """
 	def __init__(self, data):
 		# make sure data length is a power of 2
 		if np.ceil(np.log2(len(data)))==np.floor(np.log2(len(data))):
