@@ -250,7 +250,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         ax2.plot(cdata.time,pcor_cc,'co-',markersize=2,linewidth=1)
         ax2.set_xticks(cdata.time[xticks])
         ax2.set_xticklabels(xticklabel,fontsize=12)
-        ax2.set_title('substacked with '+stack_method,fonsize=12)
+        ax2.set_title('substacked with '+stack_method,fontsize=12)
         # ax2.set_xticks(timestamp[0:nwin:tick_inc])
         ax2.set_xlim([min(cdata.time),max(cdata.time)])
         ax2.set_ylabel('cc coeff')
