@@ -281,7 +281,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     if not len(ind1):
         print('no overlapped timestamps in the data.')
         return corrdata
-
+    #
+    dist,azi,baz = obspy.geodetics.base.gps2dist_azimuth(fftdata1.lat,fftdata1.lon,fftdata2.lat,fftdata2.lon)
     #---------- check the existence of earthquakes by std of the data.----------
     source_std = fftdata1.std[ind1]
     sou_ind = np.where((source_std<maxstd)&(source_std>0)&(np.isnan(source_std)==0))[0]
@@ -333,7 +334,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
             for i in range(nwin):
                 n_corr[i]= 1
                 crap[:Nfft2] = corr[i,:]
-                crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
+                if dist > 0: # remove the mean in freq domain (spike at t=0). only for cross-station correlations.
+                    crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])
                 crap[-(Nfft2)+1:] = np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
                 crap[0]=complex(0,0)
                 s_corr[i,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
@@ -363,7 +365,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                 if len(itime)==0:tstart+=substack_len;continue
 
                 crap[:Nfft2] = np.mean(corr[itime,:],axis=0)   # linear average of the correlation
-                crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
+                if dist > 0: crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
                 crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
                 crap[0]=complex(0,0)
                 s_corr[istack,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
@@ -388,7 +390,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
         t_corr = timestamp[0]
         crap   = np.zeros(Nfft,dtype=np.complex64)
         crap[:Nfft2] = np.mean(corr[tindx],axis=0)
-        crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2],axis=0)
+        if dist > 0: crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2],axis=0)
         crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
         s_corr = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
 
@@ -402,7 +404,6 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
 
     ### call CorrData to build the object
     cc_comp= fftdata1.chan[-1]+fftdata2.chan[-1]
-    dist,azi,baz = obspy.geodetics.base.gps2dist_azimuth(fftdata1.lat,fftdata1.lon,fftdata2.lat,fftdata2.lon)
 
     corrdata=CorrData(net=[fftdata1.net,fftdata2.net],sta=[fftdata1.sta,fftdata2.sta],\
                     loc=[fftdata1.loc,fftdata2.loc],chan=[fftdata1.chan,fftdata2.chan],\
