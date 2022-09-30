@@ -1,4 +1,7 @@
 Updates in v0.7.5
+NOISE:
+1. correlate(): change to only remove peak at zero lag (demean of the spectrum) for cross-station correlations.
+
 MONITORING:
 1. get_dvv: improved plot saving. Fixed a bug where stack_method was not specified for substacking.
 
