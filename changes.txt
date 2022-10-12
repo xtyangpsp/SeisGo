@@ -20,6 +20,9 @@ STACKING:
 1. Added handling of small data size, i.e., 1 trace, which will return the data without stacking.
 2. Added option of using DOST for tfpws, based on the implementation by Jared Bryan. It was added as a new function:tfpws_dost.
 
+UTILS:
+1. Added two functions to get image gradient and convert xyz to matrix, without interpolation.
+
 ===================================================================
 Updates in v0.7.4
 UTILS:

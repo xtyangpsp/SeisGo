@@ -256,6 +256,63 @@ def slice_list(flist,step,preserve_end=True):
     #
     return outlist
 #
+def image_binary_gradient(data,radius=1):
+    """
+    Gridsearch image pixels to calculate the gradient 0 or 1. 0 means
+    the nearby values are the same. 1 means at least one of the nearby
+    values is different than the centered reference grid.
+
+    ===PARAMETERS===
+    data: 2-d matrix.
+    radius: number of grids to extend from each reference grid. Default=1.
+
+    ==RETURNS===
+    outg: output gradient matrix, with the same shape as the input data.
+    """
+    threshold=0.95
+    #sanity check
+    if radius <1:
+        raise ValueError('search radius must be >=1. Current: '+str(radius))
+    #
+    R,C=data.shape
+    outg=np.ndarray((R,C))
+    outg.fill(np.nan)
+
+    for i in range(R):
+        if i >= radius and i<= R-radius: #skip the edge grids.
+            for j in range(C):
+                if j >= radius and j <= C-radius: #skip the edge grids.
+                    temp=np.concatenate((data[i,int(j-radius):int(j+radius)+1],
+                                          data[int(i-radius):int(i+radius)+1,j]))
+                    vtemp=np.abs(np.nanmax(temp) - np.nanmin(temp))
+                    if vtemp > threshold: outg[i,j]=1
+                    else: outg[i,j]=0
+    #
+    return outg
+def xyz2matrix(x,y,z):
+    """
+    Create matrix from the xyz points, without interpolation.
+    The data points should have only unique values at each data point.
+    """
+    xu=np.sort(x.unique())
+    yu=np.sort(y.unique())
+    dxmean=np.nanmean(np.abs(np.diff(xu)))
+    dymean=np.nanmean(np.abs(np.diff(yu)))
+
+    zout=np.ndarray((len(xu),len(yu)))
+    zout.fill(np.nan)
+    xout=np.ndarray((len(xu),len(yu)))
+    yout=np.ndarray((len(xu),len(yu)))
+    for i in range(len(xu)):
+        for j in range(len(yu)):
+            idx0=np.where((x > xu[i]-0.1*dxmean) & (x < xu[i]+0.1*dxmean) &
+                         (y > yu[j]-0.1*dymean) & (y < yu[j]+0.1*dymean))[0]
+            if len(idx0) >0: zout[i,j]=z[idx0]
+            xout[i,j]=xu[i]
+            yout[i,j]=yu[j]
+            #print(z[idx0])
+    #
+    return zout,xu,yu
 def generate_points_in_polygon(outline,spacing):
     """
     Generate points in polygon, defined as a shapely.polygon object.
