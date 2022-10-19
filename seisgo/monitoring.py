@@ -462,7 +462,7 @@ def ts_dvv(ref, cur, t,twin, freq, dvmax=0.05, ndv=100, filter=True):
         imax = imax + 2
 
     # Proceed to the second step to get a more precise dv/v measurement
-    dtfiner = np.linspace(Eps[imax-2], Eps[imax+2], 100)
+    dtfiner = np.linspace(Eps[imax-2], Eps[imax+2], ndv)
     ncof    = np.zeros(dtfiner.shape,dtype=np.float32)
     for ii in range(len(dtfiner)):
         nt = tvec*dtfiner[ii]
