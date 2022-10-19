@@ -284,9 +284,12 @@ def image_binary_gradient(data,radius=1):
                 if j >= radius and j <= C-radius: #skip the edge grids.
                     temp=np.concatenate((data[i,int(j-radius):int(j+radius)+1],
                                           data[int(i-radius):int(i+radius)+1,j]))
-                    vtemp=np.abs(np.nanmax(temp) - np.nanmin(temp))
-                    if vtemp > threshold: outg[i,j]=1
-                    else: outg[i,j]=0
+                    if np.isnan(temp).all():
+                        outg[i,j]=0
+                    else:
+                        vtemp=np.abs(np.nanmax(temp) - np.nanmin(temp))
+                        if vtemp > threshold: outg[i,j]=1
+                        else: outg[i,j]=0
     #
     return outg
 def xyz2matrix(x,y,z):
@@ -313,6 +316,30 @@ def xyz2matrix(x,y,z):
             #print(z[idx0])
     #
     return zout,xu,yu
+def interp3d(x,y,z,v,xq,yq,zq,verbose=False):
+    """
+    Interpolate 3d matrix by calling the Scipy interpn function for each 3d point.
+
+    PARAMETERS:
+    x,y,z: 1-D vectors of the three dimensions.
+    v: values of the 3d matrix
+    xq,yq,zq: 1-D vectors of the points to resample.
+
+    RETURN:
+    vout: 3d matrix with the size of [len(xq),len(yq),len(zq)]
+    """
+    vout = np.ndarray((len(xq),len(yq),len(zq)))
+    vout.fill(np.nan)
+    idx=np.where((xq >= np.nanmin(x)) & (xq <= np.nanmax(x)))[0]
+    idy=np.where((yq >= np.nanmin(y)) & (yq <= np.nanmax(y)))[0]
+    idz=np.where((zq >= np.nanmin(z)) & (zq <= np.nanmax(z)))[0]
+
+    for i in range(len(idx)):
+        if verbose:print(str(i)+" of "+str(len(idx)))
+        for j in range(len(idy)):
+            for k in range(len(idz)):
+                vout[idx[i],idy[j],idz[k]] = scipy.interpolate.interpn((x,y,z),v,(xq[idx[i]],yq[idy[j]],zq[idz[k]]))
+    return vout
 def generate_points_in_polygon(outline,spacing):
     """
     Generate points in polygon, defined as a shapely.polygon object.
