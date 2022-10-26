@@ -334,8 +334,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
             for i in range(nwin):
                 n_corr[i]= 1
                 crap[:Nfft2] = corr[i,:]
-                if dist > 0: # remove the mean in freq domain (spike at t=0). only for cross-station correlations.
-                    crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])
+                # if dist > 0: # remove the mean in freq domain (spike at t=0). only for cross-station correlations.
+                #     crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])
                 crap[-(Nfft2)+1:] = np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
                 crap[0]=complex(0,0)
                 s_corr[i,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
@@ -365,7 +365,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                 if len(itime)==0:tstart+=substack_len;continue
 
                 crap[:Nfft2] = np.mean(corr[itime,:],axis=0)   # linear average of the correlation
-                if dist > 0: crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
+                # if dist > 0: crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2])   # remove the mean in freq domain (spike at t=0)
                 crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
                 crap[0]=complex(0,0)
                 s_corr[istack,:] = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
@@ -390,7 +390,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
         t_corr = timestamp[0]
         crap   = np.zeros(Nfft,dtype=np.complex64)
         crap[:Nfft2] = np.mean(corr[tindx],axis=0)
-        if dist > 0: crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2],axis=0)
+        # if dist > 0: crap[:Nfft2] = crap[:Nfft2]-np.mean(crap[:Nfft2],axis=0)
         crap[-(Nfft2)+1:]=np.flip(np.conj(crap[1:(Nfft2)]),axis=0)
         s_corr = np.real(np.fft.ifftshift(scipy.fftpack.ifft(crap, Nfft, axis=0)))
 

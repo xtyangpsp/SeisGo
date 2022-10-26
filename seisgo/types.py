@@ -673,7 +673,7 @@ class CorrData(object):
 
         PARAMETERS:
         ----------------------
-        in_len: windown length in seconds for the substack, over which all the
+        win_len: windown length in seconds for the substack, over which all the
                 corrdata.data subset will be stacked. If None [default],it stacks
                 all data into one single trace.
         method: stacking method, could be: linear, robust, pws, acf, or nroot.
