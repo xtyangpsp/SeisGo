@@ -2,7 +2,6 @@ import obspy,scipy,time,pycwt,pickle,os
 import numpy as np
 from obspy.signal.invsim import cosine_taper
 from scipy.fftpack import fft,ifft,next_fast_len
-from obspy.signal.regression import linear_regression
 from obspy.signal.filter import bandpass
 from obspy import UTCDateTime
 from seisgo.types import DvvData
@@ -10,6 +9,8 @@ from seisgo import utils,helpers
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 import pyasdf
+from scipy.signal import correlate,correlation_lags
+from scipy.stats import linregress
 
 '''
 The dvv measuring functions are from Congcong Yuan at Harvard, originally written by Chengxin Jiang and Marine Denolle.
@@ -397,7 +398,6 @@ def ts_dvv(ref, cur, t,twin, freq, dvmax=0.05, ndv=100, filter=True):
     """
     This function compares the Reference waveform to stretched/compressed current waveforms to get the relative seismic velocity variation (and associated error).
     It also computes the correlation coefficient between the Reference waveform and the current waveform.
-
     PARAMETERS:
     ----------------
     ref: Reference waveform (np.ndarray, size N)
@@ -408,17 +408,14 @@ def ts_dvv(ref, cur, t,twin, freq, dvmax=0.05, ndv=100, filter=True):
     dvmax: absolute bound for the velocity variation; example: dv=0.03 for [-3,3]% of relative velocity change ('float'). Default=0.05.
     ndv: number of stretching coefficient between dvmin and dvmax, no need to be higher than 100  ('float'). Default is 100.
     filter: apply filter with the specified frequency range. Default is True.
-
     RETURNS:
     ----------------
     dv: Relative velocity change dv/v (in %)
     cc: correlation coefficient between the reference waveform and the best stretched/compressed current waveform
     cdp: correlation coefficient between the reference waveform and the initial current waveform
     error: Errors in the dv/v measurements based on Weaver et al (2011), On the precision of noise-correlation interferometry, Geophys. J. Int., 185(3)
-
     Note: The code first finds the best correlation coefficient between the Reference waveform and the stretched/compressed current waveform among the "ndv" values.
     A refined analysis is then performed around this value to obtain a more precise dv/v measurement .
-
     Originally by L. Viens 04/26/2018 (Viens et al., 2018 JGR)
     modified by Chengxin Jiang, Xiaotao Yang
     """
@@ -429,7 +426,7 @@ def ts_dvv(ref, cur, t,twin, freq, dvmax=0.05, ndv=100, filter=True):
     tmax = np.max(twin)
     fmin = np.min(freq)
     fmax = np.max(freq)
-    itvec = np.arange(np.int((tmin-t.min())/dt)+1, np.int((tmax-t.min())/dt)+1)
+    itvec = np.arange(int((tmin-t.min())/dt)+1, int((tmax-t.min())/dt)+1)
     tvec = t[itvec]
 
     # make useful one for measurements
@@ -442,16 +439,34 @@ def ts_dvv(ref, cur, t,twin, freq, dvmax=0.05, ndv=100, filter=True):
     if filter: #this is important when the data was not filtered before calling ts_dvv().
         ref=bandpass(ref,freq[0],0.998*freq[1],df=1/dt,corners=4,zerophase=True)
         cur=bandpass(cur,freq[0],0.998*freq[1],df=1/dt,corners=4,zerophase=True)
-    refwin=ref[itvec]
-    curwin=cur[itvec]
+    refwin_temp=ref[itvec]
+    curwin_temp=cur[itvec]
+    refwin=refwin_temp/np.max(np.abs(refwin_temp))
+    curwin=curwin_temp/np.max(np.abs(curwin_temp))
     # Set of stretched/compressed current waveforms
+    # plt.figure()
+    # plt.plot(tvec,refwin,'r',label='ref')
+    # plt.plot(tvec,curwin,'b',label='cur')
+    # plt.legend()
+    # plt.grid()
+    # plt.show()
+
+    # plt.figure()
     for ii in range(len(Eps)):
         nt = tvec*Eps[ii]
         s = np.interp(x=tvec, xp=nt, fp=curwin)
-        waveform_ref = refwin
-        waveform_cur = s
+        tcheckmin=np.max([nt[0],tvec[0]]) #trim the zero paddings due to extrapolation.
+        tcheckmax=np.min([nt[-1],tvec[-1]])
+        tcheckidx=np.where((tvec>= tcheckmin) & (tvec<=tcheckmax))[0]
+        waveform_ref = refwin[tcheckidx]
+        waveform_cur = s[tcheckidx]
+        # plt.plot(tvec[tcheckidx],ii+waveform_ref,'r',label='ref')
+        # plt.plot(tvec[tcheckidx],ii+waveform_cur,'b')
         cof[ii] = np.corrcoef(waveform_ref, waveform_cur)[0, 1]
-
+#         cof[ii] = np.sum(np.power(waveform_ref-waveform_cur,2))
+    #
+    # plt.grid()
+    # plt.show()
     cdp = np.corrcoef(curwin, refwin)[0, 1] # correlation coefficient between the reference and initial current waveforms
 
     # find the maximum correlation coefficient
@@ -460,17 +475,22 @@ def ts_dvv(ref, cur, t,twin, freq, dvmax=0.05, ndv=100, filter=True):
         imax = imax - 2
     if imax <= 2:
         imax = imax + 2
-
+    #
+    # plt.plot(Eps,cof,'o')
+    # plt.show()
     # Proceed to the second step to get a more precise dv/v measurement
     dtfiner = np.linspace(Eps[imax-2], Eps[imax+2], ndv)
     ncof    = np.zeros(dtfiner.shape,dtype=np.float32)
+
     for ii in range(len(dtfiner)):
         nt = tvec*dtfiner[ii]
         s = np.interp(x=tvec, xp=nt, fp=curwin)
-        waveform_ref = refwin
-        waveform_cur = s
+        tcheckmin=np.max([nt[0],tvec[0]])
+        tcheckmax=np.min([nt[-1],tvec[-1]])
+        tcheckidx=np.where((tvec>= tcheckmin) & (tvec<=tcheckmax))[0]
+        waveform_ref = refwin[tcheckidx]
+        waveform_cur = s[tcheckidx]
         ncof[ii] = np.corrcoef(waveform_ref, waveform_cur)[0, 1]
-
     cc = np.max(ncof) # Find maximum correlation coefficient of the refined  analysis
     dv = 100. * dtfiner[np.argmax(ncof)]-100 # Multiply by 100 to convert to percentage (Epsilon = -dt/t = dv/v)
 
@@ -587,3 +607,78 @@ def wts_dvv(ref,cur,t,twin,freq,subfreq=True,dvmax=0.05,normalize=True,ndv=100,d
             dvv[ii], err[ii], cc[ii], cdp[ii]=dv, error,c1, c2
 
         return f[f_ind], dvv, err, cc, cdp
+
+
+#
+def xc_dvv(ref, cur, t,twin, freq, filter=True,plot=False):
+    """
+    This function compares the waveform differences through moving cross-correlations. It might suffer from
+    cycle skipping.
+    PARAMETERS:
+    ----------------
+    ref: Reference waveform (np.ndarray, size N)
+    cur: Current waveform (np.ndarray, size N)
+    freq: [min,max] frequency frequency of the data
+    t: time vector for the data.
+    twin: time window for the measurements of dv/v
+    filter: apply filter with the specified frequency range. Default is True.
+    RETURNS:
+    ----------------
+    dv: Relative velocity change dv/v (in %)
+    cc: is the R-squared from the linear fit.
+    cdp: correlation coefficient between the reference waveform and the initial current waveform
+    error: Errors in the dv/v measurements based on linear regression.
+    """
+
+    # load common variables from dictionary
+    dt   = t[1]-t[0]
+    tmin = np.min(twin)
+    tmax = np.max(twin)
+    fmin = np.min(freq)
+    fmax = np.max(freq)
+    itvec = np.arange(int((tmin-t.min())/dt)+1, int((tmax-t.min())/dt)+1)
+    tvec = t[itvec]
+
+    #apply filter if requested
+    if filter: #this is important when the data was not filtered before calling ts_dvv().
+        ref=bandpass(ref,freq[0],0.998*freq[1],df=1/dt,corners=4,zerophase=True)
+        cur=bandpass(cur,freq[0],0.998*freq[1],df=1/dt,corners=4,zerophase=True)
+    refwin_temp=ref[itvec]
+    curwin_temp=cur[itvec]
+    refwin=refwin_temp/np.max(np.abs(refwin_temp))
+    curwin=curwin_temp/np.max(np.abs(curwin_temp))
+    cdp = np.corrcoef(curwin, refwin)[0, 1] # correlation coefficient between the reference and initial current waveforms
+
+    #
+    winlen=int(2/freq[0]/dt)
+    step=int(winlen/2)
+    sliceref,slicen,sliceidx=utils.sliding_window(refwin,winlen,ss=step,getindex=True)
+    slicecur,slicen,sliceidx=utils.sliding_window(curwin,winlen,ss=step,getindex=True)
+    lags = dt*correlation_lags(winlen, winlen)
+    dtarray=[]
+    tarray=[]
+    cc_all=[]
+    for i in range(slicen-1):
+        xc = correlate(slicecur[i],sliceref[i])
+        cc_all.append(np.max(xc))
+
+        xcmax=np.nanargmax(xc)
+        xcmaxlag=lags[xcmax]
+        dtarray.append(xcmaxlag)
+        tarray.append(tvec[sliceidx[i]])
+
+    #
+    tarray=np.array(tarray)
+    dtarray=np.array(dtarray)
+    res=linregress(tarray,dtarray)
+    if plot:
+        plt.figure()
+        plt.plot(tarray,dtarray,'o')
+        plt.plot(tarray, res.intercept + res.slope*tarray, 'r', label='fitted line')
+        plt.show()
+
+    dv=-100*res.slope
+    error=100*res.stderr
+    cc=np.power(res.rvalue,2)
+
+    return dv, error, cc, cdp
