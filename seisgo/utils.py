@@ -2036,9 +2036,8 @@ def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
         netstalist=sta_list
     trout=[]
     invout=[]
+    if isinstance(comp, str): comp = [comp]
     for netsta in netstalist:
-        if isinstance(comp, str): comp = [comp]
-
         tcomp = ds.waveforms[netsta].get_waveform_tags()
         ncomp = len(tcomp)
         if get_stainv:
@@ -2062,7 +2061,7 @@ def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
                     chan=tr_temp[0].stats.channel
                     if chan in comp:tr.append(tr_temp[0])
         if len(tr)==0:
-            raise ValueError('no data for comp %s for %s in %s'%(c, netsta,sfile))
+            raise ValueError('no data for comp %s for %s in %s'%(comp, netsta,sfile))
 
         if len(tr)==1:tr=tr[0]
 
