@@ -2008,7 +2008,7 @@ def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
     return source
 
 #extract waveform (raw) from ASDF file.
-def extract_waveform(sfile,net,sta,comp=None,get_stainv=False):
+def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
     '''
     extract the downloaded waveform for station A
     PARAMETERS:
@@ -2027,43 +2027,56 @@ def extract_waveform(sfile,net,sta,comp=None,get_stainv=False):
         print("exit! cannot open %s to read"%sfile);sys.exit()
 
     # check whether station exists
-    tsta = net+'.'+sta
-    if tsta not in sta_list:
-        raise ValueError('no data for %s in %s'%(tsta,sfile))
-
-    if isinstance(comp, str): comp = [comp]
-
-    tcomp = ds.waveforms[tsta].get_waveform_tags()
-    ncomp = len(tcomp)
-    if get_stainv:
-        try:
-            inv = ds.waveforms[tsta]['StationXML']
-        except Exception as e:
-            print('abort! no stationxml for %s in file %s'%(tsta,sfile))
-            inv=[]
-
-    if ncomp == 1:
-        tr=ds.waveforms[tsta][tcomp[0]]
-        if comp is not None:
-            chan=tr[0].stats.channel
-            if chan not in comp:
-                raise ValueError('no data for comp %s for %s in %s'%(chan, tsta,sfile))
-    elif ncomp>1:
-        tr=[]
-        for ii in range(ncomp):
-            tr_temp=ds.waveforms[tsta][tcomp[ii]]
-            if comp is not None:
-                chan=tr_temp[0].stats.channel
-                if chan in comp:tr.append(tr_temp[0])
-    if len(tr)==0:
-        raise ValueError('no data for comp %s for %s in %s'%(c, tsta,sfile))
-
-    if len(tr)==1:tr=tr[0]
-
-    if get_stainv:
-        return tr,inv
+    if net is not None and sta is not None:
+        tsta = net+'.'+sta
+        if tsta not in sta_list:
+            raise ValueError('no data for %s in %s'%(tsta,sfile))
+        netstalist=[tsta]
     else:
-        return tr
+        netstalist=sta_list
+    trout=[]
+    invout=[]
+    for netsta in netstalist:
+        if isinstance(comp, str): comp = [comp]
+
+        tcomp = ds.waveforms[netsta].get_waveform_tags()
+        ncomp = len(tcomp)
+        if get_stainv:
+            try:
+                inv = ds.waveforms[netsta]['StationXML']
+            except Exception as e:
+                print('abort! no stationxml for %s in file %s'%(netsta,sfile))
+                inv=[]
+
+        if ncomp == 1:
+            tr=ds.waveforms[netsta][tcomp[0]]
+            if comp is not None:
+                chan=tr[0].stats.channel
+                if chan not in comp:
+                    raise ValueError('no data for comp %s for %s in %s'%(chan, netsta,sfile))
+        elif ncomp>1:
+            tr=[]
+            for ii in range(ncomp):
+                tr_temp=ds.waveforms[netsta][tcomp[ii]]
+                if comp is not None:
+                    chan=tr_temp[0].stats.channel
+                    if chan in comp:tr.append(tr_temp[0])
+        if len(tr)==0:
+            raise ValueError('no data for comp %s for %s in %s'%(c, netsta,sfile))
+
+        if len(tr)==1:tr=tr[0]
+
+        trout.append(tr)
+        invout.append(inv)
+
+    # squeeze list.
+    if len(trout)==1:
+        trout=trout[0]
+        invout=invout[0]
+    if get_stainv:
+        return trout,invout
+    else:
+        return trout
 
 def xcorr(x, y, maxlags=10):
     Nx = len(x)
