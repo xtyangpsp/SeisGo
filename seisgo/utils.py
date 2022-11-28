@@ -2040,35 +2040,36 @@ def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
     for netsta in netstalist:
         tcomp = ds.waveforms[netsta].get_waveform_tags()
         ncomp = len(tcomp)
-        inv=[]
-        if get_stainv:
-            try:
-                inv = ds.waveforms[netsta]['StationXML']
-            except Exception as e:
-                print('abort! no stationxml for %s in file %s'%(netsta,sfile))
-                
-        if ncomp == 1:
-            tr=ds.waveforms[netsta][tcomp[0]]
-            if comp is not None:
-                chan=tr[0].stats.channel
-                if chan not in comp:
-                    raise ValueError('no data for comp %s for %s in %s'%(chan, netsta,sfile))
-        elif ncomp>1:
-            tr=[]
-            for ii in range(ncomp):
-                tr_temp=ds.waveforms[netsta][tcomp[ii]]
+        if ncomp > 0:
+            inv=[]
+            if get_stainv:
+                try:
+                    inv = ds.waveforms[netsta]['StationXML']
+                except Exception as e:
+                    print('abort! no stationxml for %s in file %s'%(netsta,sfile))
+
+            if ncomp == 1:
+                tr=ds.waveforms[netsta][tcomp[0]]
                 if comp is not None:
-                    chan=tr_temp[0].stats.channel
-                    if chan in comp:tr.append(tr_temp[0])
-                else:
-                    tr.append(tr_temp[0])
-        if len(tr)==0:
-            raise ValueError('no data for comp %s for %s in %s'%(comp, netsta,sfile))
+                    chan=tr[0].stats.channel
+                    if chan not in comp:
+                        raise ValueError('no data for comp %s for %s in %s'%(chan, netsta,sfile))
+            elif ncomp>1:
+                tr=[]
+                for ii in range(ncomp):
+                    tr_temp=ds.waveforms[netsta][tcomp[ii]]
+                    if comp is not None:
+                        chan=tr_temp[0].stats.channel
+                        if chan in comp:tr.append(tr_temp[0])
+                    else:
+                        tr.append(tr_temp[0])
+            if len(tr)==0:
+                raise ValueError('no data for comp %s for %s in %s'%(comp, netsta,sfile))
 
-        if len(tr)==1:tr=tr[0]
+            if len(tr)==1:tr=tr[0]
 
-        trout.append(tr)
-        invout.append(inv)
+            trout.append(tr)
+            invout.append(inv)
 
     # squeeze list.
     if len(trout)==1:
