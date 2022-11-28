@@ -1,6 +1,6 @@
 import numpy as np
-
-def fd1d_dx4dt4(x,t,vmodel,rho,xsrc,xrcv,stf_width=1,stf_type='ricker',t_interval=1):
+from seisgo import utils
+def fd1d_dx4dt4(x,dt,tmax,vmodel,rho,xsrc,xrcv,stf_freq=1,stf_shift=None,stf_type='ricker',t_interval=1):
     """
     Modified from Florian Wittkamp
 
@@ -20,12 +20,14 @@ def fd1d_dx4dt4(x,t,vmodel,rho,xsrc,xrcv,stf_width=1,stf_type='ricker',t_interva
 
     =====PARAMETERS=====
     x: spatial vector
-    t: time vector for simulation.
+    dt: time step for simulation.
+    tmax: maximum time for simulation.
     vmodel: velocity model for each spatial grid.
     rho: density model for each spatial grid.
     xsrc: src grid index.
     xrcv: receiver grid index.
-    stf_width: source time function frequency parameter. Gaussian: width; Ricker: central frequency.
+    stf_freq: source time function frequency parameter. Gaussian: width; Ricker: central frequency.
+    stf_shift: source time function shift. default is 3*stf_freq.
     stf_type: "ricker" or "gaussian". Currently only support ricker.
     t_inverval: time interval of the output waveform. default: 1.
 
@@ -35,20 +37,29 @@ def fd1d_dx4dt4(x,t,vmodel,rho,xsrc,xrcv,stf_width=1,stf_type='ricker',t_interva
     c2=0.5  # CFL-Number. Stability condition.
     cmax=max(vmodel.flatten())
     dt_max=np.max(np.diff(x))/(cmax)*c2 #maximum time interval/step.
-
+    if stf_shift is None:
+        stf_shift = 3*stf_width
     nx=len(x)
     dx=np.abs(x[1]-x[0])
-    nt=len(t)
-    dt=np.abs(t[1]-t[0])
+
     if dt > dt_max:
         raise ValueError('dt %f is larger than allowable %f. '%(dt,dt_max))
+    t=np.arange(0,tmax+stf_shift+0.5*dt,dt)     # Time vector
+    nt=len(t)
     #wavelet information.
-    q0=1
+    # q0=1
+    wavelet = np.zeros((len(t)))
+
     if stf_type.lower() == 'ricker':
-        tau=np.pi*stf_width*(t-1.5/stf_width)
-        wavelet=q0*(1.0-2.0*tau**2.0)*np.exp(-tau**2)
+        wlet0=utils.ricker(dt,stf_freq,stf_shift)[1]
+        # tau=np.pi*stf_width*(t-1.5/stf_width)
+        # wavelet=q0*(1.0-2.0*tau**2.0)*np.exp(-tau**2)
+    elif stf_type.lower() == 'gaussian' or stf_type.lower() == 'gauss':
+        wlet0=utils.gaussian(dt,stf_freq,stf_shift)[1]
     else:
         raise ValueError(stf_type+" not recoganized.")
+    #
+    wavelet[:len(wlet0)]=wlet0
 
     # Plotting source signal
 #     plt.figure(figsize=(10,3))
@@ -116,10 +127,13 @@ def fd1d_dx4dt4(x,t,vmodel,rho,xsrc,xrcv,stf_width=1,stf_type='ricker',t_interva
         seisout[n]=p[xrcv]
 
     print("Finished time stepping!")
+    #shift to account for the stf_shift.
+
     if t_interval >1: #downsample data in time.
-        tout=np.arange(np.min(t),np.max(t)+0.5*savestep*dt,savestep*dt)
-        seisout=np.interp(tout,t,seisout)
+        tout=np.arange(0,tmax+0.5*t_interval*dt,t_interval*dt)
+        seisout=np.interp(tout,t-stf_shift,seisout)
     else:
-        tout=t
+        tout=t[int(stf_shift/dt):]
+        seisout=seisout[int(stf_shift/dt):]
 
     return tout,seisout
