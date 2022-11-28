@@ -2040,13 +2040,13 @@ def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
     for netsta in netstalist:
         tcomp = ds.waveforms[netsta].get_waveform_tags()
         ncomp = len(tcomp)
+        inv=[]
         if get_stainv:
             try:
                 inv = ds.waveforms[netsta]['StationXML']
             except Exception as e:
                 print('abort! no stationxml for %s in file %s'%(netsta,sfile))
-                inv=[]
-
+                
         if ncomp == 1:
             tr=ds.waveforms[netsta][tcomp[0]]
             if comp is not None:
