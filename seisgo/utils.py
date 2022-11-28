@@ -2060,6 +2060,8 @@ def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
                 if comp is not None:
                     chan=tr_temp[0].stats.channel
                     if chan in comp:tr.append(tr_temp[0])
+                else:
+                    tr.append(tr_temp[0])
         if len(tr)==0:
             raise ValueError('no data for comp %s for %s in %s'%(comp, netsta,sfile))
 
