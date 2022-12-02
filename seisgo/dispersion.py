@@ -190,14 +190,19 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
                 if side=='a' or side=='p':
                     dout_p.append(np.nan)
 
-        dout_n /= np.nanmax(dout_n)
-        dout_n_all.append(dout_n)
-
-        dout_p /= np.nanmax(dout_p)
-        dout_p_all.append(dout_p)
+        if side=='a' or side=='n':
+            dout_n /= np.nanmax(dout_n)
+            dout_n_all.append(dout_n)
+        if side=='a' or side=='p':
+            dout_p /= np.nanmax(dout_p)
+            dout_p_all.append(dout_p)
     #
-    dout=np.squeeze(np.array([dout_n_all,dout_p_all],dtype=np.float64))
-
+    if side=='a':
+        dout=np.squeeze(np.array([dout_n_all,dout_p_all],dtype=np.float64))
+    elif side == 'p':
+        dout=np.squeeze(np.array(dout_p_all,dtype=np.float64))
+    elif side == 'n':
+        dout=np.squeeze(np.array(dout_n_all,dtype=np.float64))
     return dout,vout,pout
 # function to extract the dispersion from the image
 # modified from NoisePy.
