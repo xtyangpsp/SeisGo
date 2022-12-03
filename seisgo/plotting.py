@@ -1093,7 +1093,7 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
             plt.close()
         else:
             plt.show()
-def plot_dispersion_image(d,v,p,figsize=(6,4),cmap='jet',clim=[0,1],save=False,outfile=None,
+def plot_dispersion_image(d,v,p,figsize=[6,4],cmap='jet',clim=[0,1],save=False,outfile=None,
                         title=None,format='png',dpi=300):
     """
     Plot dispersion image.
