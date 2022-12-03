@@ -59,7 +59,7 @@ def plot_eventsequence(cat,figsize=(12,4),ytype='magnitude',figname=None,
         cat=pd.DataFrame(cat)
     #All magnitudes greater than or equal to the limit will be plotted
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=figsize, facecolor = 'white')
     plt.title(ytype+" vs. time")
     plt.xlabel("Date (UTC)")
 
@@ -176,7 +176,7 @@ def plot_psd(data,dt,labels=None,xrange=None,cmap='jet',normalize=True,figsize=(
         psd=10*np.log10(np.abs(psd))
     f=f[1:]
 
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=figsize, facecolor = 'white')
     ax=plt.subplot(111)
     if data.ndim==2:
         nwin=data.shape[0]
@@ -259,7 +259,7 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
     if ncomp == 1:
         data = tr[0].data
         data = bandpass(data,freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-        fig=plt.figure(figsize=(9,3))
+        fig=plt.figure(figsize=(9,3), facecolor = 'white')
         plt.plot(tt,data,'k-',linewidth=1)
         plt.title('T\u2080:%s   %s.%s.%s   @%5.3f-%5.2f Hz' % (tr[0].stats.starttime,net,sta,tcomp[0].split('_')[0].upper(),freqmin,freqmax))
         plt.xlabel('Time [s]')
@@ -271,7 +271,7 @@ def plot_waveform(sfile,net,sta,freqmin,freqmax,save=False,figdir=None,format='p
         for ii in range(ncomp):
             data[ii] = ds.waveforms[tsta][tcomp[ii]][0].data
             data[ii] = bandpass(data[ii],freqmin,freqmax,int(1/dt),corners=4, zerophase=True)
-        fig=plt.figure(figsize=(9,6))
+        fig=plt.figure(figsize=(9,6), facecolor = 'white')
 
         for c in range(ncomp):
             if c==0:
@@ -701,7 +701,7 @@ def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None
         else:
             tick_inc = 2
 
-        fig = plt.figure(figsize=figsize)
+        fig = plt.figure(figsize=figsize, facecolor = 'white')
         ax = fig.add_subplot(6,1,(1,4))
         ax.matshow(data_normalizd,cmap='seismic',extent=[-lag0,lag0,nwin,0],aspect='auto')
         ax.plot((0,0),(nwin,0),'k-')
@@ -751,7 +751,7 @@ def plot_corrdata(corr,freqmin=None,freqmax=None,lag=None,save=False,figdir=None
 
         tx=np.arange(-lag0,lag0+0.5*dt,dt)
         if len(tx)>len(data):tx=tx[:-1]
-        plt.figure(figsize=figsize)
+        plt.figure(figsize=figsize, facecolor = 'white')
         ax=plt.gca()
         plt.plot(tx,data,'k-',linewidth=1)
         if freqmin is not None and freqmax is not None:
@@ -883,7 +883,7 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
 
     ntrace = int(np.round(np.max(dist)+0.51)/dist_inc)
 
-    fig=plt.figure(figsize=figsize)
+    fig=plt.figure(figsize=figsize, facecolor = 'white')
 
     for f in range(len(freq)):
         freqmin=freq[f][0]
@@ -1045,7 +1045,7 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
 
         mdist=np.max(dist)
         mindist=np.min(dist)
-        plt.figure(figsize=figsize)
+        plt.figure(figsize=figsize, facecolor = 'white')
         for f in range(freq.shape[0]):
             freqmin=freq[f][0]
             freqmax=freq[f][1]
@@ -1093,7 +1093,34 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
             plt.close()
         else:
             plt.show()
+def plot_dispersion_image(d,v,p,figsize=(6,4),cmap='jet',clim=[0,1],save=False,outfile=None,
+                        title=None,format='png',dpi=300):
+    """
+    Plot dispersion image.
+    d,v,p: outputs from dispersion.get_dispersion_image() if only one side. If both sides were computed,
+            d is one of the elements corresponding to only one side.
+    cmap='jet',clim=[0,1],save=False,outfile=None,title=None,format='png',dpi=300: parameters controling the figure.
 
+    """
+    plt.figure(figsize=figsize,facecolor='white')
+    plt.imshow(np.flip(np.array(d).T),cmap=cmap,extent=[p[-1],p[0],v[0],v[-1]],aspect='auto')
+    plt.ylabel('velocity (km/s)',fontsize=12)
+    plt.xlabel('period (s)',fontsize=12)
+    # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
+    # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+    plt.clim(clim)
+    plt.colorbar()
+    if title is None:
+        plt.title('dispersion image',fontsize=13)
+    else:
+        plt.title(title,fontsize=13)
+    if save:
+        if outfile is None:
+            outfile = 'dispersion.'+format
+        plt.savefig(outfile, format=format, dpi=dpi)
+        plt.close()
+    else:
+        plt.show()
 #get peak amplitudes
 #this function is out of date. needs to be updated to use CorrData workflow.
 def get_xcorr_peakamplitudes(sfiles,sta,dtype,freq,ccomp=['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ'],

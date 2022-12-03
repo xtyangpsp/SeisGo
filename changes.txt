@@ -1,14 +1,18 @@
 Updates in v0.7.5
 NOISE:
-1. correlate(): change to only remove peak at zero lag (demean of the spectrum) for cross-station correlations.
+1. correlate(): discarded lines removing peak at zero lag (demean of the spectrum).
 
 MONITORING:
 1. get_dvv: improved plot saving. Fixed a bug where stack_method was not specified for substacking.
+2. ts_dvv: trimed data to only the original data, excluding the padded zeros.
+3. xc_dvv: newly added method using moving window cross-correlations. needs improvements and more tests.
 
 DISPERSION:
 1. get_dispersion_image: use adaptive window size for different periods, increasing with periods.
   This is options. Options to specify minimum number of trace and minimum number of wavelength.
   * added option to specify energy type, "power_sum" or "envelope".
+  * added plotting options.
+  * fixed bugs when only processing one side.
 2. renamed get_dispersion_waveforms() to narrowband_waveforms to avoid using the word "dispersion".
 
 DOWNLOADERS:
@@ -22,6 +26,14 @@ STACKING:
 
 UTILS:
 1. Added two functions to get image gradient and convert xyz to matrix, without interpolation.
+2. extract_waveform: read all data if not specifying stations.
+
+PLOTTING:
+1. Added facecolor to set the background of plots to white.
+2. Added plot_dispersion_image() to plot dispersion image.
+
+SIMULATION:
+1. New module for seismic wave simulations.
 
 ===================================================================
 Updates in v0.7.4

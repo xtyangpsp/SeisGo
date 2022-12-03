@@ -9,6 +9,7 @@ from obspy.core.util.base import _get_function_from_entry_point
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.filter import bandpass,lowpass
+import matplotlib.pyplot as plt
 """
 This is a planned module, to be developed.
 """
@@ -85,7 +86,8 @@ def narrowband_waveforms(d, dt,pmin,pmax,dp=1,pscale='ln',extend=10):
     return dout, pout
 ##
 def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
-                        verbose=False,min_trace=5,min_wavelength=1.5,energy_type='envelope'):
+                        verbose=False,min_trace=5,min_wavelength=1.5,energy_type='power_sum',
+                        plot=False,figsize=None,cmap='jet',clim=[0,1]):
     """
     Uses phase-shift method. Park et al. (1998): http://www.masw.com/files/DispersionImaingScheme-1.pdf
 
@@ -107,7 +109,11 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     verbose: verbose mode. default False.
     min_trace: minimum trace to consider. default 5.
     min_wavelength: minimum wavelength to satisfy far-field. default 1.5.
-    energy_type: method to compute maximum energy, 'envelope' or 'power_sum'. Default is 'envelope'
+    energy_type: method to compute maximum energy, 'envelope' or 'power_sum'. Default is 'power_sum'
+    plot: plot dispersion image or not. Default is False.
+    figsize: specify figsize. Decides automatically if not specified.
+    cmap: colormap. Default is 'jet'
+    clim: color value limit. Default is [0,1]
 
     =====RETURNS====
     dout: dispersion information showing the normalized energy for each velocity value for each frequency.
@@ -125,12 +131,19 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     if t[0]<-1.0*dt and t[-1]> dt: #two sides.
         side='a'
         zero_idx=int((len(t)-1)/2)
+        if figsize is None:
+            figsize=(10,4)
     elif t[0]<-1.0*dt:
         side='n'
         zero_idx=len(t)-1
+        if figsize is None:
+            figsize=(5,4)
     elif t[-1]>dt:
         side='p'
         zero_idx=0
+        if figsize is None:
+            figsize=(5,4)
+
     if verbose: print('working on side: '+side)
     dfiltered_all=[]
     dist_final=[]
@@ -196,7 +209,50 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
         if side=='a' or side=='p':
             dout_p /= np.nanmax(dout_p)
             dout_p_all.append(dout_p)
-    #
+    # plot or not
+    if plot:
+        plt.figure(figsize=figsize)
+        if side == 'a':
+            plt.subplot(1,2,1)
+            plt.imshow(np.flip(np.array(dout_n_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            plt.ylabel('velocity (km/s)',fontsize=12)
+            plt.xlabel('period (s)',fontsize=12)
+            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
+            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.clim(clim)
+            plt.colorbar()
+            plt.title('dispersion from negative lag: '+energy_type,fontsize=13)
+
+            plt.subplot(1,2,2)
+            plt.imshow(np.flip(np.array(dout_p_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            plt.ylabel('velocity (km/s)',fontsize=12)
+            plt.xlabel('period (s)',fontsize=12)
+            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
+            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.clim(clim)
+            plt.colorbar()
+            plt.title('dispersion from positive lag: '+energy_type,fontsize=13)
+        elif side == 'n':
+            plt.imshow(np.flip(np.array(dout_n_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            plt.ylabel('velocity (km/s)',fontsize=12)
+            plt.xlabel('period (s)',fontsize=12)
+            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
+            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.clim(clim)
+            plt.colorbar()
+            plt.title('dispersion from negative lag: '+energy_type,fontsize=13)
+        elif side == 'p':
+            plt.imshow(np.flip(np.array(dout_p_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            plt.ylabel('velocity (km/s)',fontsize=12)
+            plt.xlabel('period (s)',fontsize=12)
+            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
+            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.clim(clim)
+            plt.colorbar()
+            plt.title('dispersion from positive lag: '+energy_type,fontsize=13)
+        #
+        plt.show()
+
     if side=='a':
         dout=np.squeeze(np.array([dout_n_all,dout_p_all],dtype=np.float64))
     elif side == 'p':
