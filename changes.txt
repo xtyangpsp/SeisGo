@@ -1,3 +1,7 @@
+Updates in v0.7.6
+
+
+=================================================================
 Updates in v0.7.5
 NOISE:
 1. correlate(): discarded lines removing peak at zero lag (demean of the spectrum).
