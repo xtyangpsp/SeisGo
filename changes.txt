@@ -4,7 +4,7 @@ NOISE:
 
 MONITORING:
 1. get_dvv: improved plot saving. Fixed a bug where stack_method was not specified for substacking.
-2. ts_dvv: trimed data to only the original data, excluding the padded zeros.
+2. ts_dvv: trimed data to only compare the original data window, excluding the padded zeros.
 3. xc_dvv: newly added method using moving window cross-correlations. needs improvements and more tests.
 
 DISPERSION:
