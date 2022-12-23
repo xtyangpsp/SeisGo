@@ -1,5 +1,6 @@
 Updates in v0.7.6
-
+UTILS:
+1. Added smooth functions for 1d, 2d, and 3d grids.
 
 =================================================================
 Updates in v0.7.5

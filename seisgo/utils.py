@@ -1517,7 +1517,119 @@ def smooth(data, nd, axis=0):
         return filt
     else:
         return None
+def smooth1(data, size=3,verbose=False):
+    """
+    Function to smooth 1-D vector.
 
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Real-valued 1-d array to smooth
+    size : int sequence
+        Number of samples over which to smooth for all dimensions. Default 3
+
+    Returns
+    -------
+    filt : :class:`~numpy.ndarray`
+        Filtered data
+
+    """
+
+    if data.ndim > 1:
+        raise ValueError('smooth1 works only for 1-d array.')
+    a1=data.shape[0]
+    if np.any(data):
+        filt = np.convolve(data, np.ones((size,))/size, mode='same')
+
+        return filt
+    else:
+        return None
+def smooth2(data, size=[3,3],verbose=False):
+    """
+    Function to smooth 2-D matrix. This is implemented as 1d convolusion sequentially at
+    2 dimensions.
+
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Real-valued 2-d array to smooth
+    size : int sequence
+        Number of samples over which to smooth for all dimensions. Default [3,3]
+
+    Returns
+    -------
+    filt : :class:`~numpy.ndarray`
+        Filtered data
+
+    """
+    if isinstance(size,int): size=[size]
+    if len(size) ==1:
+        size=2*size
+    elif len(size) >2:
+        if verbose:print('size has > 3 elements. only the first 3 will be used.')
+    if data.ndim < 2 or data.ndim >2:
+        raise ValueError('smooth2 works only for 2-d array.')
+    a1,a2=data.shape
+    if np.any(data):
+        filt = np.zeros(data.shape)
+        for i in range(a1):
+            filt[i,: ] = np.convolve(
+                data[i,:], np.ones((size[1],))/size[1], mode='same')
+
+        for i in range(a2):
+            filt[:,i] = np.convolve(
+                filt[:,i], np.ones((size[0],))/size[0], mode='same')
+
+        return filt
+    else:
+        return None
+def smooth3(data, size=[3,3,3],verbose=False):
+    """
+    Function to smooth 3-D matrix. This is implemented as 1d convolusion sequentially at
+    3 dimensions.
+
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Real-valued 3-d array to smooth
+    size : int sequence
+        Number of samples over which to smooth for all dimensions. Default [3,3,3]
+
+    Returns
+    -------
+    filt : :class:`~numpy.ndarray`
+        Filtered data
+
+    """
+    if isinstance(size,int): size=[size]
+    if len(size) ==1:
+        size=3*size
+    elif len(size) ==2:
+        if verbose:print('size has two elements, expand to 3 using the first value.')
+        size=3*size[0]
+    elif len(size) > 3:
+        if verbose:print('size has > 3 elements. only the first 3 will be used.')
+    if data.ndim < 3  or data.ndim >3:
+        raise ValueError('smooth3 works only for 3-d array.')
+    a1,a2,a3=data.shape
+    if np.any(data):
+        filt = np.zeros(data.shape)
+        for i in range(a1):
+            for j in range(a2):
+                filt[i,j,: ] = np.convolve(
+                    data[i,j,:], np.ones((size[2],))/size[2], mode='same')
+        for i in range(a1):
+            for j in range(a3):
+                filt[i,:,j] = np.convolve(
+                    filt[i,:,j], np.ones((size[1],))/size[1], mode='same')
+        for i in range(a2):
+            for j in range(a3):
+                filt[:,i,j] = np.convolve(
+                    filt[:,i,j], np.ones((size[0],))/size[0], mode='same')
+
+        return filt
+    else:
+        return None
 def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()
 
