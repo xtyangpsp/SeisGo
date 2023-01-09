@@ -553,6 +553,92 @@ def ncmodel_in_polygon(dfile,var,outlines,vmax=9000,stats=False,surface=False,
             return dep,val_mean,val_median,val_min,val_max,val_std
         else:
             return dep,val_mean
+#
+def matrix_in_polygon(x,y,z,val,outlines,vmax=9000.0,stats=False,correction=[0,0,0]):
+    """
+    Extract matrix values within (x,y) polygons from 3d or 2d data.
+
+    ===PARAMETERS===
+    x,y,z: coordinate vectors of the data. set z to None for 2d data.
+    vmax - maximum value, above which will be set to numpy nan.
+    stats - If True, returns all statistics (mean, median, min, max, std) of
+                the model within the polygon. If False, only returns the mean 1d model.
+                Default False.
+    correction - add correction to model coordinates. Default [0,0,0].
+    ===RETURNS===
+    z - Z grid. Returns only when surface is False.
+    val_mean - Average model value (1d profile in case of 3d ncmodel). Returns in all cases.
+    val_median,val_min,val_max,val_std - Only returns these when stats is True.
+    """
+    if z is None: surface=True
+    else: surface=False
+
+    if surface: #read in 2d surfaces
+        x += correction[0]
+        y += correction[1]
+        val[val>=vmax]=np.nan
+
+        val_mean=np.ndarray((len(outlines)))
+        val_mean.fill(np.nan)
+        if stats:
+            val_median=np.ndarray((len(outlines)))
+            val_min=np.ndarray((len(outlines)))
+            val_max=np.ndarray((len(outlines)))
+            val_std=np.ndarray((len(outlines)))
+            val_median.fill(np.nan)
+            val_min.fill(np.nan)
+            val_max.fill(np.nan)
+            val_std.fill(np.nan)
+        for idx,d in enumerate(outlines):
+            ix,iy=utils.points_in_polygon(d,x,y)
+            if len(ix) >0:
+                dtemp=val[iy,ix]
+                if not np.isnan(dtemp).all():
+                    val_mean[idx]=np.nanmean(dtemp)
+                    if stats:
+                        val_median[idx]=np.nanmedian(dtemp)
+                        val_min[idx]=np.nanmin(dtemp)
+                        val_max[idx]=np.nanmax(dtemp)
+                        val_std[idx]=np.nanstd(dtemp)
+        #
+        if stats:
+            return val_mean,val_median,val_min,val_max,val_std
+        else:
+            return val_mean
+    else:
+        x += correction[0]
+        y += correction[1]
+        z += correction[2]
+        val[val>=vmax]=np.nan
+
+        val_mean=np.ndarray((len(outlines),val.shape[0]))
+        val_mean.fill(np.nan)
+        if stats:
+            val_median=np.ndarray((len(outlines),val.shape[0]))
+            val_min=np.ndarray((len(outlines),val.shape[0]))
+            val_max=np.ndarray((len(outlines),val.shape[0]))
+            val_std=np.ndarray((len(outlines),val.shape[0]))
+            val_median.fill(np.nan)
+            val_min.fill(np.nan)
+            val_max.fill(np.nan)
+            val_std.fill(np.nan)
+        for idx,d in enumerate(outlines):
+            ix,iy=utils.points_in_polygon(d,x,y)
+            if len(ix) >0:
+                for k in range(val_mean.shape[1]):
+                    dtemp=val[k,iy,ix]
+                    if not np.isnan(dtemp).all():
+                        val_mean[idx,k]=np.nanmean(dtemp)
+                        if stats:
+                            val_median[idx,k]=np.nanmedian(dtemp)
+                            val_min[idx,k]=np.nanmin(dtemp)
+                            val_max[idx,k]=np.nanmax(dtemp)
+                            val_std[idx,k]=np.nanstd(dtemp)
+        #
+        if stats:
+            return z,val_mean,val_median,val_min,val_max,val_std
+        else:
+            return z,val_mean
 # ##################### qml_to_event_list #####################################
 def qml_to_event_list(events_QML,to_pd=False):
     print("WARNING: this function has been renamed to qml2list. This warning will be removed in v0.7.x.")
