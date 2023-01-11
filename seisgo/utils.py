@@ -590,7 +590,7 @@ def matrix_in_polygon(x,y,z,val,outlines,vmax=9000.0,stats=False,correction=[0,0
             val_max.fill(np.nan)
             val_std.fill(np.nan)
         for idx,d in enumerate(outlines):
-            ix,iy=utils.points_in_polygon(d,x,y)
+            ix,iy=points_in_polygon(d,x,y)
             if len(ix) >0:
                 dtemp=val[iy,ix]
                 if not np.isnan(dtemp).all():
@@ -623,7 +623,7 @@ def matrix_in_polygon(x,y,z,val,outlines,vmax=9000.0,stats=False,correction=[0,0
             val_max.fill(np.nan)
             val_std.fill(np.nan)
         for idx,d in enumerate(outlines):
-            ix,iy=utils.points_in_polygon(d,x,y)
+            ix,iy=points_in_polygon(d,x,y)
             if len(ix) >0:
                 for k in range(val_mean.shape[1]):
                     dtemp=val[k,iy,ix]
