@@ -297,8 +297,8 @@ def xyz2matrix(x,y,z):
     Create matrix from the xyz points, without interpolation.
     The data points should have only unique values at each data point.
     """
-    xu=np.sort(x.unique())
-    yu=np.sort(y.unique())
+    xu=np.sort(np.unique(x))
+    yu=np.sort(np.unique(y))
     dxmean=np.nanmean(np.abs(np.diff(xu)))
     dymean=np.nanmean(np.abs(np.diff(yu)))
 
@@ -592,7 +592,7 @@ def matrix_in_polygon(x,y,z,val,outlines,vmax=9000.0,stats=False,correction=[0,0
         for idx,d in enumerate(outlines):
             ix,iy=points_in_polygon(d,x,y)
             if len(ix) >0:
-                dtemp=val[iy,ix]
+                dtemp=val[ix,iy]
                 if not np.isnan(dtemp).all():
                     val_mean[idx]=np.nanmean(dtemp)
                     if stats:
