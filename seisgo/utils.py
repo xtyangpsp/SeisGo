@@ -19,13 +19,15 @@ from obspy.signal.util import _npts2nfft
 from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
-from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
-from shapely.geometry import Polygon, Point
+from shapely.geometry import geometry,Polygon, Point
+from shapely.ops import cascaded_union, polygonize
 import netCDF4 as nc
+from scipy.spatial import Delaunay
+from math import sqrt
 from seisgo import helpers
-
+#########################################
 def rms(d):
     return np.sqrt(np.mean(d**2))
 def get_snr(d,t,dist,vmin,vmax,extend=0,offset=20,axis=1,getwindow=False,db=False,
@@ -1778,6 +1780,68 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
 
         ds.add_auxiliary_data(data,data_type,data_path,parameters=parameters,
                             provenance_id=provenance_id)
+#
+def boundary_points(points, alpha):
+    """
+    Compute the alpha shape (concave hull) of a set
+    of points.
+
+    @param points: Iterable container of points.
+    @param alpha: alpha value to influence the
+        gooeyness of the border. Smaller numbers
+        don't fall inward as much as larger numbers.
+        Too large, and you lose everything!
+    """
+    if len(points) < 4:
+        # When you have a triangle, there is no sense
+        # in computing an alpha shape.
+        return geometry.MultiPoint(list(points)).convex_hull
+
+    def add_edge(edges, edge_points, coords, i, j):
+        """
+        Add a line between the i-th and j-th points,
+        if not in the list already
+        """
+        if (i, j) in edges or (j, i) in edges:
+            # already added
+            return
+        edges.add( (i, j) )
+        edge_points.append(coords[ [i, j] ])
+
+    tri = Delaunay(points)
+    edges = set()
+    edge_points = []
+    # loop over triangles:
+    # ia, ib, ic = indices of corner points of the
+    # triangle
+    for ia, ib, ic in tri.vertices:
+        pa = points[ia]
+        pb = points[ib]
+        pc = points[ic]
+
+        # Lengths of sides of triangle
+        a = sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
+        b = math.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
+        c = math.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
+
+        # Semiperimeter of triangle
+        s = (a + b + c)/2.0
+
+        # Area of triangle by Heron's formula
+        area = math.sqrt(s*(s-a)*(s-b)*(s-c))
+        if area >0:
+            circum_r = a*b*c/(4.0*area)
+
+            # Here's the radius filter.
+            #print circum_r
+            if circum_r < 1.0/alpha:
+                add_edge(edges, edge_points, points, ia, ib)
+                add_edge(edges, edge_points, points, ib, ic)
+                add_edge(edges, edge_points, points, ic, ia)
+
+    m = geometry.MultiLineString(edge_points)
+    triangles = list(polygonize(m))
+    return cascaded_union(triangles), edge_points
 def box_smooth(d, box,mode='same'):
     """
     d: 1-d array
