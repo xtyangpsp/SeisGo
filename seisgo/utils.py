@@ -21,7 +21,7 @@ from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
 from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
-from shapely.geometry import geometry,Polygon, Point
+from shapely.geometry import MultiPoint, MultiLineString,Polygon, Point
 from shapely.ops import cascaded_union, polygonize
 import netCDF4 as nc
 from scipy.spatial import Delaunay
@@ -1795,7 +1795,7 @@ def boundary_points(points, alpha):
     if len(points) < 4:
         # When you have a triangle, there is no sense
         # in computing an alpha shape.
-        return geometry.MultiPoint(list(points)).convex_hull
+        return MultiPoint(list(points)).convex_hull
 
     def add_edge(edges, edge_points, coords, i, j):
         """
@@ -1839,7 +1839,7 @@ def boundary_points(points, alpha):
                 add_edge(edges, edge_points, points, ib, ic)
                 add_edge(edges, edge_points, points, ic, ia)
 
-    m = geometry.MultiLineString(edge_points)
+    m = MultiLineString(edge_points)
     triangles = list(polygonize(m))
     return cascaded_union(triangles), edge_points
 def box_smooth(d, box,mode='same'):
