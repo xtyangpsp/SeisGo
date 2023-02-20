@@ -112,8 +112,7 @@ $ python
 Try the following steps:
 ```
 $ conda activate seisgo
-$ pip uninstall numpy
-$ pip uninstall stockwell
+$ conda uninstall numpy stockwell
 $ conda install -c conda-forge stockwell numpy==1.22.4
 ```
 * NETCDF4 errors. You may need to mannual install/reinstall netcdf4 by:
