@@ -564,7 +564,7 @@ class CorrData(object):
 
         return cout
 
-    def merge(self,c):
+    def merge(self,c,ignore_channel_type=False):
         """
         Merge with another object for the same station pair. The idea is to merge multiple sets
         of CorrData at different time chunks. Therefore, this function will merge the following
@@ -574,10 +574,25 @@ class CorrData(object):
 
         ===PARAMETERS===
         c: the other CorrData object to merge with.
+        ignore_channel_type: when True, only check the component but ignore the type of channels. For example,
+            NET1.STA1.LOC1.BHZ_NET2.STA2.LOC2.BHZ can then be merged with NET1.STA1.LOC1.EHZ_NET2.STA2.LOC2.EHZ
+            for the same station pair. The merged id will be tagged as NET1.STA1.LOC1.XXZ_NET2.STA2.LOC2.XXZ.
+            If False, the channel and component have to be exactly match (e.g.,BHZ_BHZ and BHZ_BHZ). Default False.
         """
         #sanity check: stop merging and raise error if the two objects have different IDs.
-        if self.id != c.id:
-            print("IDs: "+self.id+" + "+c.id)
+        id_self=self.id
+        id_c = c.id
+        chanpair_self=self.chan[0]+'_'+self.chan[1]
+        chanpair_c=c.chan[0]+'_'+c.chan[1]
+
+        if ignore_channel_type and chanpair_self != chanpair_c:
+            print("Merging IDs with different channel types: "+self.id+" + "+c.id+'. Channel types are ignored.')
+            id_self = self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.XX'+self.chan[0][2:]+'_'+\
+                        self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.XX'+self.chan[1][2:]
+            id_c = c.net[0]+'.'+c.sta[0]+'.'+c.loc[0]+'.XX'+c.chan[0][2:]+'_'+\
+                        c.net[1]+'.'+c.sta[1]+'.'+c.loc[1]+'.XX'+c.chan[1][2:]
+        if id_self != id_c:
+            print("IDs: "+id_self+" + "+id_c)
             raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
         if not self.substack:
             stime=np.reshape(self.time.copy(),(1))
@@ -601,6 +616,7 @@ class CorrData(object):
             print(e)
 
         self.substack=True
+        self.id = id_self
 
     #subset method
     def subset(self,starttime=None,endtime=None,overwrite=False):
