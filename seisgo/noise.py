@@ -678,7 +678,7 @@ def rotation(bigstack,parameters,locs,flag):
 ###
 def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
             stack=False,stack_method='linear',stack_win_len=None,split=False,taper=True,
-            taper_frac=0.01,taper_maxlen=10):
+            taper_frac=0.01,taper_maxlen=10,ignore_channel_type=False):
     """
     This is a wrapper function that merges all data for the same station pair
     to a single CorrData object. It calls CorrData.merge() to assemble all CorrData.
@@ -738,7 +738,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                 # tt11=time.time()
                 for c in comp_list:
                     if c in list(corrdict_all.keys()):
-                        corrdict_all[c].merge(corrdict[pair][c])
+                        corrdict_all[c].merge(corrdict[pair][c],ignore_channel_type=ignore_channel_type)
                     else:corrdict_all[c]=corrdict[pair][c]
             del corrdict
                 # tmerge[i]=time.time()-tt11

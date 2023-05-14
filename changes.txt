@@ -3,6 +3,9 @@ TYPES:
 1. CorrData.merge(): added option to ignore channel types. This is needed when stations update
   their channels types, e.g., EH? to BH?. This new option would allow station pairs with different
   channel types to merge. Default is False.
+
+NOISE:
+1. merge_pairs(): added option of ignore_channel_type.
 =================================================================
 Updates in v0.7.6
 UTILS:
