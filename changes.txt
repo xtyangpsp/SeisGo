@@ -6,6 +6,9 @@ TYPES:
 
 NOISE:
 1. merge_pairs(): added option of ignore_channel_type.
+
+SETUP:
+1. Change numpy requirement to be <1.26.0.
 =================================================================
 Updates in v0.7.6
 UTILS:
