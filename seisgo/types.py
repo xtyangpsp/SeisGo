@@ -74,8 +74,8 @@ class RawData(object):
         if stainv is not None:
             self.sta,self.net,self.lon,self.lat,self.ele,self.loc = utils.sta_info_from_inv(stainv)
         elif None not in [stlo,stla,stel]:
-            self.net=trace[0].stats.network
-            self.sta=trace[0].stats.station
+            self.net=trlist[0].stats.network
+            self.sta=trlist[0].stats.station
             self.stlo=stlo
             self.stla=stla
             self.stel=stel
@@ -1433,6 +1433,29 @@ class CorrData(object):
 
         plt.tight_layout()
         plt.show()
+class CorrDataEnsemble(object):
+    """
+    Object to store cross-correlation data ensemble, from the same virtual source. This is used to make it
+    easy to plot moveout data and other operations for a whole gather of CorrData. 
+
+    ======= Attributes ======
+    net=[None,None],sta=[None,None],loc=[None,None],chan=[None,None],lon=[None,None],
+    lat=[None,None],ele=[None,None],cc_comp=None,
+    lag=None,dt=None,dist=None,time=None,data=None,
+    cc_len,cc_step: cc parameters.
+    az,baz: azimuth and back-azimuth of the two stations.
+    side: A [Default]- both negative and positive sides, N - negative sides only, P - positive side only.
+    misc=dict().
+
+    misc is a dictionary that stores additional parameters.
+
+    ======= Methods ======
+    to_sac(): convert and save to sac file, using obspy SACTrace object.
+    plot(): simple plotting function to display the cross-correlation as moveout plot.
+    """
+    def __init__(self):
+        self.type='Ensemble of Correlation Data'
+###
 class DvvData(object):
     """
     Object to store dv/v (seismic velocity change) data. This object can be initiated by directly assigning
