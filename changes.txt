@@ -16,7 +16,7 @@ NOISE:
 Updates in v0.7.6
 UTILS:
 1. Added smooth functions for 1d, 2d, and 3d grids.
-2. Added matrix_in_polygon to extract 2d or 3d values within a polygon.
+2. Added matrix_in_polygon to extract 2d or 3d values with,in a polygon.
 3. Added boundary_points() to get the boundary of a series of points.
 
 =================================================================
