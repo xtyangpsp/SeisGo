@@ -1302,7 +1302,7 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     npts = int(win_len_secs*sps)
     trace_stdS = np.zeros(nseg,dtype=np.float32)
     dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
-    dataS_t  = np.zeros(nseg,dtype=np.float)
+    dataS_t  = np.zeros(nseg,dtype=np.float32)
 
     print('slicing trace into ['+str(nseg)+'] segments.')
 

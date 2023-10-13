@@ -3,6 +3,9 @@ TYPES:
 1. RawData: minor bug fix for attribute names.
 2. Added CorrDataEnsemble(), to store a gather of CorrData from the same virtual source.
 
+UTILS:
+1. Change np.float to np.float32.
+
 =================================================================
 Updates in v0.7.7
 TYPES:
