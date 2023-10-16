@@ -342,9 +342,6 @@ def interp3d(x,y,z,v,xq,yq,zq,verbose=False):
             for k in range(len(idz)):
                 vout[idx[i],idy[j],idz[k]] = scipy.interpolate.interpn((x,y,z),v,(xq[idx[i]],yq[idy[j]],zq[idz[k]]))
     return vout
-
-def test():
-    print("test")
     
 def generate_points_in_polygon(outline,spacing):
     """
