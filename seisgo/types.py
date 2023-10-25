@@ -353,7 +353,7 @@ class FFTData(object):
         Merge two FFTData objects with the same id. Only merge [time],[std],[data] attributes.
         """
         if f1.id != f2.id:
-            raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): '+f1.id+' and '+f2.id'. Cannot merge!')
+            raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): %s and %s. Cannot merge!'%(f1.id,f2.id))
 
         time1=f1.time
         time2=f2.time
@@ -537,7 +537,7 @@ class CorrData(object):
         #sanity check: stop merging and raise error if the two objects have different IDs.
         if c1.id != c2.id:
             print("IDs: "+c1.id+" + "+c2.id)
-            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+            raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): %s and %s. Cannot merge!'%(c1.id,c2.id))
         if c1.side != c2.side:
             print("sides: "+c1.side+" + "+c2.side)
             raise ValueError('The object to be merged has a different side values. Cannot merge!')
@@ -593,7 +593,7 @@ class CorrData(object):
                         c.net[1]+'.'+c.sta[1]+'.'+c.loc[1]+'.XX'+c.chan[1][2:]
         if id_self != id_c:
             print("IDs: "+id_self+" + "+id_c)
-            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+            raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): %s and %s. Cannot merge!'%(id_self,id_c))
         if not self.substack:
             stime=np.reshape(self.time.copy(),(1))
             sdata=np.reshape(self.data.copy(),(1,self.data.shape[0]))
