@@ -353,7 +353,7 @@ class FFTData(object):
         Merge two FFTData objects with the same id. Only merge [time],[std],[data] attributes.
         """
         if f1.id != f2.id:
-            raise ValueError('The object to be merged has a different ID (net.sta.loc.chan). Cannot merge!')
+            raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): '+f1.id+' and '+f2.id'. Cannot merge!')
 
         time1=f1.time
         time2=f2.time

@@ -416,7 +416,7 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     return corrdata
 
 def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
-                rotation=False,correctionfile=None,flag=False,keep_substack=False,
+                rotate=False,correctionfile=None,flag=False,keep_substack=False,
                 to_egf=False):
     # source folder
     if pairlist is None:
@@ -429,7 +429,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
     if isinstance(pairlist,str):pairlist=[pairlist]
 
     if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
-    if rotation:
+    if rotate:
         enz_system = ['EE','EN','EZ','NE','NN','NZ','ZE','ZN','ZZ']
         rtz_components = ['ZR','ZT','ZZ','RR','RT','RZ','TR','TT','TZ']
     for pair in pairlist:
@@ -483,7 +483,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
         if len(cc_comp)==0:
             if flag:print('continue! no cross components for %s'%(pair))
             continue
-        elif len(cc_comp)<9 and rotation:
+        elif len(cc_comp)<9 and rotate:
             if flag:print('continue! not enough cross components for %s to do rotation'%(pair))
             continue
         elif len(cc_comp) >9:
@@ -499,7 +499,7 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
         if isinstance(method,str):method=[method]
         tparameters['station_source']=ssta
         tparameters['station_receiver']=rsta
-        if rotation: #need to order the components according to enz_system list.
+        if rotate: #need to order the components according to enz_system list.
             if corrdict_all[cc_comp[0]].substack:
                 npts_segmt  = corrdict_all[cc_comp[0]].data.shape[1]
             else:
