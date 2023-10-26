@@ -1741,7 +1741,7 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
         particularly when sta_inv is provided.
     tag :: string list
         List of tags for each trace in the `data` object.
-    sta_inv : station inventory
+    sta_inv : station inventory. Same length as the data and tag.
         Staion xml (obspy station inventory).
     group : string
         Group to save the data. Available options include 'waveforms', 'auxiliary'
@@ -1749,8 +1749,8 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
         A dictionary to store saving parameters.
     """
     if group == 'waveforms':
-        if len(data) != len(tag):
-            raise(Exception('save2asdf: the stream and tag list should have the same length.'))
+        if len(data) != len(tag) or len(data) != len(sta_inv):
+            raise(Exception('save2asdf: the stream, tag list, and sta_in list should have the same length.'))
 
     if not os.path.isfile(fname):
         ds=pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='w')
@@ -1761,7 +1761,8 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
 
     #save
     if sta_inv is not None:
-        ds.add_stationxml(sta_inv)
+        for si in sta_inv:
+            ds.add_stationxml(si)
 
     if group == 'waveforms':
         for i in range(len(data)):

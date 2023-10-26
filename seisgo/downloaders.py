@@ -359,11 +359,11 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     max_tries: defautl 10. will try multiple times incase there is server connection issue.
     savetofile: default is False. Save to ASDF file if True.
     pressure_chan: this is needed when downloading OBS data with pressure channel. this influences the output of
-            response removal. Use "VEL" for pressure channels to get comparable amplitudes as "DISP" for seismic channels.
+            response removal. Use "PRESSURE" for pressure channels to get comparable amplitudes as "DISP" for seismic channels.
     samp_freq: downsample data to target sampling rate.
     freqmin,freqmax: frequency range in removing response. default freqmin is 0.001.
     rmresp: default True. remove response.
-    rmresp_out: default "DISP". use "VEL" for pressure chan.
+    rmresp_out: default "DISP". use "PRESSURE" for pressure chan.
     respdir: directory containing response information. currently NOT used in this function.
     qc: When True, does QC to clean up the trace. default True.
     event: ObsPy Event object for earthquake data. the event qml data will be saved into ASDF.
@@ -456,7 +456,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
 
             rmresp_out_tmp=rmresp_out
             if pressure_chan is not None and ichan in pressure_chan:
-                rmresp_out_tmp='VEL'
+                rmresp_out_tmp='PRESSURE'
             try:
                 output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
                                         samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
