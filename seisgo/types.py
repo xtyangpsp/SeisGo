@@ -584,8 +584,8 @@ class CorrData(object):
         id_c = c.id
         chanpair_self=self.chan[0]+'_'+self.chan[1]
         chanpair_c=c.chan[0]+'_'+c.chan[1]
-
-        if ignore_channel_type and chanpair_self != chanpair_c:
+        
+	if ignore_channel_type and chanpair_self != chanpair_c:
             print("Merging IDs with different channel types: "+self.id+" + "+c.id+'. Channel types are ignored.')
             id_self = self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.XX'+self.chan[0][2:]+'_'+\
                         self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.XX'+self.chan[1][2:]
