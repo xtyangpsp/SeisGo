@@ -22,6 +22,16 @@ def stack(d,method,par=None):
     RETURNS:
     ds: stacked data, which may be a list depending on the method.
     """
+    #remove NaN traces.
+    newdata= [] 
+    if d.ndim >1:
+        for d2 in d: 
+            if not np.isnan(d2).any(): 
+                newdata.append(d2)
+        newdata = np.array(newdata)
+    else:
+        newdata=d.copy()
+
     method_list=["linear","pws","robust","acf","nroot","selective",
             "cluster","tfpws","tfpws-dost"]
     if method not in method_list:
@@ -34,25 +44,25 @@ def stack(d,method,par=None):
         par={**par0,**par} #use par values if specified. otherwise, use defaults.
 
     if method.lower() == 'linear':
-        ds = np.mean(d,axis=par["axis"])
+        ds = np.mean(newdata,axis=par["axis"])
     elif method.lower() == 'pws':
-        ds = pws(d,p=par['p'])
+        ds = pws(newdata,p=par['p'])
     elif method.lower() == 'tfpws':
-        ds = tfpws(d,p=par['p'])
+        ds = tfpws(newdata,p=par['p'])
     elif method.lower() == 'tfpws-dost':
-        ds = tfpws_dost(d,p=par['p'])
+        ds = tfpws_dost(newdata,p=par['p'])
     elif method.lower() == 'robust':
-        ds = robust(d,epsilon=par['epsilon'],maxstep=par['maxstep'],win=par["win"],
+        ds = robust(newdata,epsilon=par['epsilon'],maxstep=par['maxstep'],win=par["win"],
                 stat=par['stat'],ref=par['ref'])
     elif method.lower() == 'acf':
-        ds = adaptive_filter(d,g=par['g'])
+        ds = adaptive_filter(newdata,g=par['g'])
     elif method.lower() == 'nroot':
-        ds = nroot(d,p=par['p'])
+        ds = nroot(newdata,p=par['p'])
     elif method.lower() == 'selective':
-        ds = selective(d,cc_min=par['cc_min'],epsilon=par['epsilon'],maxstep=par['maxstep'],
+        ds = selective(newdata,cc_min=par['cc_min'],epsilon=par['epsilon'],maxstep=par['maxstep'],
                 stat=par['stat'],ref=par['ref'],win=par["win"])
     elif method.lower() == 'cluster':
-        ds = clusterstack(d,h=par['h'],axis=par['axis'],win=par["win"],
+        ds = clusterstack(newdata,h=par['h'],axis=par['axis'],win=par["win"],
         normalize=par['normalize'],plot=par['plot'])
     #
     return ds
