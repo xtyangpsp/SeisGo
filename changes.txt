@@ -3,8 +3,12 @@ TYPES:
 1. RawData: minor bug fix for attribute names.
 2. Added CorrDataEnsemble(), to store a gather of CorrData from the same virtual source.
 
+DOWNLOADERS:
+1. download(): use "PRESSURE" as output for pressure channel.
+
 UTILS:
 1. Change np.float to np.float32.
+2. save2asdf(): fixed sta_in when it is a list.
 
 =================================================================
 Updates in v0.7.7
