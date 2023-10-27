@@ -1,7 +1,9 @@
 Updates in v0.8.0
 TYPES:
 1. RawData: minor bug fix for attribute names.
-2. Added CorrDataEnsemble(), to store a gather of CorrData from the same virtual source.
+2. Added CorrDataEnsemble() placeholder, to store a gather of CorrData from the same virtual source.
+3. Fixed a bug when merging corrdata pairs with different channel types (when ignore_channel_type is True).
+4. Fixed typos in CorrData.filter(), where highpass() was typed as lhighpass.
 
 DOWNLOADERS:
 1. download(): use "PRESSURE" as output for pressure channel.
@@ -9,6 +11,11 @@ DOWNLOADERS:
 UTILS:
 1. Change np.float to np.float32.
 2. save2asdf(): fixed sta_in when it is a list.
+=======
+2. save2asdf: Fixed a bug when saving multiple traces with a list of station inventory.
+
+DOWNLOADERS:
+1. download(): changed pressure channel rmresp output to "PRESSURE", instead of hardcoding it to "VEL".
 
 =================================================================
 Updates in v0.7.7

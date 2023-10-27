@@ -584,13 +584,19 @@ class CorrData(object):
         id_c = c.id
         chanpair_self=self.chan[0]+'_'+self.chan[1]
         chanpair_c=c.chan[0]+'_'+c.chan[1]
-        print([chanpair_self, chanpair_c])
+        # print([chanpair_self, chanpair_c])
         if ignore_channel_type and chanpair_self != chanpair_c:
-            print("Merging IDs with different channel types: "+self.id+" + "+c.id+'. Channel types are ignored.')
+            print("Merging IDs with different channel types: "+id_self+" + "+id_c+'. Channel types are ignored.')
             id_self = self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.XX'+self.chan[0][2:]+'_'+\
                         self.net[1]+'.'+self.sta[1]+'.'+self.loc[1]+'.XX'+self.chan[1][2:]
             id_c = c.net[0]+'.'+c.sta[0]+'.'+c.loc[0]+'.XX'+c.chan[0][2:]+'_'+\
                         c.net[1]+'.'+c.sta[1]+'.'+c.loc[1]+'.XX'+c.chan[1][2:]
+            #update IDs and chan information. 
+            self.id = id_self
+            # #update chan. This is required. Otherwise, the next round of merging will get different IDs even
+            # if the channels might be the same.
+            self.chan=['XX'+self.chan[0][2:],'XX'+self.chan[1][2:]]
+
         if id_self != id_c:
             print("IDs: "+id_self+" + "+id_c)
             raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): %s and %s. Cannot merge!'%(id_self,id_c))
@@ -616,7 +622,7 @@ class CorrData(object):
             print(e)
 
         self.substack=True
-        self.id = id_self
+       
 
     #subset method
     def subset(self,starttime=None,endtime=None,overwrite=False):
@@ -987,14 +993,14 @@ class CorrData(object):
                 elif fmin is None:
                     self.data[i,:]=lowpass(self.data[i],fmax,1/self.dt,corners=corners, zerophase=zerophase)
                 elif fmax is None:
-                    self.data[i,:]=lhighpass(self.data[i],fmin,1/self.dt,corners=corners, zerophase=zerophase)
+                    self.data[i,:]=highpass(self.data[i],fmin,1/self.dt,corners=corners, zerophase=zerophase)
         else:
             if fmin is not None and fmax is not None:
                 self.data=bandpass(self.data,fmin,fmax,1/self.dt,corners=corners, zerophase=zerophase)
             elif fmin is None:
                 self.data=lowpass(self.data,fmax,1/self.dt,corners=corners, zerophase=zerophase)
             elif fmax is None:
-                self.data=lhighpass(self.data,fmin,1/self.dt,corners=corners, zerophase=zerophase)
+                self.data=highpass(self.data,fmin,1/self.dt,corners=corners, zerophase=zerophase)
 #
     def save(self,format,file=None,outdir=None,v=True):
         """

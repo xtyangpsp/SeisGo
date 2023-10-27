@@ -1,0 +1,15 @@
+numpy<1.26.0
+scipy
+pandas
+obspy
+pyasdf
+numba
+pycwt
+shapely
+netCDF4
+tslearn
+plotly
+kaleido
+minisom
+stockwell
+kneed
