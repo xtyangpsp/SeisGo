@@ -89,7 +89,8 @@ def robust(d,epsilon=1E-5,maxstep=10,win=None,stat=False,ref=None):
     RETURNS:
     ----------------------
     newstack: numpy vector contains the stacked cross correlation
-
+    w: weight (return only when stat = True.)
+    nstep: number of iterations to produce the final stack (return only when stat = True.)
     Written by Marine Denolle
     Modified by Xiaotao Yang
     """
@@ -100,32 +101,35 @@ def robust(d,epsilon=1E-5,maxstep=10,win=None,stat=False,ref=None):
     res  = 9E9  # residuals
     w = np.ones(d.shape[0])
     small_number=1E-15
+    max_abs_value=np.max(np.abs(d)) 
+    dcopy=d/max_abs_value #to avoid the dot product and L2 normm getting too large.
     nstep=0
     if N >=2:
         if ref is None:
-            newstack = np.median(d,axis=0)
+            newstack = np.median(dcopy,axis=0)
         else:
             newstack = ref
         if win is None:
             win=[0,-1]
         while res > epsilon and nstep <=maxstep:
-            stack = newstack
-            for i in range(d.shape[0]):
-                dtemp=d[i,win[0]:win[1]]
-                crap = np.multiply(stack[win[0]:win[1]],dtemp.T)
+            stackt = newstack
+            for i in range(dcopy.shape[0]):
+                dtemp=dcopy[i,win[0]:win[1]]
+                crap = np.multiply(stackt[win[0]:win[1]],dtemp.T)
                 crap_dot = np.sum(crap)
                 di_norm = np.linalg.norm(dtemp)
-                ri_norm = np.linalg.norm(dtemp -  crap_dot*stack[win[0]:win[1]])
+                ri_norm = np.linalg.norm(dtemp -  crap_dot*stackt[win[0]:win[1]])
                 if ri_norm < small_number:
                     w[i]=0
                 else:
                     w[i]  = np.abs(crap_dot) /di_norm/ri_norm
             w =w /np.sum(w)
-            newstack =np.sum( (w*d.T).T,axis=0)#/len(cc_array[:,1])
-            res = np.linalg.norm(newstack-stack,ord=1)/np.linalg.norm(newstack)/len(d[:,1])
+            newstack =np.sum( (w*dcopy.T).T,axis=0)#/len(cc_array[:,1])
+            res = np.linalg.norm(newstack-stackt,ord=1)/np.linalg.norm(newstack)/len(dcopy[:,1])
             nstep +=1
     else:
-        newstack=d[0].copy()
+        newstack=dcopy[0].copy()
+    newstack *= max_abs_value #scale the stack back.
     if stat:
         return newstack, w, nstep
     else:

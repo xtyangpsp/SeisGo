@@ -17,6 +17,10 @@ UTILS:
 DOWNLOADERS:
 1. download(): changed pressure channel rmresp output to "PRESSURE", instead of hardcoding it to "VEL".
 
+STACKING:
+1. stack: discard NaN traces before passing the data to each method.
+2. robust: fixed a bug when outlier traces have huge amplitudes, which would cause the dot product 
+  and L2 norms too large to be handeled by the system. The final stack will be scaled back.
 =================================================================
 Updates in v0.7.7
 TYPES:
