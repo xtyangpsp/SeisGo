@@ -721,12 +721,11 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
         ioutdir=os.path.join(outdir,idir)
         if not os.path.isdir(ioutdir):os.makedirs(ioutdir,exist_ok = True)
 
-        if verbose:print('assembling all corrdata ...')
+        if verbose:print('assembling all corrdata for pair ['+pair+'] ...')
         t0=time.time()
         corrdict_all=dict() #all components for the single station pair
 
-        tparameters=None
-        for i,ifile in enumerate(ccfiles):
+        for ifile in ccfiles:
             # tt00=time.time()
             corrdict=extract_corrdata(ifile,pair=pair)
             # txtract[i]=time.time()-tt00
@@ -754,30 +753,28 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
 
         #save data.
         outfn = pair+'.h5'
-        if verbose:print('save to %s'%(outfn))
+        
         merged_h5 = os.path.join(ioutdir,outfn)
         if split:
             file_n=os.path.join(ioutdir,pair+'_N.h5')
             file_p=os.path.join(ioutdir,pair+'_P.h5')
-        for ic in cc_comp:
+        for ic in ['ZZ']:#cc_comp:
             #save components.
             #convert corrdata to empirical Green's functions by
             #taking the negative time derivative. See types.CorrData.to_egf() for details.
-            try:
-                if stack:
-                    corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len)
-                if to_egf:
-                    corrdict_all[ic].to_egf()
-                if split:
-                    n,p=corrdict_all[ic].split(taper=taper,taper_frac=taper_frac,
-                                    taper_maxlen=taper_maxlen,verbose=verbose)
-                    n.to_asdf(file=file_n)
-                    p.to_asdf(file=file_p)
-                else:
-                    corrdict_all[ic].to_asdf(file=merged_h5)
-            except Exception as e:
-                print(str(e)+"--> skipped: "+corrdict_all[ic].id)
-
+            if stack:
+                corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len,overwrite=True)
+            if to_egf:
+                corrdict_all[ic].to_egf()
+            if split:
+                n,p=corrdict_all[ic].split(taper=taper,taper_frac=taper_frac,
+                                taper_maxlen=taper_maxlen,verbose=verbose)
+                if verbose:print('save to %s and %s'%(file_n,file_p))
+                n.to_asdf(file=file_n)
+                p.to_asdf(file=file_p)
+            else:
+                if verbose:print('save to %s and %s'%(merged_h5,merged_h5))
+                corrdict_all[ic].to_asdf(file=merged_h5)
         del corrdict_all
 ###
 def split_sides(cfile,outdir='./PAIRS_SPLIT',taper=True,taper_frac=0.01,taper_maxlen=10,verbose=False):

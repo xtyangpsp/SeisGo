@@ -614,14 +614,14 @@ class CorrData(object):
             ctime=c.time.copy()
             cdata=c.data.copy()
 
-        self.time=np.concatenate((stime,ctime))
         try:
             self.data=np.concatenate((sdata,cdata),axis=0)
+            self.time=np.concatenate((stime,ctime)) #these two attributes need to be updated after the data attribute, which may throw errors.
+            self.substack=True
         except Exception as e:
             print("error in merging. skipped.")
             print(e)
 
-        self.substack=True
        
 
     #subset method
@@ -1071,6 +1071,9 @@ class CorrData(object):
         if sys.getsizeof(self.time)/1024 > 64: #64k is the limit of HDF attribute.
             parameters['time']=np.float32(self.time-np.mean(self.time))
             parameters['time_mean']=np.mean(self.time)
+            if sys.getsizeof(parameters['time'])/1024 > 64:
+                print('Warning: Even after getting the variations, the time attribute might be still too large to save as ')
+                print('the ASDF header [%fkb'%(sys.getsizeof(parameters['time'])/1024))
 
         #
         if file is None:
