@@ -1750,7 +1750,7 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
     """
     if group == 'waveforms':
         if len(data) != len(tag) or len(data) != len(sta_inv):
-            raise(Exception('save2asdf: the stream, tag list, and sta_in list should have the same length.'))
+            raise(Exception('save2asdf: the stream, tag list, and sta_inv list should have the same length.'))
 
     if not os.path.isfile(fname):
         ds=pyasdf.ASDFDataSet(fname,mpi=False,compression="gzip-3",mode='w')
@@ -1761,8 +1761,7 @@ def save2asdf(fname,data,tag,sta_inv=None,group='waveforms',para=None,event=None
 
     #save
     if sta_inv is not None:
-        for si in sta_inv:
-            ds.add_stationxml(si)
+        ds.add_stationxml(sta_inv)
 
     if group == 'waveforms':
         for i in range(len(data)):
