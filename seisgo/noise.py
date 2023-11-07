@@ -758,7 +758,7 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
         if split:
             file_n=os.path.join(ioutdir,pair+'_N.h5')
             file_p=os.path.join(ioutdir,pair+'_P.h5')
-        for ic in ['ZZ']:#cc_comp:
+        for ic in cc_comp:
             #save components.
             #convert corrdata to empirical Green's functions by
             #taking the negative time derivative. See types.CorrData.to_egf() for details.
