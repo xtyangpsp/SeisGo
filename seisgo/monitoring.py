@@ -216,7 +216,7 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
                 cur[i,:]=bandpass(cur[i,:],freq[0],0.995*freq[1],df=1/cdata.dt,corners=4,zerophase=True)
             else:
                 cur[i,:]=bandpass(cur[i,:],freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
-
+        ref = bandpass(ref,freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
 
         fig=plt.figure(figsize=figsize, facecolor = 'white')
         ax0= fig.add_subplot(8,1,(1,4))

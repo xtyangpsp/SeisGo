@@ -1235,6 +1235,7 @@ class CorrData(object):
         # cc matrix
         if substack:
             data = np.ndarray.copy(self.data[:,indx1:indx2])
+            meanall=np.mean(np.abs(data))
             timestamp = np.empty(ttime.size,dtype='datetime64[s]')
             # print(data.shape)
             nwin = data.shape[0]
@@ -1245,16 +1246,17 @@ class CorrData(object):
 
             tmarks = []
             data_normalizd=np.zeros(data.shape)
-
+            data_normalizd.fill(np.nan)
             # load cc for each station-pair
             for ii in range(nwin):
                 if freqmin is not None and freqmax is not None:
                     data[ii] = bandpass(data[ii],freqmin,freqmax,1/dt,corners=4, zerophase=True)
                 data[ii] = utils.taper(data[ii]-np.mean(data[ii]),maxlen=10)
                 amax[ii] = np.max(np.abs(data[ii]))
-                data_normalizd[ii] = data[ii]/amax[ii]
                 timestamp[ii] = obspy.UTCDateTime(ttime[ii])
                 tmarks.append(obspy.UTCDateTime(ttime[ii]).strftime(time_format))
+                if np.isnan(data[ii]).any() or amax[ii] < meanall/100000:continue
+                data_normalizd[ii] = data[ii]/amax[ii]
 
             dstack = stacking.seisstack(data,method=stack_method,par=stack_par)
             del data
