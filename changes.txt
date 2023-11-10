@@ -1,4 +1,7 @@
 Updates in v0.8.0
+MONITORING:
+1. get_dvv():drop negative error data
+
 TYPES:
 1. RawData: minor bug fix for attribute names.
 2. Added CorrDataEnsemble() placeholder, to store a gather of CorrData from the same virtual source.
@@ -6,6 +9,7 @@ TYPES:
 4. Fixed typos in CorrData.filter(), where highpass() was typed as lhighpass.
 5. CorrData.merge(): fixed bugs when errors in joining two data matrices, the time attribute will still be merged, leading 
 to inconsistent sizes.
+6. DvvData: drop negative error data and added option to specify maximum error in plot().
 
 NOISE:
 1. merge_pairs(): fixed minor bugs. Removed try{} block in stack, split, egf, and saving steps. The try block would hide errors
