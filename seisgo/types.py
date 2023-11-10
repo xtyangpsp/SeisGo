@@ -1788,13 +1788,14 @@ class DvvData(object):
         else:
             raise ValueError(format+" is not supported yet.")
     ##plot
-    def plot(self,cc_min=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
+    def plot(self,cc_min=None,error_max=None,figsize=(8,5),ylim=None,save=False,nxtick=None,\
             figdir='.',format='png',figname=None,smooth=None,yinc=1.0,ytick_precision=1,
             crange=None,side="a",errorbar=True,markersize=5):
         """
         Plot DvvData.
 
         cc_min: minimum max-correlation-coefficient in measuring dvv.
+        error_max: maximum error in dv/v measurement, applied for both negative and positive sides.
         figsize: figure size tuble
         ylim: y range for Display
         save: save figure. default False.
@@ -1823,6 +1824,26 @@ class DvvData(object):
 
         idx2=np.where((self.maxcc2<cc_min))
         pvdata[idx2]=np.nan
+        nerror=self.error1.copy()
+        perror=self.error2.copy()
+        idx1=[]
+        idx1=np.where((self.error1<0))
+        nvdata[idx1]=np.nan
+        nerror[idx1]=np.nan
+        idx2=[]
+        idx2=np.where((self.error2<0))
+        pvdata[idx2]=np.nan
+        perror[idx1]=np.nan
+        
+        if error_max is not None:
+            idx1=[]
+            idx2=[]
+            idx1=np.where((self.error1>error_max))
+            nvdata[idx1]=np.nan
+
+            idx2=np.where((self.error2>error_max))
+            pvdata[idx2]=np.nan
+
         nwin=nvdata.shape[0]
         # tick inc for plotting
         if nxtick is None:
@@ -1894,13 +1915,13 @@ class DvvData(object):
             plt.hlines(0,np.min(self.time)-xext,np.max(self.time)+xext,colors='k')
             if side.lower()=="a" or side.lower()=="n":
                 if errorbar:
-                    plt.errorbar(self.time,nvdata,yerr=self.error1,fmt="o",markersize=markersize,
+                    plt.errorbar(self.time,nvdata,yerr=nerror,fmt="o",markersize=markersize,
                                 capsize=3,label="negative")
                 else:
                     plt.plot(self.time,nvdata,".-",markersize=markersize,label="negative")
             if side.lower()=="a" or side.lower()=="p":
                 if errorbar:
-                    plt.errorbar(self.time,pvdata,yerr=self.error2,fmt="^",markersize=markersize,
+                    plt.errorbar(self.time,pvdata,yerr=perror,fmt="^",markersize=markersize,
                                 capsize=3,label="positive")
                 else:
                     plt.plot(self.time,pvdata,".-",markersize=markersize,label="positive")

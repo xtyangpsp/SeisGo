@@ -193,6 +193,17 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     maxcc_n=np.array(maxcc_n)
     error_p=np.array(error_p)
     error_n=np.array(error_n)
+    #for now, if errors are negative, assign np.nan to dvv data.
+    dvv_neg=np.array(dvv_neg)
+    dvv_pos=np.array(dvv_pos)
+    idx1=np.where((error_n<0))
+    idx2=np.where((error_p<0))
+    error_n[idx1]=np.nan
+    error_p[idx2]=np.nan
+    maxcc_n[idx1]=np.nan
+    maxcc_p[idx2]=np.nan
+    dvv_neg[idx1]=np.nan
+    dvv_pos[idx2]=np.nan
     dvvdata=DvvData(cdata,subfreq=subfreq,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
                         method=method,stack_method=stack_method,error1=error_n,error2=error_p,
                         window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
