@@ -1,3 +1,7 @@
+Updates in v0.8.1
+1. Types.CorrData.subset: clarified documentary of overwrite option. Default False.
+
+=============================================================
 Updates in v0.8.0
 MONITORING:
 1. get_dvv():drop negative error data
