@@ -758,13 +758,27 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
         utils.save2asdf(fname,[tr[0]],[tag],sta_inv=inv)
 
 def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,maxmag=10,
-                    magstep=1.0,source="USGS",v=False):
+                    magstep=1.0,mindepth=-100,maxdepth=1000,lat=None,lon=None,
+                    minradius=None,maxradius=None,maxradiuskm=None,source="USGS",v=False):
     """
     Download event catalog within a box from USGS or ISC catalogs.
     """
     #elist is a list of panda dataframes
     t0=time.time()
-
+    if None in [lat, lon, maxradius] or None in [lat, lon, maxradiuskm]:
+        searchtype='box'
+    else:
+        searchtype='circle'
+    if maxradius is not None and maxradiuskm is not None:
+        raise ValueError('Only one of maxradius and maxradiuskm could be specified!'+\
+                         " See https://earthquake.usgs.gov/fdsnws/event/1 for details.")
+    
+    if maxradiuskm is not None and source=="ISC":
+        raise ValueError("maxrasiumkm is only used by USGS API.")
+    if minradius is not None and source=="USGS":
+        raise ValueError("minrasium is only used by ISC API. ")
+    if minradius is None:
+        minradius=0
     #Download the catalog by magnitudes
     maglist=np.arange(minmag,maxmag+0.5*magstep,magstep)
     events=[]
@@ -775,14 +789,34 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
             minM=str(maglist[i])
         maxM=str(maglist[i+1])
         if v: print(minM,maxM)
-        if(source=="ISC"):
-            quake_url="http://isc-mirror.iris.washington.edu/fdsnws/event/1/query?starttime="+\
-            start+"&endtime="+end+"&minlatitude="+str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+\
-            str(minlon)+"&maxlongitude="+str(maxlon)+"&minmagnitude="+minM+"&maxmagnitude="+maxM+""
-        elif(source=="USGS"):
-            quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
-            start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&minlatitude="+\
-            str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+str(minlon)+"&maxlongitude="+str(maxlon)+""
+        if searchtype == 'box':
+            if source=="ISC":
+                quake_url="http://isc-mirror.iris.washington.edu/fdsnws/event/1/query?starttime="+\
+                start+"&endtime="+end+"&minlatitude="+str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+\
+                str(minlon)+"&maxlongitude="+str(maxlon)+"&minmagnitude="+minM+"&maxmagnitude="+maxM+\
+                "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+            elif source=="USGS":
+                quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
+                start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&minlatitude="+\
+                str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+str(minlon)+"&maxlongitude="+str(maxlon)+\
+                "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+        else:
+            if source=="ISC":
+                quake_url="http://isc-mirror.iris.washington.edu/fdsnws/event/1/query?starttime="+\
+                start+"&endtime="+end+"&latitude="+str(lat)+"&longitude="+\
+                str(lon)+"&minradius="+str(minradius)+"&maxradius="+str(maxradius)+"&minmagnitude="+minM+"&maxmagnitude="+maxM+\
+                "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+            elif source=="USGS":
+                if maxradius is not None:
+                    quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
+                    start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&latitude="+\
+                    str(lat)+"&longitude="+str(lon)+"&maxradius="+str(maxradius)+\
+                    "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+                else:
+                    quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
+                    start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&latitude="+\
+                    str(lat)+"&longitude="+str(lon)+"&maxradius="+str(maxradiuskm)+\
+                    "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
 
         try:
             event = read_events(quake_url)

@@ -1,6 +1,9 @@
 Updates in v0.8.1
 1. Types.CorrData.subset: clarified documentary of overwrite option. Default False.
 
+DOWNLOADERS:
+1. get_events(): added depth range and search with radius in circles.
+
 =============================================================
 Updates in v0.8.0
 MONITORING:
