@@ -648,145 +648,185 @@ def qml_to_event_list(events_QML,to_pd=False):
     return qml2list(events_QML,to_pd=to_pd)
 
 # modified from qml_to_event_list in obspyDMT.utils.event_handler.py
-def qml2list(events_QML,to_pd=False):
+def qml2list(events_QML,to_pd=False,location_only=False):
     """
     convert QML to event list
 
     ===PARAMETERS===
     events_QML: event qml (OBSPY CATALOG object)
     to_pd: convert to Pandas DataFrame object. Default: False.
+    location_only: only extract lat and longitude. Default: False. Date and time will still be extracted.
 
     ====return====
     events: a list of event information or a pandas dataframe object.
     """
     events = []
     for i in range(len(events_QML)):
-        try:
-            event_time = events_QML.events[i].preferred_origin().time or \
-                         events_QML.events[i].origins[0].time
-            event_time_month = '%02i' % int(event_time.month)
-            event_time_day = '%02i' % int(event_time.day)
-            event_time_hour = '%02i' % int(event_time.hour)
-            event_time_minute = '%02i' % int(event_time.minute)
-            event_time_second = '%02i' % int(event_time.second)
+        if location_only: 
+            try:
+                event_time = events_QML.events[i].preferred_origin().time or \
+                            events_QML.events[i].origins[0].time
+                event_time_month = '%02i' % int(event_time.month)
+                event_time_day = '%02i' % int(event_time.day)
+                event_time_hour = '%02i' % int(event_time.hour)
+                event_time_minute = '%02i' % int(event_time.minute)
+                event_time_second = '%02i' % int(event_time.second)
+            except Exception as error:
+                print(error)
+                continue
 
-            if not hasattr(events_QML.events[i], 'preferred_mag'):
-                events_QML.events[i].preferred_mag = \
-                    events_QML.events[i].magnitudes[0].mag
-                events_QML.events[i].preferred_mag_type = \
-                    events_QML.events[i].magnitudes[0].magnitude_type
-                events_QML.events[i].preferred_author = 'None'
-            else:
-                if not hasattr(events_QML.events[i], 'preferred_author'):
-                    if events_QML.events[i].preferred_magnitude().creation_info:
-                        events_QML.events[i].preferred_author = \
-                            events_QML.events[i].preferred_magnitude().creation_info.author
-                    elif events_QML.events[i].magnitudes[0].creation_info:
-                        events_QML.events[i].preferred_author = \
-                            events_QML.events[i].magnitudes[0].creation_info.author
-        except Exception as error:
-            print(error)
-            continue
-        try:
-            if not events_QML.events[i].focal_mechanisms == []:
-                if events_QML.events[i].preferred_focal_mechanism()['moment_tensor']['tensor']:
-                    focal_mechanism = [
-                        events_QML.events[i].preferred_focal_mechanism()
-                        ['moment_tensor']['tensor']['m_rr'],
-                        events_QML.events[i].preferred_focal_mechanism()
-                        ['moment_tensor']['tensor']['m_tt'],
-                        events_QML.events[i].preferred_focal_mechanism()
-                        ['moment_tensor']['tensor']['m_pp'],
-                        events_QML.events[i].preferred_focal_mechanism()
-                        ['moment_tensor']['tensor']['m_rt'],
-                        events_QML.events[i].preferred_focal_mechanism()
-                        ['moment_tensor']['tensor']['m_rp'],
-                        events_QML.events[i].preferred_focal_mechanism()
-                        ['moment_tensor']['tensor']['m_tp']]
+            try:
+                events.append(OrderedDict(
+                    [('number', i+1),
+                    ('latitude',
+                    events_QML.events[i].preferred_origin().latitude or
+                    events_QML.events[i].origins[0].latitude),
+                    ('longitude',
+                    events_QML.events[i].preferred_origin().longitude or
+                    events_QML.events[i].origins[0].longitude),
+                    ('depth',np.nan),
+                    ('datetime', event_time),
+                    ('magnitude',np.nan),
+                    ('magnitude_type',"UD"),
+                    ('author',"UD"),
+                    ('event_id', str(event_time.year) +
+                    event_time_month + event_time_day + '_' +
+                    event_time_hour + event_time_minute +
+                    event_time_second + '.a'),
+                    ('origin_id', events_QML.events[i].preferred_origin_id or
+                    events_QML.events[i].origins[0].resource_id.resource_id),
+                    ('flynn_region', 'NAN'),
+                    ]))
+            except Exception as error:
+                print(error)
+                continue
+        else:
+            try:
+                event_time = events_QML.events[i].preferred_origin().time or \
+                            events_QML.events[i].origins[0].time
+                event_time_month = '%02i' % int(event_time.month)
+                event_time_day = '%02i' % int(event_time.day)
+                event_time_hour = '%02i' % int(event_time.hour)
+                event_time_minute = '%02i' % int(event_time.minute)
+                event_time_second = '%02i' % int(event_time.second)
+
+                if not hasattr(events_QML.events[i], 'preferred_mag'):
+                    events_QML.events[i].preferred_mag = \
+                        events_QML.events[i].magnitudes[0].mag
+                    events_QML.events[i].preferred_mag_type = \
+                        events_QML.events[i].magnitudes[0].magnitude_type
+                    events_QML.events[i].preferred_author = 'None'
                 else:
-                    found_foc_mech = False
-                    for foc_mech_qml in events_QML.events[i].focal_mechanisms:
-                        if foc_mech_qml['moment_tensor']['tensor']:
-                            focal_mechanism = [
-                                foc_mech_qml['moment_tensor']['tensor']['m_rr'],
-                                foc_mech_qml['moment_tensor']['tensor']['m_tt'],
-                                foc_mech_qml['moment_tensor']['tensor']['m_pp'],
-                                foc_mech_qml['moment_tensor']['tensor']['m_rt'],
-                                foc_mech_qml['moment_tensor']['tensor']['m_rp'],
-                                foc_mech_qml['moment_tensor']['tensor']['m_tp']
-                            ]
-                            found_foc_mech = True
-                            break
-                    if not found_foc_mech:
-                        focal_mechanism = False
-            else:
+                    if not hasattr(events_QML.events[i], 'preferred_author'):
+                        if events_QML.events[i].preferred_magnitude().creation_info:
+                            events_QML.events[i].preferred_author = \
+                                events_QML.events[i].preferred_magnitude().creation_info.author
+                        elif events_QML.events[i].magnitudes[0].creation_info:
+                            events_QML.events[i].preferred_author = \
+                                events_QML.events[i].magnitudes[0].creation_info.author
+            except Exception as error:
+                print(error)
+                continue
+            try:
+                if not events_QML.events[i].focal_mechanisms == []:
+                    if events_QML.events[i].preferred_focal_mechanism()['moment_tensor']['tensor']:
+                        focal_mechanism = [
+                            events_QML.events[i].preferred_focal_mechanism()
+                            ['moment_tensor']['tensor']['m_rr'],
+                            events_QML.events[i].preferred_focal_mechanism()
+                            ['moment_tensor']['tensor']['m_tt'],
+                            events_QML.events[i].preferred_focal_mechanism()
+                            ['moment_tensor']['tensor']['m_pp'],
+                            events_QML.events[i].preferred_focal_mechanism()
+                            ['moment_tensor']['tensor']['m_rt'],
+                            events_QML.events[i].preferred_focal_mechanism()
+                            ['moment_tensor']['tensor']['m_rp'],
+                            events_QML.events[i].preferred_focal_mechanism()
+                            ['moment_tensor']['tensor']['m_tp']]
+                    else:
+                        found_foc_mech = False
+                        for foc_mech_qml in events_QML.events[i].focal_mechanisms:
+                            if foc_mech_qml['moment_tensor']['tensor']:
+                                focal_mechanism = [
+                                    foc_mech_qml['moment_tensor']['tensor']['m_rr'],
+                                    foc_mech_qml['moment_tensor']['tensor']['m_tt'],
+                                    foc_mech_qml['moment_tensor']['tensor']['m_pp'],
+                                    foc_mech_qml['moment_tensor']['tensor']['m_rt'],
+                                    foc_mech_qml['moment_tensor']['tensor']['m_rp'],
+                                    foc_mech_qml['moment_tensor']['tensor']['m_tp']
+                                ]
+                                found_foc_mech = True
+                                break
+                        if not found_foc_mech:
+                            focal_mechanism = False
+                else:
+                    focal_mechanism = False
+            except AttributeError:
+                print("[WARNING] focal_mechanism does not exist for " \
+                    "event: %s -- set to False" % (i+1))
                 focal_mechanism = False
-        except AttributeError:
-            print("[WARNING] focal_mechanism does not exist for " \
-                  "event: %s -- set to False" % (i+1))
-            focal_mechanism = False
-        except TypeError:
-            focal_mechanism = False
-        except Exception as error:
-            print(error)
-            focal_mechanism = False
+            except TypeError:
+                focal_mechanism = False
+            except Exception as error:
+                print(error)
+                focal_mechanism = False
 
-        try:
-            if not events_QML.events[i].focal_mechanisms == []:
-                source_duration = [
-                    events_QML.events[i].preferred_focal_mechanism()
-                    ['moment_tensor']['source_time_function']['type'],
-                    events_QML.events[i].preferred_focal_mechanism()
-                    ['moment_tensor']['source_time_function']
-                    ['duration']]
-                if not source_duration[1]:
+            try:
+                if not events_QML.events[i].focal_mechanisms == []:
+                    source_duration = [
+                        events_QML.events[i].preferred_focal_mechanism()
+                        ['moment_tensor']['source_time_function']['type'],
+                        events_QML.events[i].preferred_focal_mechanism()
+                        ['moment_tensor']['source_time_function']
+                        ['duration']]
+                    if not source_duration[1]:
+                        source_duration = mag_duration(
+                            mag=events_QML.events[i].preferred_mag)
+                else:
                     source_duration = mag_duration(
                         mag=events_QML.events[i].preferred_mag)
-            else:
-                source_duration = mag_duration(
-                    mag=events_QML.events[i].preferred_mag)
-        except AttributeError:
-            print("[WARNING] source duration does not exist for " \
-                  "event: %s -- set to False" % (i+1))
-            source_duration = False
-        except TypeError:
-            source_duration = False
-        except Exception as error:
-            print(error)
-            source_duration = False
+            except AttributeError:
+                print("[WARNING] source duration does not exist for " \
+                    "event: %s -- set to False" % (i+1))
+                source_duration = False
+            except TypeError:
+                source_duration = False
+            except Exception as error:
+                print(error)
+                source_duration = False
 
-        try:
-            events.append(OrderedDict(
-                [('number', i+1),
-                 ('latitude',
-                  events_QML.events[i].preferred_origin().latitude or
-                  events_QML.events[i].origins[0].latitude),
-                 ('longitude',
-                  events_QML.events[i].preferred_origin().longitude or
-                  events_QML.events[i].origins[0].longitude),
-                 ('depth',
-                  events_QML.events[i].preferred_origin().depth/1000. or
-                  events_QML.events[i].origins[0].depth/1000.),
-                 ('datetime', event_time),
-                 ('magnitude',
-                  events_QML.events[i].preferred_mag),
-                 ('magnitude_type',
-                  events_QML.events[i].preferred_mag_type),
-                 ('author',
-                  events_QML.events[i].preferred_author),
-                 ('event_id', str(event_time.year) +
-                  event_time_month + event_time_day + '_' +
-                  event_time_hour + event_time_minute +
-                  event_time_second + '.a'),
-                 ('origin_id', events_QML.events[i].preferred_origin_id or
-                  events_QML.events[i].origins[0].resource_id.resource_id),
-                 ('focal_mechanism', focal_mechanism),
-                 ('source_duration', source_duration),
-                 ('flynn_region', 'NAN'),
-                 ]))
-        except Exception as error:
-            print(error)
-            continue
+            try:
+                events.append(OrderedDict(
+                    [('number', i+1),
+                    ('latitude',
+                    events_QML.events[i].preferred_origin().latitude or
+                    events_QML.events[i].origins[0].latitude),
+                    ('longitude',
+                    events_QML.events[i].preferred_origin().longitude or
+                    events_QML.events[i].origins[0].longitude),
+                    ('depth',
+                    events_QML.events[i].preferred_origin().depth/1000. or
+                    events_QML.events[i].origins[0].depth/1000.),
+                    ('datetime', event_time),
+                    ('magnitude',
+                    events_QML.events[i].preferred_mag),
+                    ('magnitude_type',
+                    events_QML.events[i].preferred_mag_type),
+                    ('author',
+                    events_QML.events[i].preferred_author),
+                    ('event_id', str(event_time.year) +
+                    event_time_month + event_time_day + '_' +
+                    event_time_hour + event_time_minute +
+                    event_time_second + '.a'),
+                    ('origin_id', events_QML.events[i].preferred_origin_id or
+                    events_QML.events[i].origins[0].resource_id.resource_id),
+                    ('focal_mechanism', focal_mechanism),
+                    ('source_duration', source_duration),
+                    ('flynn_region', 'NAN'),
+                    ]))
+            except Exception as error:
+                print(error)
+                continue
     if to_pd:
         return pd.DataFrame(events)
     else:

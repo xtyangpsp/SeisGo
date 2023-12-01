@@ -1,5 +1,6 @@
 Updates in v0.8.1
 1. Types.CorrData.subset: clarified documentary of overwrite option. Default False.
+2. qml2list:add option to only extract location and dates.
 
 DOWNLOADERS:
 1. get_events(): added depth range and search with radius in circles.
