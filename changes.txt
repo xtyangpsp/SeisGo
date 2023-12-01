@@ -4,6 +4,9 @@ Updates in v0.8.1
 DOWNLOADERS:
 1. get_events(): added depth range and search with radius in circles.
 
+PLOTTINGS:
+1. plot_stations: added options to specific colors and renamed it to gmt_scatters() to be more general. 
+    Old function was kept but will throw an error.
 =============================================================
 Updates in v0.8.0
 MONITORING:
