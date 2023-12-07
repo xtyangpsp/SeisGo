@@ -9,7 +9,17 @@ from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
 from seisgo import utils,stacking,helpers
 from obspy import UTCDateTime
 from scipy import signal
+from cartopy.io.img_tiles import GoogleTiles
 ######
+class ShadedReliefESRI(GoogleTiles):
+    #Modified from one of the answers on this page: https://stackoverflow.com/questions/37423997/cartopy-shaded-relief
+    # shaded relief
+    def _image_url(self, tile):
+        x, y, z = tile
+        url = ('https://server.arcgisonline.com/ArcGIS/rest/services/' \
+               'World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}.jpg').format(
+               z=z, y=y, x=x)
+        return url
 class SeismicEngine(object):
     """
     Engine to interactively display time series data.
