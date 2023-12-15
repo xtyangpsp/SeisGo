@@ -39,7 +39,7 @@ $ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt p
 $ conda activate seisgo
 ```
 
-The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mip4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests. You can create jupyter kernel:
+The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mpi4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests. You can create jupyter kernel:
 
 ```
 $ conda activate seisgo
