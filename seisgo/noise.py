@@ -197,8 +197,8 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
         ftemp = open(tmpfile,'r')
         alines = ftemp.readlines()
         if len(alines) and alines[-1] == 'done':
-            return 0
             ftemp.close()
+            return 0
         else:
             ftemp.close()
             os.remove(tmpfile)
