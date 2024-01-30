@@ -1317,8 +1317,8 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     dataS:      2D matrix of the segmented data
     '''
     # statistic to detect segments that may be associated with earthquakes
-    all_madS = mad(source[0].data)	            # median absolute deviation over all noise window
-    all_stdS = np.std(source[0].data)	        # standard deviation over all noise window
+    all_madS = mad(np.abs(source[0].data))	            # median absolute deviation over all noise window
+    all_stdS = np.std(np.abs(source[0].data))	        # standard deviation over all noise window
     if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
         print("return empty! madS or stdS equals to 0 for %s" % source)
         return [],[],[]
