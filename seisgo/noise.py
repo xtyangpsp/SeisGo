@@ -984,7 +984,7 @@ def save_xcorr_amplitudes(dict_in,filenamebase=None):
         outDF.to_csv(fname,index=False)
         print('data was saved to: '+fname)
 #
-def shaping_corrdata(ccfile,wavelet,width,shift,trim_end=False,outdir=".",comp="ZZ",stack=True,
+def shaping_corrdata(ccfile,wavelet,width,shift,trim_end=False,outdir=".",pair=None,comp="ZZ",stack=True,
                         stack_method='robust',output_format="asdf",verbose=True):
     """
     This is a wrapper to apply shaping wavelet to corrdata.data and save to files.
@@ -993,7 +993,8 @@ def shaping_corrdata(ccfile,wavelet,width,shift,trim_end=False,outdir=".",comp="
     ccfile: file containing correlation data.
     wavelet,width,shift: shaping wavelet parameters. See seisgo.types.CorrData.shaping() for details.
     outdir: output directory. Default is current folder:"."
-    comp: correlation component. Default: "ZZ"
+    pair: station pair to process. May specify as a list or string. Default is None, processing all components. 
+    comp: correlation component. May specify as a list or string. Default: "ZZ". Process all components if None.
     stack=True,stack_method='robust': save stack after shaping? Default is True.
     output_format: format to save the shapped data. Default "asdf".
     verbose: Default: True
@@ -1009,31 +1010,39 @@ def shaping_corrdata(ccfile,wavelet,width,shift,trim_end=False,outdir=".",comp="
         raise ValueError(output_format+" is not recoganized. use sac or asdf.")
 
     cdataall=extract_corrdata(ccfile)
-    pair=list(cdataall.keys())[0]
+    pairall=list(cdataall.keys())
+    if isinstance(pair,str):pair=[pair]
+    if pair is None: pair = pairall 
 
-    cdata=cdataall[pair][comp]
+    #loop through all pairs
+    for pair0 in pair:
+        if isinstance(comp,str):comp=[comp]
+        compall=list(cdataall[pair0].keys())
+        if comp is None: comp=compall
+        for comp0 in compall:
+            cdata=cdataall[pair0][comp0]
 
-    # CONVOLVE
-    cdata.shaping(width,shift,wavelet=wavelet,trim_end=trim_end,overwrite=True)
-    #
-    fbase=pair+'_'+comp+'_'+cdata.side
-    #save individual NCFs
-    if output_format.lower() == "sac":
-        outdir0=os.path.join(outdir,pair)
-        cdata.save(output_format,outdir=outdir0,v=verbose)
-    elif output_format.lower() == "asdf":
-        outdir0=outdir
-        cdata.save(output_format,file=fbase+"."+fext,outdir=outdir0,v=verbose)
+            # CONVOLVE
+            cdata.shaping(width,shift,wavelet=wavelet,trim_end=trim_end,overwrite=True)
+            #
+            fbase=pair0+'_'+comp0+'_'+cdata.side
+            #save individual NCFs
+            if output_format.lower() == "sac":
+                outdir0=os.path.join(outdir,pair0)
+                cdata.save(output_format,outdir=outdir0,v=verbose)
+            elif output_format.lower() == "asdf":
+                outdir0=outdir
+                cdata.save(output_format,file=fbase+"."+fext,outdir=outdir0,v=verbose)
 
-    #stack and overwrite
-    if stack:
-        cdata.stack(method=stack_method,overwrite=True)
-        if output_format.lower() == "sac":
-            corrtime=obspy.UTCDateTime(cdata.time)
-            ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_stack.'+fext
-        elif output_format.lower() == "asdf":
-            ofile =  fbase+"_stack."+fext
-        cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
+            #stack and overwrite
+            if stack:
+                cdata.stack(method=stack_method,overwrite=True)
+                if output_format.lower() == "sac":
+                    corrtime=obspy.UTCDateTime(cdata.time)
+                    ofile=str(corrtime).replace(':', '-')+'_'+cdata.id+'_'+cdata.cc_comp+'_'+cdata.side+'_stack.'+fext
+                elif output_format.lower() == "asdf":
+                    ofile =  fbase+"_stack."+fext
+                cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
 
 #
 def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):

@@ -1317,8 +1317,11 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     dataS:      2D matrix of the segmented data
     '''
     # statistic to detect segments that may be associated with earthquakes
-    all_madS = mad(np.abs(source[0].data))	            # median absolute deviation over all noise window
-    all_stdS = np.std(np.abs(source[0].data))	        # standard deviation over all noise window
+    #demean and detrend the whole trace first:
+    trace_data=source[0].data.copy()
+    trace_data=detrend(demean(trace_data))
+    all_madS = mad(np.abs(trace_data))	            # median absolute deviation over all noise window
+    all_stdS = np.std(np.abs(trace_data))	        # standard deviation over all noise window
     if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
         print("return empty! madS or stdS equals to 0 for %s" % source)
         return [],[],[]
@@ -1350,15 +1353,15 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     indx1 = 0
     for iseg in range(nseg):
         indx2 = indx1+npts
-        dataS[iseg] = source[0].data[indx1:indx2]
-        trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
+        dataS[iseg] = trace_data[indx1:indx2]
         dataS_t[iseg]    = starttime+step_secs*iseg
         indx1 += npts_step
 
     # 2D array processing
-    dataS = demean(dataS)
-    dataS = detrend(dataS)
+    dataS = detrend(demean(dataS))
     dataS = taper(dataS,fraction=taper_frac)
+    for iseg in range(nseg):
+        trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
 
     return trace_stdS,dataS_t,dataS
 

@@ -1,6 +1,16 @@
 Updates in v0.8.1
+TYPES:
 1. Types.CorrData.subset: clarified documentary of overwrite option. Default False.
-2. qml2list:add option to only extract location and dates.
+2. Added a new class for plotting shaded relief based on cartopy.
+
+NOISE:
+1. In shaping_corrdata(), modified to loop through all pairs and all components, if not specified by the user.
+
+UTILS:
+1. qml2list:add option to only extract location and dates.
+2. slicing_trace(): fixed a bug when all trace std was computed using the amplitudes instead of the absolute amplitudes.
+3. slicing_trace(): changed to compute trace_stdS after demean and detrend. 
+added demean and detrend of whole trace at the beginning.
 
 DOWNLOADERS:
 1. get_events(): added depth range and search with radius in circles.
