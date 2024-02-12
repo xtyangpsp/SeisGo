@@ -765,7 +765,7 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
     """
     #elist is a list of panda dataframes
     t0=time.time()
-    if None in [lat, lon, maxradius] or None in [lat, lon, maxradiuskm]:
+    if None in [lat, lon, maxradius] and None in [lat, lon, maxradiuskm]:
         searchtype='box'
     else:
         searchtype='circle'
@@ -815,7 +815,7 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
                 else:
                     quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
                     start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&latitude="+\
-                    str(lat)+"&longitude="+str(lon)+"&maxradius="+str(maxradiuskm)+\
+                    str(lat)+"&longitude="+str(lon)+"&maxradiuskm="+str(maxradiuskm)+\
                     "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
 
         try:
