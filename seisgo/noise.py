@@ -765,7 +765,10 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
             if stack:
                 corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len,overwrite=True)
             if to_egf:
-                corrdict_all[ic].to_egf()
+                try:
+                    corrdict_all[ic].to_egf()
+                except Exception as e:
+                    print(e)
             if split:
                 n,p=corrdict_all[ic].split(taper=taper,taper_frac=taper_frac,
                                 taper_maxlen=taper_maxlen,verbose=verbose)
