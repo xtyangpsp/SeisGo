@@ -23,7 +23,7 @@ def cc_memory(inc_hours,sps,nsta,ncomp,cc_len,cc_step):
     """
     nseg_chunk = int(np.floor((3600*inc_hours-cc_len)/cc_step))+1
     npts_chunk = int(nseg_chunk*cc_len*sps)
-    memory_size = nsta*npts_chunk*4/1024/1024/1024**ncomp
+    memory_size = nsta*npts_chunk*4**ncomp/1024/1024/1024
 
     return memory_size
 
