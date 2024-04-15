@@ -11,7 +11,8 @@ import pandas as pd
 from numba import jit
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
-from scipy.signal import tukey,hilbert
+from scipy.signal import hilbert
+from scipy.signal.windows import tukey
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
 from obspy.core.util.base import _get_function_from_entry_point
