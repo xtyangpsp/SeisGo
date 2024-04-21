@@ -11,6 +11,7 @@ UTILS:
 2. slicing_trace(): fixed a bug when all trace std was computed using the amplitudes instead of the absolute amplitudes.
 3. slicing_trace(): changed to compute trace_stdS after demean and detrend. 
 added demean and detrend of whole trace at the beginning.
+4. import tukey from scipy.signal.windows to be compatible with different scipy version.
 
 DOWNLOADERS:
 1. get_events(): added depth range and search with radius in circles.
@@ -18,6 +19,10 @@ DOWNLOADERS:
 PLOTTINGS:
 1. plot_stations: added options to specific colors and renamed it to gmt_scatters() to be more general. 
     Old function was kept but will throw an error.
+
+OBSMASTER:
+1. import tukey from scipy.signal.windows to be compatible with different scipy version.
+
 =============================================================
 Updates in v0.8.0
 MONITORING:

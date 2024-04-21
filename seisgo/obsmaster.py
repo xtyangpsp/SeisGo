@@ -4,7 +4,8 @@
 from seisgo import utils,downloaders
 from seisgo.types import Power,Cross,Rotation
 # from warnings import warn
-from scipy.signal import spectrogram, detrend,tukey
+from scipy.signal import spectrogram, detrend
+from scipy.signal.windows import tukey
 from scipy.linalg import norm
 import matplotlib.pyplot as plt
 import numpy as np
