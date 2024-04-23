@@ -12,10 +12,10 @@ from numba import jit
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
 from scipy.signal import hilbert
-from scipy.signal.windows import tukey
+from scipy.signal.windows import tukey,hann
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
-from obspy.core.util.base import _get_function_from_entry_point
+# from obspy.core.util.base import _get_function_from_entry_point
 from obspy.signal.util import _npts2nfft
 from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
@@ -2182,7 +2182,7 @@ def taper(data,fraction=0.05,maxlen=20):
         if wlen>maxlen:wlen = maxlen
 
         # taper values
-        func = _get_function_from_entry_point('taper', 'hann')
+        func = hann #_get_function_from_entry_point('taper', 'hann')
         if 2*wlen == npts:
             taper_sides = func(2*wlen)
         else:
@@ -2196,7 +2196,7 @@ def taper(data,fraction=0.05,maxlen=20):
         wlen = int(npts*fraction)
         if wlen>maxlen:wlen = maxlen
         # taper values
-        func = _get_function_from_entry_point('taper', 'hann')
+        func = hann #_get_function_from_entry_point('taper', 'hann')
         if 2*wlen == npts:
             taper_sides = func(2*wlen)
         else:

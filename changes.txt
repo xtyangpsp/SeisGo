@@ -1,3 +1,9 @@
+Updates in v0.8.3:
+UTILS:
+1. Replace obspy.core.util.base._get_function_from_entry_point for 
+  taper hann window with scipy.signal.windows.hann for compatibility with new scipy. 
+
+=============================================================
 Updates in v0.8.1
 TYPES:
 1. Types.CorrData.subset: clarified documentary of overwrite option. Default False.
