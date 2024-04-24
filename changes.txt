@@ -3,6 +3,17 @@ UTILS:
 1. Replace obspy.core.util.base._get_function_from_entry_point for 
   taper hann window with scipy.signal.windows.hann for compatibility with new scipy. 
 
+DOWNLOADERS:
+1. Added more verbose prints in getdata().
+2. Use utils.taper() for tapering the raw data, instead of obspy's taper function,
+  which has version errors in scipy hann window.
+
+NOISE:
+1. Fixed minor bugs in int and float, which are now excluded from numpy.
+
+NOTEBOOKS:
+1. Updated the seisgo_download_xcorr_demo with the latest version of seisgo.
+
 =============================================================
 Updates in v0.8.1
 TYPES:

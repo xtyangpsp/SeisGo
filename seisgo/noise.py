@@ -356,8 +356,8 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
             nstack = int(np.round(Ttotal/substack_len))
             ampmax = np.zeros(nstack,dtype=np.float32)
             s_corr = np.zeros(shape=(nstack,Nfft),dtype=np.float32)
-            n_corr = np.zeros(nstack,dtype=np.int)
-            t_corr = np.zeros(nstack,dtype=np.float)
+            n_corr = np.zeros(nstack,dtype=int)
+            t_corr = np.zeros(nstack,dtype=float)
             crap   = np.zeros(Nfft,dtype=np.complex64)
 
             for istack in range(nstack):
