@@ -1,3 +1,9 @@
+Updates in v0.8.4:
+SCRIPTS:
+1. Added the scripts for the whole workflow of extracting EGFs.
+2. Removed some old scripts that are incompatible with the new usage and functions.
+
+=============================================================
 Updates in v0.8.3:
 UTILS:
 1. Replace obspy.core.util.base._get_function_from_entry_point for 
