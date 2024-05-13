@@ -3,6 +3,9 @@ SCRIPTS:
 1. Added the scripts for the whole workflow of extracting EGFs.
 2. Removed some old scripts that are incompatible with the new usage and functions.
 
+SIMULATION MODEL:
+1. Added build_vmodel() to create a layered model with linearly increasing velocity.
+
 =============================================================
 Updates in v0.8.3:
 UTILS:
