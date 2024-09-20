@@ -493,6 +493,9 @@ class CorrData(object):
         else:
             self.side=side
         self.substack=substack
+        #if ndim is > 1, it means there might be only 1 trace but in the format of substack.
+        if self.data.ndim > 1:
+            self.substack=True
         self.misc=misc
 
     def __str__(self):
@@ -518,7 +521,7 @@ class CorrData(object):
         print("baz      :   "+str(self.baz))
         print("side     :   "+str(self.side))
         if self.time is not None:
-            if self.substack and self.data.ndim > 1:
+            if self.substack:
                 print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
             else:
                 print("time     :   "+str(obspy.UTCDateTime(self.time)))
@@ -551,13 +554,13 @@ class CorrData(object):
         if c1.side != c2.side:
             print("sides: "+c1.side+" + "+c2.side)
             raise ValueError('The object to be merged has a different side values. Cannot merge!')
-        if not c1.substack or c1.data.ndim == 1:
+        if not c1.substack:
             time1=np.reshape(c1.time,(1))
             data1=np.reshape(c1.data,(1,c1.data.shape[0]))
         else:
             time1=c1.time
             data1=c1.data
-        if not c2.substack or c2.data.ndim == 1:
+        if not c2.substack:
             time2=np.reshape(c2.time,(1))
             data2=np.reshape(c2.data,(1,c2.data.shape[0]))
         else:
@@ -610,13 +613,13 @@ class CorrData(object):
         if id_self != id_c:
             print("IDs: "+id_self+" + "+id_c)
             raise ValueError('The objects to be merged have different IDs (net.sta.loc.chan): %s and %s. Cannot merge!'%(id_self,id_c))
-        if not self.substack or self.data.ndim == 1:
+        if not self.substack:
             stime=np.reshape(self.time.copy(),(1))
             sdata=np.reshape(self.data.copy(),(1,self.data.shape[0]))
         else:
             stime=self.time.copy()
             sdata=self.data.copy()
-        if not c.substack or c.data.ndim == 1:
+        if not c.substack:
             ctime=np.reshape(c.time.copy(),(1))
             if np.ndim(c.data)==1:
                 cdata=np.reshape(c.data.copy(),(1,c.data.shape[0]))
@@ -652,7 +655,7 @@ class CorrData(object):
             edatetime = obspy.UTCDateTime(endtime)
         else:
             edatetime = endtime
-        if not self.substack or self.data.ndim == 1:
+        if not self.substack:
             pass
         else:
             if sdatetime is None and edatetime is None:
@@ -725,7 +728,7 @@ class CorrData(object):
         '''
         if isinstance(method,list):method=method[0]
         if win_len is None:
-            if self.substack and self.data.ndim > 1:
+            if self.substack:
                 if demean:
                     cc_temp = utils.demean(self.data)
                 else:
@@ -839,7 +842,7 @@ class CorrData(object):
         #
         #initiate as zeros
 
-        if self.substack and self.data.ndim > 1:
+        if self.substack:
             nhalfpoint=int(self.data.shape[1]/2)
 
             d_p=np.zeros((nhalfpoint+1),dtype=self.data.dtype)
@@ -903,7 +906,7 @@ class CorrData(object):
         nt=len(t)
         dout=np.ndarray(self.data.shape)
 
-        if self.substack and self.data.ndim > 1:
+        if self.substack:
             npts=self.data.shape[1]
             for ii in range(self.data.shape[0]):
                 dtemp=signal.convolve(self.data[ii],w)
@@ -952,7 +955,7 @@ class CorrData(object):
             #
             #initiate as zeros
             egf=np.zeros(self.data.shape,dtype=self.data.dtype)
-            if self.substack and self.data.ndim > 1:
+            if self.substack:
                 if side.lower()=="a":
                     nhalfpoint=int(self.data.shape[1]/2)
                     #positive side
@@ -996,7 +999,7 @@ class CorrData(object):
         """
         if fmin is None and fmax is None:
             raise ValueError("fmin and fmax CAN NOT all be None.")
-        if self.substack and self.data.ndim > 1:
+        if self.substack:
             for i in range(self.data.shape[0]):
                 if fmin is not None and fmax is not None:
                     self.data[i,:]=bandpass(self.data[i],fmin,fmax,1/self.dt,corners=corners, zerophase=zerophase)
@@ -1087,7 +1090,7 @@ class CorrData(object):
 
         #
         if file is None:
-            if not self.substack or self.data.ndim == 1:
+            if not self.substack:
                 corrtime=obspy.UTCDateTime(self.time)
             else:
                 corrtime=obspy.UTCDateTime(self.time[0])
@@ -1137,7 +1140,7 @@ class CorrData(object):
         station=self.sta[1]
         evname=self.net[0]+"."+self.sta[0]
         comp = self.cc_comp
-        if not self.substack or self.data.ndim == 1:
+        if not self.substack:
             corrtime=obspy.UTCDateTime(self.time)
             nzyear=corrtime.year
             nzjday=corrtime.julday
@@ -1243,7 +1246,7 @@ class CorrData(object):
 
 
         # cc matrix
-        if substack and self.data.ndim > 1:
+        if substack:
             data = np.ndarray.copy(self.data[:,indx1:indx2])
             meanall=np.mean(np.abs(data))
             timestamp = np.empty(ttime.size,dtype='datetime64[s]')
