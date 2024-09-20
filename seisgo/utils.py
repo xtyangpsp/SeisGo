@@ -259,6 +259,59 @@ def slice_list(flist,step,preserve_end=True):
     #
     return outlist
 #
+def correct_orientations(tr1,tr2,orient):
+    """
+    Correct horizontal orientations with given orientation data. The output traces
+    are corrected and renamed to *E and *N convention.
+
+    Parameters
+    ----------
+    tr1,tr2: :class:`~obspy.core.Trace`
+        Seismic traces for horizontals.
+    orient:: Dictionary
+        Dictionary containing the orientation information for the horizonal
+        components for each station in the format of [orient_h1,orient_h2,orient_error].
+        This information can be assembed by calling get_orientations().
+    """
+    # Check that all traces are valid Trace objects
+    for tr in [tr1, tr2]:
+        if not isinstance(tr, Trace):
+            raise(Exception("Error correct_orientations() - "
+                            + str(tr)+" is not a Trace object"))
+
+    #traces after orientation corrections.
+    trE=[]
+    trN=[]
+
+    #get net and station name for the trace data
+    netsta=tr1.stats.network+'.'+tr1.stats.station
+    if netsta not in orient.keys():
+        print("Error correct_orientations() - "
+                    + netsta+" is not in the orientation list.")
+        return trE,trN
+
+    oh1,oh2,oerror=orient[netsta]
+
+    chan1=tr1.stats.channel
+    chan2=tr2.stats.channel
+    data1=tr1.data
+    data2=tr2.data
+
+    trE=tr2.copy()
+    trE.stats.channel=chan2[0:2]+'E'
+    trN=tr1.copy()
+    trN.stats.channel=chan2[0:2]+'N'
+
+    angle=np.deg2rad(360 - oh1) #rotation angle to rotate tr1 to trN
+    rot_mat = np.array([[np.cos(angle), -np.sin(angle)],
+                        [np.sin(angle), np.cos(angle)]])
+    v12 = np.array([data2, data1])
+    vEN = np.tensordot(rot_mat, v12, axes=1)
+    trE.data = vEN[0, :]
+    trN.data = vEN[1, :]
+
+    return trE,trN
+
 def image_binary_gradient(data,radius=1):
     """
     Gridsearch image pixels to calculate the gradient 0 or 1. 0 means
