@@ -978,7 +978,7 @@ class CorrData(object):
                     #negative side
                     egf[:nhalfpoint+1]=np.flip(utils.taper(-1.0*np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
                                                 fraction=taper_frac,maxlen=taper_maxlen))
-                    egf[0,-1]=0
+                    egf[[0,-1]]=0
                     egf[nhalfpoint]=np.mean(egf[nhalfpoint-1:nhalfpoint+1])
                 else:
                     egf=utils.taper(-1.0*np.gradient(self.data)/dt,
