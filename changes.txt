@@ -6,6 +6,15 @@ SCRIPTS:
 SIMULATION MODEL:
 1. Added build_vmodel() to create a layered model with linearly increasing velocity.
 
+TYPES:
+1. Added checking for corrdata.data.ndim when using corrdata.substack to determine the way of operating on the data.
+
+OBSMASTER:
+1. Moved correct_orientations() out to utils, but kept the block of calling this function to be compatible with old usage.
+
+UTILS:
+1. Moved correct_orientations() here.
+
 =============================================================
 Updates in v0.8.3:
 UTILS:
