@@ -494,8 +494,9 @@ class CorrData(object):
             self.side=side
         self.substack=substack
         #if ndim is > 1, it means there might be only 1 trace but in the format of substack.
-        if self.data.ndim > 1:
-            self.substack=True
+        if self.data is not None:
+            if self.data.ndim > 1:
+                self.substack=True
         self.misc=misc
 
     def __str__(self):
