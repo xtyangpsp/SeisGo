@@ -6,6 +6,11 @@
 ## Introduction
 This package is currently dependent on **obspy** (www.obspy.org) to basic handling of seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
 
+## Citation if using SeisGo
+Please cite Yang et al. (2022) if you use SeisGo in your research. 
+
+Yang, X., Bryan, J., Okubo, K., Jiang, C., Clements, T., & Denolle, M. A. (2022). Optimal stacking of noise cross-correlation functions. Geophysical Journal International, 232(3), 1600–1618. https://doi.org/10.1093/gji/ggac410
+
 ## Available modules
 This package is under active development. The currently available modules are listed here.
 
@@ -109,3 +114,4 @@ Any bugs and ideas are welcome. Please file an issue through GitHub https://gith
 * Jiang, C., & Denolle, M. A. (2020). NoisePy: A New High-Performance Python Tool for Ambient-Noise Seismology. Seismological Research Letters. https://doi.org/10.1785/0220190364
 * Tian, Y., & M. H. Ritzwoller (2017), Improving ambient noise cross-correlations in the noisy ocean bottom environment of the Juan de Fuca plate, Geophys. J. Int., 210(3), 1787-1805, doi:10.1093/gji/ggx281.
 * Yuan, C., Bryan, J., & Denolle, M. (2021). Numerical comparison of time-, frequency-, and wavelet-domain methods for coda wave interferometry. Geophysical Journal International, 828–846. https://doi.org/10.1093/gji/ggab140
+* Yang, X., Bryan, J., Okubo, K., Jiang, C., Clements, T., & Denolle, M. A. (2022). Optimal stacking of noise cross-correlation functions. Geophysical Journal International, 232(3), 1600–1618. https://doi.org/10.1093/gji/ggac410

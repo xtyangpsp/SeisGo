@@ -137,3 +137,37 @@ def fd1d_dx4dt4(x,dt,tmax,vmodel,rho,xsrc,xrcv,stf_freq=1,stf_shift=None,stf_typ
         seisout=seisout[int(stf_shift/dt):]
 
     return tout,seisout
+
+###
+def build_vmodel(zmax,dz,nlayer,vmin,vmax,rhomin,rhomax,zmin=0,layer_dv=None):
+    """
+    Build layered velocity model with linearly increasing velocity, with the option of specifying anomalous layers.
+    =========
+    zmax: maximum depth of the model.
+    dz: number of model grids, not the velocity layers. this is to create a fine grid layered model.
+        with multiple grids within each layer.
+    nlayer: number of velocity layers.
+    vmin, vmax: velocity range.
+    rhomin,rhomax: density range.
+    zmin=0: minimum depth. default is 0.
+    layer_dv: velocity perturbation for each layer.
+    """
+    layerv=np.linspace(vmin,vmax,nlayer)
+    if layer_dv is None:
+        layer_dv = np.zeros((nlayer))
+    layerv = np.multiply(layerv,1+layer_dv)
+    layerrho=np.linspace(rhomin,rhomax,nlayer)
+    
+    z=np.arange(zmin,zmax+-.5*dz,dz)
+    
+    zlayer=np.linspace(zmin,zmax,nlayer)
+    v=np.zeros((len(z)))
+    rho=np.zeros((len(z)))
+    for i in range(len(z)):
+        zidx_all=np.where((zlayer<=z[i]))[0]
+        zidx=np.argmax(zlayer[zidx_all])
+        
+        v[i]=layerv[zidx]
+        rho[i]=layerrho[zidx]
+    #
+    return z,v,rho

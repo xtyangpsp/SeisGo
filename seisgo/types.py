@@ -493,6 +493,10 @@ class CorrData(object):
         else:
             self.side=side
         self.substack=substack
+        #if ndim is > 1, it means there might be only 1 trace but in the format of substack.
+        if self.data is not None:
+            if self.data.ndim > 1:
+                self.substack=True
         self.misc=misc
 
     def __str__(self):
@@ -754,7 +758,7 @@ class CorrData(object):
                         return ds
                 if verbose: print('stacked CorrData '+self.id+' with '+str(nstacks)+' traces.')
             else:
-                print('substack is set to: False. No stacking applicable.')
+                print('substack is set to: False or has only 1 trace. No stacking applicable.')
                 pass
         else: #### stacking over segments of time windows.
             if np.ndim(self.data)>1:
@@ -975,7 +979,7 @@ class CorrData(object):
                     #negative side
                     egf[:nhalfpoint+1]=np.flip(utils.taper(-1.0*np.gradient(np.flip(self.data[:nhalfpoint+1]))/dt,
                                                 fraction=taper_frac,maxlen=taper_maxlen))
-                    egf[0,-1]=0
+                    egf[[0,-1]]=0
                     egf[nhalfpoint]=np.mean(egf[nhalfpoint-1:nhalfpoint+1])
                 else:
                     egf=utils.taper(-1.0*np.gradient(self.data)/dt,

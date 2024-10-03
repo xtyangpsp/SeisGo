@@ -11,10 +11,11 @@ import pandas as pd
 from numba import jit
 import matplotlib.pyplot  as plt
 from collections import OrderedDict
-from scipy.signal import tukey,hilbert
+from scipy.signal import hilbert
+from scipy.signal.windows import tukey,hann
 from obspy.clients.fdsn import Client
 from obspy.core import Stream, Trace, read
-from obspy.core.util.base import _get_function_from_entry_point
+# from obspy.core.util.base import _get_function_from_entry_point
 from obspy.signal.util import _npts2nfft
 from obspy.signal.filter import bandpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
@@ -258,6 +259,59 @@ def slice_list(flist,step,preserve_end=True):
     #
     return outlist
 #
+def correct_orientations(tr1,tr2,orient):
+    """
+    Correct horizontal orientations with given orientation data. The output traces
+    are corrected and renamed to *E and *N convention.
+
+    Parameters
+    ----------
+    tr1,tr2: :class:`~obspy.core.Trace`
+        Seismic traces for horizontals.
+    orient:: Dictionary
+        Dictionary containing the orientation information for the horizonal
+        components for each station in the format of [orient_h1,orient_h2,orient_error].
+        This information can be assembed by calling get_orientations().
+    """
+    # Check that all traces are valid Trace objects
+    for tr in [tr1, tr2]:
+        if not isinstance(tr, Trace):
+            raise(Exception("Error correct_orientations() - "
+                            + str(tr)+" is not a Trace object"))
+
+    #traces after orientation corrections.
+    trE=[]
+    trN=[]
+
+    #get net and station name for the trace data
+    netsta=tr1.stats.network+'.'+tr1.stats.station
+    if netsta not in orient.keys():
+        print("Error correct_orientations() - "
+                    + netsta+" is not in the orientation list.")
+        return trE,trN
+
+    oh1,oh2,oerror=orient[netsta]
+
+    chan1=tr1.stats.channel
+    chan2=tr2.stats.channel
+    data1=tr1.data
+    data2=tr2.data
+
+    trE=tr2.copy()
+    trE.stats.channel=chan2[0:2]+'E'
+    trN=tr1.copy()
+    trN.stats.channel=chan2[0:2]+'N'
+
+    angle=np.deg2rad(360 - oh1) #rotation angle to rotate tr1 to trN
+    rot_mat = np.array([[np.cos(angle), -np.sin(angle)],
+                        [np.sin(angle), np.cos(angle)]])
+    v12 = np.array([data2, data1])
+    vEN = np.tensordot(rot_mat, v12, axes=1)
+    trE.data = vEN[0, :]
+    trN.data = vEN[1, :]
+
+    return trE,trN
+
 def image_binary_gradient(data,radius=1):
     """
     Gridsearch image pixels to calculate the gradient 0 or 1. 0 means
@@ -1317,8 +1371,11 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     dataS:      2D matrix of the segmented data
     '''
     # statistic to detect segments that may be associated with earthquakes
-    all_madS = mad(source[0].data)	            # median absolute deviation over all noise window
-    all_stdS = np.std(source[0].data)	        # standard deviation over all noise window
+    #demean and detrend the whole trace first:
+    trace_data=source[0].data.copy()
+    trace_data=detrend(demean(trace_data))
+    all_madS = mad(np.abs(trace_data))	            # median absolute deviation over all noise window
+    all_stdS = np.std(np.abs(trace_data))	        # standard deviation over all noise window
     if all_madS==0 or all_stdS==0 or np.isnan(all_madS) or np.isnan(all_stdS):
         print("return empty! madS or stdS equals to 0 for %s" % source)
         return [],[],[]
@@ -1350,15 +1407,15 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
     indx1 = 0
     for iseg in range(nseg):
         indx2 = indx1+npts
-        dataS[iseg] = source[0].data[indx1:indx2]
-        trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
+        dataS[iseg] = trace_data[indx1:indx2]
         dataS_t[iseg]    = starttime+step_secs*iseg
         indx1 += npts_step
 
     # 2D array processing
-    dataS = demean(dataS)
-    dataS = detrend(dataS)
+    dataS = detrend(demean(dataS))
     dataS = taper(dataS,fraction=taper_frac)
+    for iseg in range(nseg):
+        trace_stdS[iseg] = (np.max(np.abs(dataS[iseg]))/all_stdS)
 
     return trace_stdS,dataS_t,dataS
 
@@ -2178,7 +2235,7 @@ def taper(data,fraction=0.05,maxlen=20):
         if wlen>maxlen:wlen = maxlen
 
         # taper values
-        func = _get_function_from_entry_point('taper', 'hann')
+        func = hann #_get_function_from_entry_point('taper', 'hann')
         if 2*wlen == npts:
             taper_sides = func(2*wlen)
         else:
@@ -2192,7 +2249,7 @@ def taper(data,fraction=0.05,maxlen=20):
         wlen = int(npts*fraction)
         if wlen>maxlen:wlen = maxlen
         # taper values
-        func = _get_function_from_entry_point('taper', 'hann')
+        func = hann #_get_function_from_entry_point('taper', 'hann')
         if 2*wlen == npts:
             taper_sides = func(2*wlen)
         else:

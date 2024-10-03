@@ -278,10 +278,15 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
                 except Exception as e:
                     print(e)
                     r = []
+    if verbose:print('cleaning with demean, detrend, and taper')
     for r in tr:
+        if verbose:print('    --> demean')
         r.detrend('demean')
+        if verbose:print('    --> detrend')
         r.detrend('linear')
-        r.taper(0.005)
+        if verbose:print('    --> taper')
+        r.data = utils.taper(r.data, fraction=0.005)
+        # r.taper(0.005)
 
     if len(tr.get_gaps())>0:
         if verbose:print('merging segments with gaps')
@@ -765,7 +770,7 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
     """
     #elist is a list of panda dataframes
     t0=time.time()
-    if None in [lat, lon, maxradius] or None in [lat, lon, maxradiuskm]:
+    if None in [lat, lon, maxradius] and None in [lat, lon, maxradiuskm]:
         searchtype='box'
     else:
         searchtype='circle'
@@ -815,7 +820,7 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
                 else:
                     quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
                     start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&latitude="+\
-                    str(lat)+"&longitude="+str(lon)+"&maxradius="+str(maxradiuskm)+\
+                    str(lat)+"&longitude="+str(lon)+"&maxradiuskm="+str(maxradiuskm)+\
                     "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
 
         try:

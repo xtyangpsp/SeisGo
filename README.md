@@ -6,6 +6,11 @@
 ## Introduction
 This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
 
+## Citation if using SeisGo
+Please cite Yang et al. (2022) if you use SeisGo in your research. 
+
+Yang, X., Bryan, J., Okubo, K., Jiang, C., Clements, T., & Denolle, M. A. (2022). Optimal stacking of noise cross-correlation functions. Geophysical Journal International, 232(3), 1600–1618. https://doi.org/10.1093/gji/ggac410
+
 ## Available modules
 This package is under active development. The currently available modules are listed here.
 

@@ -1,6 +1,52 @@
+Updates in v0.8.4:
+SCRIPTS:
+1. Added the scripts for the whole workflow of extracting EGFs.
+2. Removed some old scripts that are incompatible with the new usage and functions.
+
+SIMULATION MODEL:
+1. Added build_vmodel() to create a layered model with linearly increasing velocity.
+
+TYPES:
+1. Added checking for corrdata.data.ndim when initilizing CorrData to make sure substack True for ndim 2 (or >1).
+
+OBSMASTER:
+1. Moved correct_orientations() out to utils, but kept the block of calling this function to be compatible with old usage.
+
+UTILS:
+1. Moved correct_orientations() here.
+
+=============================================================
+Updates in v0.8.3:
+UTILS:
+1. Replace obspy.core.util.base._get_function_from_entry_point for 
+  taper hann window with scipy.signal.windows.hann for compatibility with new scipy. 
+
+DOWNLOADERS:
+1. Added more verbose prints in getdata().
+2. Use utils.taper() for tapering the raw data, instead of obspy's taper function,
+  which has version errors in scipy hann window.
+
+NOISE:
+1. Fixed minor bugs in int and float, which are now excluded from numpy.
+
+NOTEBOOKS:
+1. Updated the seisgo_download_xcorr_demo with the latest version of seisgo.
+
+=============================================================
 Updates in v0.8.1
+TYPES:
 1. Types.CorrData.subset: clarified documentary of overwrite option. Default False.
-2. qml2list:add option to only extract location and dates.
+2. Added a new class for plotting shaded relief based on cartopy.
+
+NOISE:
+1. In shaping_corrdata(), modified to loop through all pairs and all components, if not specified by the user.
+
+UTILS:
+1. qml2list:add option to only extract location and dates.
+2. slicing_trace(): fixed a bug when all trace std was computed using the amplitudes instead of the absolute amplitudes.
+3. slicing_trace(): changed to compute trace_stdS after demean and detrend. 
+added demean and detrend of whole trace at the beginning.
+4. import tukey from scipy.signal.windows to be compatible with different scipy version.
 
 DOWNLOADERS:
 1. get_events(): added depth range and search with radius in circles.
@@ -8,6 +54,10 @@ DOWNLOADERS:
 PLOTTINGS:
 1. plot_stations: added options to specific colors and renamed it to gmt_scatters() to be more general. 
     Old function was kept but will throw an error.
+
+OBSMASTER:
+1. import tukey from scipy.signal.windows to be compatible with different scipy version.
+
 =============================================================
 Updates in v0.8.0
 MONITORING:
