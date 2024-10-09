@@ -27,6 +27,7 @@ from shapely.ops import cascaded_union, polygonize
 import netCDF4 as nc
 from scipy.spatial import Delaunay
 from math import sqrt
+import math
 from seisgo import helpers
 #########################################
 def rms(d):
@@ -366,7 +367,7 @@ def xyz2matrix(x,y,z):
         for j in range(len(yu)):
             idx0=np.where((x > xu[i]-0.1*dxmean) & (x < xu[i]+0.1*dxmean) &
                          (y > yu[j]-0.1*dymean) & (y < yu[j]+0.1*dymean))[0]
-            if len(idx0) >0: zout[i,j]=z[idx0]
+            if len(idx0) >0: zout[i,j]=np.average(z[idx0])
             xout[i,j]=xu[i]
             yout[i,j]=yu[j]
             #print(z[idx0])
@@ -395,6 +396,50 @@ def interp3d(x,y,z,v,xq,yq,zq,verbose=False):
         for j in range(len(idy)):
             for k in range(len(idz)):
                 vout[idx[i],idy[j],idz[k]] = scipy.interpolate.interpn((x,y,z),v,(xq[idx[i]],yq[idy[j]],zq[idz[k]]))
+    return vout
+def interp2d(x,y,v,xq,yq,verbose=False):
+    """
+    Interpolate 2d matrix by calling the Scipy interpn function for each 2d point.
+
+    PARAMETERS:
+    x,y: 1-D vectors of the two dimensions.
+    v: values of the 2d matrix
+    xq,yq: 1-D vectors of the points to resample.
+
+    RETURN:
+    vout: 2d matrix with the size of [len(xq),len(yq)]
+    """
+    vout = np.ndarray((len(xq),len(yq)))
+    vout.fill(np.nan)
+    idx=np.where((xq >= np.nanmin(x)) & (xq <= np.nanmax(x)))[0]
+    idy=np.where((yq >= np.nanmin(y)) & (yq <= np.nanmax(y)))[0]
+
+    for i in range(len(idx)):
+        if verbose:print(str(i)+" of "+str(len(idx)))
+        for j in range(len(idy)):
+            vout[idx[i],idy[j]] = scipy.interpolate.interpn((x,y),v,(xq[idx[i]],yq[idy[j]]))
+    return vout
+def interp2d_nonregular(x,y,v,xq,yq,verbose=False):
+    """
+    Interpolate 2d matrix by calling the Scipy interpn function for each 2d point.
+
+    PARAMETERS:
+    x,y: 1-D vectors of the two dimensions.
+    v: values of the 2d matrix
+    xq,yq: 1-D vectors of the points to resample.
+
+    RETURN:
+    vout: 2d matrix with the size of [len(xq),len(yq)]
+    """
+    vout = np.ndarray((len(xq),len(yq)))
+    vout.fill(np.nan)
+    idx=np.where((xq >= np.nanmin(x)) & (xq <= np.nanmax(x)))[0]
+    idy=np.where((yq >= np.nanmin(y)) & (yq <= np.nanmax(y)))[0]
+
+    for i in range(len(idx)):
+        if verbose:print(str(i)+" of "+str(len(idx)))
+        for j in range(len(idy)):
+            vout[idx[i],idy[j]] = scipy.interpolate.interpn((x,y),v,(xq[idx[i]],yq[idy[j]]))
     return vout
     
 def generate_points_in_polygon(outline,spacing):
@@ -533,7 +578,6 @@ def read_ncmodel2d(dfile,var,metadata=False):
     ds=nc.Dataset(dfile)
     lon=np.array(ds['longitude'][:])
     lat=np.array(ds['latitude'][:])
-    dep=np.array(ds['depth'][:])
     val=np.array(ds[var][:])
 
     if metadata:
@@ -1902,9 +1946,12 @@ def boundary_points(points, alpha):
         """
         if (i, j) in edges or (j, i) in edges:
             # already added
+            assert (j, i) in edges, "Can't go twice over same directed edge right?"
+            if only_outer:
+                    # if both neighboring triangles are in shape, it's not a boundary edge
+                edges.remove((j, i))
             return
         edges.add( (i, j) )
-        edge_points.append(coords[ [i, j] ])
 
     tri = Delaunay(points)
     edges = set()
@@ -1912,13 +1959,13 @@ def boundary_points(points, alpha):
     # loop over triangles:
     # ia, ib, ic = indices of corner points of the
     # triangle
-    for ia, ib, ic in tri.vertices:
+    for ia, ib, ic in tri.simplices: #vertices:
         pa = points[ia]
         pb = points[ib]
         pc = points[ic]
 
         # Lengths of sides of triangle
-        a = sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
+        a = math.sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
         b = math.sqrt((pb[0]-pc[0])**2 + (pb[1]-pc[1])**2)
         c = math.sqrt((pc[0]-pa[0])**2 + (pc[1]-pa[1])**2)
 
