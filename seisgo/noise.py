@@ -40,7 +40,7 @@ def compute_fft(trace,win_len,step,stainv=None,
                     freq_norm=freq_norm,smooth=smooth,smooth_spec=smooth_spec,misc=misc,
                     taper_frac=taper_frac,df=df)
 #assemble FFT with given asdf file name
-def assemble_fft(sfile,win_len,step,do_rotation=False,freqmin=None,freqmax=None,
+def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,smooth_spec=20,
                     taper_frac=0.05,df=None,exclude_chan=[None],v=True):
     """
@@ -95,7 +95,7 @@ def assemble_fft(sfile,win_len,step,do_rotation=False,freqmin=None,freqmax=None,
                 rotate_flag=0
                 no_rotate_flag=0
                 channels=[]
-                if do_rotation==True:
+                if correct_orientation==True:
                     print('Rotating 1/2 channels to E/N channels')
                     # Read channel info and decide if channel rotation is needed
                     for itag in all_tags:
@@ -274,7 +274,7 @@ def smooth_source_spect(fft1,cc_method,sn):
     return sfft1.reshape(N,Nfft2)
 #
 def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
-                    xcorr_only=False,substack=False,do_rotation=False,substack_len=None,smoothspect_N=20,
+                    xcorr_only=False,substack=False,correct_orientation=False,substack_len=None,smoothspect_N=20,
                     maxstd=10,freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
                     smooth_N=20,exclude_chan=[None],outdir='.',v=True,output_structure="raw"):
     """
@@ -333,7 +333,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     ftmp = open(tmpfile,'w')
 
     ##############compute FFT#############
-    fftdata=assemble_fft(sfile,win_len,step,do_rotation,freqmin=freqmin,freqmax=freqmax,
+    fftdata=assemble_fft(sfile,win_len,step,correct_orientation,freqmin=freqmin,freqmax=freqmax,
                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
     ndata=len(fftdata)
 
