@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from obspy.signal.invsim import cosine_taper
 from obspy.signal.regression import linear_regression
+from obspy import Stream
 from scipy.fftpack import fft,ifft,next_fast_len
 from seisgo import stacking as stack
 from seisgo.types import CorrData, FFTData
@@ -39,7 +40,7 @@ def compute_fft(trace,win_len,step,stainv=None,
                     freq_norm=freq_norm,smooth=smooth,smooth_spec=smooth_spec,misc=misc,
                     taper_frac=taper_frac,df=df)
 #assemble FFT with given asdf file name
-def assemble_fft(sfile,win_len,step,freqmin=None,freqmax=None,
+def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,smooth_spec=20,
                     taper_frac=0.05,df=None,exclude_chan=[None],v=True):
     """
@@ -55,55 +56,179 @@ def assemble_fft(sfile,win_len,step,freqmin=None,freqmax=None,
     """
 
     # retrive station information
-    ds=pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
-    sta_list = ds.waveforms.list()
-    nsta=len(sta_list)
-    print('found %d stations in total'%nsta)
-
-    fftdata_all=[]
-    if nsta==0:
-        print('no data in %s'%sfile);
-        return fftdata_all
-
-    # loop through all stations
-    print('working on file: '+sfile.split('/')[-1])
-
-    for ista in sta_list:
-        # get station and inventory
-        try:
-            inv1 = ds.waveforms[ista]['StationXML']
-        except Exception as e:
-            print('abort! no stationxml for %s in file %s'%(ista,sfile))
-            continue
-
-        # get days information: works better than just list the tags
-        all_tags = ds.waveforms[ista].get_waveform_tags()
-        if len(all_tags)==0:continue
-
-        #----loop through each stream----
-        for itag in all_tags:
-            if v:print("FFT for station %s and trace %s" % (ista,itag))
-
-            # read waveform data
-            source = ds.waveforms[ista][itag]
-            if len(source)==0:continue
-
-            # channel info
-            comp = source[0].stats.channel
-            if comp[-1] =='U': comp.replace('U','Z')
-
-            #exclude some channels in the exclude_chan list.
-            if comp in exclude_chan:
-                print(comp+" is in the exclude_chan list. Skip it!")
+    with pyasdf.ASDFDataSet(sfile,mpi=False,mode='r') as ds:    
+        sta_list = ds.waveforms.list()
+        nsta=len(sta_list)
+        print('found %d stations in total'%nsta)
+    
+        fftdata_all=[]
+        if nsta==0:
+            print('no data in %s'%sfile);
+            return fftdata_all
+    
+        # loop through all stations
+        print('working on file: '+sfile.split('/')[-1])
+    
+        for ista in sta_list:
+            # get station and inventory
+            try:
+                inv1 = ds.waveforms[ista]['StationXML']
+                loc=[]
+                for network in inv1:
+                    for station in network:
+                        for channel in station:
+                            loc.append(channel.location_code)
+            except Exception as e:
+                print('abort! no stationxml for %s in file %s'%(ista,sfile))
                 continue
-
-            fftdata=FFTData(source,win_len,step,stainv=inv1,
-                            time_norm=time_norm,freq_norm=freq_norm,
-                            smooth=smooth,freqmin=freqmin,freqmax=freqmax,
-                            smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
-            if fftdata.data is not None:
-                fftdata_all.append(fftdata)
-    ####
+            # get days information: works better than just list the tags
+            all_tags = ds.waveforms[ista].get_waveform_tags()
+            if len(all_tags)==0:continue
+    
+            #----loop through each stream----
+            if len(all_tags)>3:
+                print('Raw Data Error. Too many channels, check station metadata')
+                continue
+            else:
+                #Set rotate and no-rotate flags to 0 for each station to avoid error
+                #Do rotation of channels 1 or 2 to N or E
+                rotate_flag=0
+                no_rotate_flag=0
+                channels=[]
+                if correct_orientation==True:
+                    print('Rotating 1/2 channels to E/N channels')
+                    # Read channel info and decide if channel rotation is needed
+                    for itag in all_tags:
+                        if v:print("FFT for station %s and trace %s" % (ista,itag))
+                        chan=itag.split('_')[0][-1]
+                        loc_id=itag.split('_')[-1]
+                        if chan=='1':
+                            tr1=ds.waveforms[ista][itag][0]
+                            if loc and loc[0] == '':
+                                sta_name=ista+'.'+'.'+itag.split('_')[0].upper()
+                            else:
+                                sta_name=ista+'.'+loc_id+'.'+itag.split('_')[0].upper()
+                            or1=inv1.get_orientation(sta_name)['azimuth']
+                            rotate_flag+=1
+                            print('Rotated channel 1 to N for %s' %(sta_name))
+                        elif chan=='2':
+                            tr2=ds.waveforms[ista][itag][0]
+                            if loc and loc[0] == '':
+                                sta_name=ista+'.'+'.'+itag.split('_')[0].upper()
+                            else:
+                                sta_name=ista+'.'+loc_id+'.'+itag.split('_')[0].upper()
+                            or2=inv1.get_orientation(sta_name)['azimuth']
+                            rotate_flag+=1
+                            print('Rotated channel 2 to E for %s' %(sta_name))
+                        else:
+                            no_rotate_flag=1
+                            channels.append(itag)
+                            print('Channel not 1 or 2, no rotation needed')
+                            pass
+                    # Do channel rotation if rotate_flag==1
+                    if rotate_flag==2:
+                        orient=dict()
+                        orient[ista]=(or1,or2,0)
+                        # Correct any timestamp error if have
+                        tr1_len=tr1.stats.npts
+                        tr2_len=tr2.stats.npts
+                        dt=1/tr1.stats.sampling_rate
+                        # traces have the same length, no correction needed
+                        if tr1_len==tr2_len:
+                            trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                        # traces are not the same length
+                        else:
+                            tr1_start=tr1.stats.starttime
+                            tr2_start=tr2.stats.starttime
+                            print(tr1.stats.starttime)
+                            print(tr2.stats.starttime)
+                            t_error=tr1_start-tr2_start
+                            # tr1 is longer (start time is earlier)
+                            if t_error<0:
+                                if abs(t_error)>dt/2 and abs(t_error)<dt:    # If time difference is greater than half dt and smaller than dt (closer to the next sampling point), zero pad at front
+                                    tr2.data=np.insert(tr2.data,0,0)
+                                elif abs(t_error)<dt/2:                      # Otherwise, zero pad at end
+                                    tr2.data=np.append(tr2.data,0)
+                                else:
+                                    print('Time error is larger than sampling interval, check data')
+                                # Update start and end time of the short trace using those of the longer trace
+                                tr2.stats.starttime=tr1.stats.starttime
+                            # tr2 is longer (start time is earlier)
+                            else:
+                                if abs(t_error)>dt/2 and abs(t_error)<dt:
+                                    tr1.data=np.insert(tr1.data,0,0)
+                                elif abs(t_error)<dt/2:
+                                    tr1.data=np.append(tr1.data,0)
+                                else:
+                                    print('Time error is larger than sampling interval, check data')
+                                tr1.stats.starttime=tr2.stats.starttime
+                            print('Time error correction finished')
+                               
+                        trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                            
+                        stE=Stream([trE])
+                        stN=Stream([trN])
+                        source=[stN,stE]
+                        for itr in source:
+                            comp = itr[0].stats.channel
+                            if comp[-1] =='U': comp=comp.replace('U','Z')
+                            
+                            if comp in exclude_chan:
+                                print(comp+" is in the exclude_chan list. Skip it!")
+                                continue
+                            fftdata=FFTData(itr,win_len,step,stainv=inv1,
+                                            time_norm=time_norm,freq_norm=freq_norm,
+                                            smooth=smooth,freqmin=freqmin,freqmax=freqmax,
+                                            smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
+                            if fftdata.data is not None:
+                                fftdata_all.append(fftdata)
+                    elif rotate_flag==1:
+                        print('CONTINUE! Too less chennels for rotation, which requires 2 channels')
+                        continue
+                    # Skip channel rotation if rotate_flag==1
+                    if no_rotate_flag==1:
+                        source = []
+                        for tag in channels:
+                            print(tag,'was passed directly to fft')
+                            source.append(ds.waveforms[ista][tag])
+    
+                        for itr in source:
+                            comp = itr[0].stats.channel
+                            if comp[-1] =='U': comp=comp.replace('U','Z')
+                            
+                            if comp in exclude_chan:
+                                print(comp+" is in the exclude_chan list. Skip it!")
+                                continue
+                            fftdata=FFTData(itr,win_len,step,stainv=inv1,
+                                            time_norm=time_norm,freq_norm=freq_norm,
+                                            smooth=smooth,freqmin=freqmin,freqmax=freqmax,
+                                            smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
+                            if fftdata.data is not None:
+                                fftdata_all.append(fftdata)
+                
+                else:
+                    for itag in all_tags:
+                        if v:print("FFT for station %s and trace %s" % (ista,itag))
+                        # read waveform data
+                        source = ds.waveforms[ista][itag]
+                        if len(source)==0:continue
+    
+                        # channel info
+                        comp = source[0].stats.channel
+                        if comp[-1] =='U': comp=comp.replace('U','Z')
+    
+                        #exclude some channels in the exclude_chan list.
+                        if comp in exclude_chan:
+                            print(comp+" is in the exclude_chan list. Skip it!")
+                            continue
+    
+                        fftdata=FFTData(source,win_len,step,stainv=inv1,
+                                        time_norm=time_norm,freq_norm=freq_norm,
+                                        smooth=smooth,freqmin=freqmin,freqmax=freqmax,
+                                        smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
+                        if fftdata.data is not None:
+                            fftdata_all.append(fftdata)
+####
     return fftdata_all
 
 def smooth_source_spect(fft1,cc_method,sn):
@@ -149,7 +274,7 @@ def smooth_source_spect(fft1,cc_method,sn):
     return sfft1.reshape(N,Nfft2)
 #
 def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
-                    xcorr_only=False,substack=False,substack_len=None,smoothspect_N=20,
+                    xcorr_only=False,substack=False,correct_orientation=False,substack_len=None,smoothspect_N=20,
                     maxstd=10,freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
                     smooth_N=20,exclude_chan=[None],outdir='.',v=True,output_structure="raw"):
     """
@@ -194,20 +319,21 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     fhead,ftail=os.path.split(outfile)
     # check whether time chunk been processed or not
     if os.path.isfile(tmpfile):
-        ftemp = open(tmpfile,'r')
-        alines = ftemp.readlines()
-        if len(alines) and alines[-1] == 'done':
-            ftemp.close()
-            return 0
-        else:
-            ftemp.close()
-            os.remove(tmpfile)
-            if os.path.isfile(outfile): os.remove(outfile)
+        with open(tmpfile, 'r') as ftemp:
+        #ftemp = open(tmpfile,'r')
+            alines = ftemp.readlines()
+            if len(alines) and alines[-1] == 'done':
+                ftemp.close()
+                return 0
+            else:
+                ftemp.close()
+                os.remove(tmpfile)
+                if os.path.isfile(outfile): os.remove(outfile)
 
     ftmp = open(tmpfile,'w')
 
     ##############compute FFT#############
-    fftdata=assemble_fft(sfile,win_len,step,freqmin=freqmin,freqmax=freqmax,
+    fftdata=assemble_fft(sfile,win_len,step,correct_orientation,freqmin=freqmin,freqmax=freqmax,
                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
     ndata=len(fftdata)
 

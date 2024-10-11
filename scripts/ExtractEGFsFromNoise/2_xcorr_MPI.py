@@ -7,9 +7,9 @@ if not sys.warnoptions:
     warnings.simplefilter("ignore")
 
 # absolute path parameters
-rootpath  = "data_craton"                                     # root path for this data processing
-CCFDIR    = os.path.join(rootpath,'CCF_SOURCES')                                    # dir to store CC data
-DATADIR   = os.path.join(rootpath+"_depot",'Raw')                               # dir where noise data is located
+rootpath  = "test_data"                                     # root path for this data processing
+CCFDIR    = os.path.join(rootpath,'CCF_test')                                    # dir to store CC data
+DATADIR   = os.path.join(rootpath,'raw_data')                               # dir where noise data is located
 locations = os.path.join(rootpath,'station.txt')                            # station info including network,station,channel,latitude,longitude,elevation: only needed when input_fmt is not asdf
 
 # some control parameters
@@ -17,7 +17,8 @@ freq_norm   = 'rma'                                                  # 'no' for 
 time_norm   = 'no'                                                          # 'no' for no normalization, or 'rma', 'one_bit' for normalization in time domain
 cc_method   = 'xcorr'                                                       # 'xcorr' for pure cross correlation, 'deconv' for deconvolution; FOR "COHERENCY" PLEASE set freq_norm to "rma" and time_norm to "no"
 acorr_only  = False                                                         # only perform auto-correlation
-xcorr_only  = True                                                         # only perform cross-correlation or not
+xcorr_only  = True  
+correct_orientation = True                                                       # only perform cross-correlation or not
 exclude_chan = []        #Added by Xiaotao Yang. Channels in this list will be skipped.
 output_structure="source"
 # pre-processing parameters
@@ -53,7 +54,7 @@ if rank == 0:
             'freqmin':freqmin,'freqmax':freqmax,'freq_norm':freq_norm,'time_norm':time_norm,
             'cc_method':cc_method,'smooth_N':smooth_N,'substack':substack,'substack_len':substack_len,
             'smoothspect_N':smoothspect_N,'maxlag':maxlag,'max_over_std':max_over_std,
-            'max_kurtosis':max_kurtosis}
+            'max_kurtosis':max_kurtosis,'channel_correction':correct_orientation}
     # save fft metadata for future reference
     fc_metadata  = os.path.join(CCFDIR,'fft_cc_data.txt')
     if not os.path.isdir(CCFDIR):os.makedirs(CCFDIR)
@@ -80,7 +81,7 @@ for ick in range(rank,splits,size):
     sfile=tdir[ick]
     t10=time.time()
     #call the correlation wrapper.
-    noise.do_correlation(sfile,cc_len,step,maxlag,cc_method=cc_method,
+    noise.do_correlation(sfile,cc_len,step,maxlag,correct_orientation=correct_orientation,cc_method=cc_method,
                          acorr_only=acorr_only,xcorr_only=xcorr_only,substack=substack,
                          smoothspect_N=smoothspect_N,substack_len=substack_len,
                          maxstd=max_over_std,freqmin=freqmin,freqmax=freqmax,
