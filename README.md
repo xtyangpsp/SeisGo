@@ -91,6 +91,14 @@ This step will install the **SeisGo** modules under `seisgo` environment. The mo
 $ pip install .
 ```
 
+If you are planning to frequently make changes to the scripts
+
+```
+$ pip install -e .
+```
+
+is recommended. The '-e' option will automatically update executable scripts in the python env without doing 'pip install .' every time.
+
 3. Test the installation
 
 Run the following commands to test your installation.
