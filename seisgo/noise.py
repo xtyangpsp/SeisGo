@@ -133,16 +133,37 @@ def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqm
                         tr1_len=tr1.stats.npts
                         tr2_len=tr2.stats.npts
                         dt=1/tr1.stats.sampling_rate
+                        tr1_start=tr1.stats.starttime
+                        tr2_start=tr2.stats.starttime
+                        print(tr1.stats.starttime)
+                        print(tr2.stats.starttime)
+                        t_error=tr1_start-tr2_start
                         # traces have the same length, no correction needed
                         if tr1_len==tr2_len:
                             trE,trN=utils.correct_orientations(tr1,tr2,orient)
                         # traces are not the same length
+                        
+                        elif tr1_len<tr2_len:
+                            if t_error<0:
+                                if abs(t_error)<dt:
+                                    tr1.data=np.append(tr1.data,0)
+                                else:
+                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
+                                    continue
+                                tr1.stats.starttime=tr2.stats.starttime
+                            elif t_error==0:
+                                tr1.data=np.append(tr1.data,0)
+                                tr1.stats.starttime=tr2.stats.starttime
+                            else:
+                                if abs(t_error)>dt/2 and abs(t_error)<dt:
+                                    tr1.data=np.insert(tr1.data,0,0)
+                                elif abs(t_error)<dt/2:
+                                    tr1.data=np.append(tr1.data,0)
+                                else:
+                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
+                                    continue
+                                tr1.stats.starttime=tr2.stats.starttime
                         else:
-                            tr1_start=tr1.stats.starttime
-                            tr2_start=tr2.stats.starttime
-                            print(tr1.stats.starttime)
-                            print(tr2.stats.starttime)
-                            t_error=tr1_start-tr2_start
                             # tr1 is longer (start time is earlier)
                             if t_error<0:
                                 if abs(t_error)>dt/2 and abs(t_error)<dt:    # If time difference is greater than half dt and smaller than dt (closer to the next sampling point), zero pad at front
@@ -150,21 +171,24 @@ def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqm
                                 elif abs(t_error)<dt/2:                      # Otherwise, zero pad at end
                                     tr2.data=np.append(tr2.data,0)
                                 else:
-                                    print('Time error is larger than sampling interval, check data')
+                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
+                                    continue
                                 # Update start and end time of the short trace using those of the longer trace
                                 tr2.stats.starttime=tr1.stats.starttime
                             # tr2 is longer (start time is earlier)
+                            elif t_error==0:
+                                tr2.data=np.append(tr2.data,0)
+                                tr2.stats.starttime=tr1.stats.starttime
                             else:
-                                if abs(t_error)>dt/2 and abs(t_error)<dt:
-                                    tr1.data=np.insert(tr1.data,0,0)
-                                elif abs(t_error)<dt/2:
-                                    tr1.data=np.append(tr1.data,0)
+                                if abs(t_error)<dt:
+                                    tr2.data=np.append(tr2.data,0)
                                 else:
-                                    print('Time error is larger than sampling interval, check data')
-                                tr1.stats.starttime=tr2.stats.starttime
+                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
+                                    continue
+                                tr2.stats.starttime=tr1.stats.starttime
                             print('Time error correction finished')
                                
-                        trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                            trE,trN=utils.correct_orientations(tr1,tr2,orient)
                             
                         stE=Stream([trE])
                         stN=Stream([trN])
