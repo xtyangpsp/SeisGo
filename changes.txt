@@ -15,6 +15,14 @@ OBSMASTER:
 UTILS:
 1. Moved correct_orientations() here.
 
+NOISE:
+1. Added trace_info() to extract trace and orientation info.
+2. Added the function to correct horizontal orientations and convert 1/2 channels to N/E channels.
+
+2_XCORR_MPI:
+1. Added a switch named correct_orientation for channel orientation correction/conversion.
+2. Added pad_thre to define the maximum threshold of size gaps between channels when doing orientation correction.
+
 =============================================================
 Updates in v0.8.3:
 UTILS:

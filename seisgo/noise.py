@@ -42,15 +42,17 @@ def compute_fft(trace,win_len,step,stainv=None,
 #assemble FFT with given asdf file name
 def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqmax=None,
                     time_norm='no',freq_norm='no',smooth=20,smooth_spec=20,
-                    taper_frac=0.05,df=None,exclude_chan=[None],v=True):
+                    taper_frac=0.05,pad_thre=None,df=None,exclude_chan=[None],v=True):
     """
     Compute and assemble all FFTData from the raw data file "sfile".
     sfile: raw data file in ASDF format.
+    correct_orientation: orientation correction for horizontal channels, automatically convert 1/2 to N/E channels
     win_len,step: segment length and sliding step in seconds.
     freqmin=None,freqmax=None: frequency range for spectrum whitening/smoothing.
     time_norm='no',freq_norm='no',smooth=20,smooth_spec=20: normalization choice and smoothing parameters.
     taper_frac=0.05: taper fraction when sliding through the data into segments.
     df=None: this is only used for FTN normalization.
+    pad_thre: Maximum allowed time gaps between two horizontal traces when performing orientation correction.
     exclude_chan=[None]: channel to exclude.
     v=True: verbose option.
     """
@@ -101,94 +103,110 @@ def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqm
                     for itag in all_tags:
                         if v:print("FFT for station %s and trace %s" % (ista,itag))
                         chan=itag.split('_')[0][-1]
-                        loc_id=itag.split('_')[-1]
+                        
+                        # Read trace and orientation from each channel. Assume that for one station, channels are either only 1/2/z or e/n/z
                         if chan=='1':
-                            tr1=ds.waveforms[ista][itag][0]
-                            if loc and loc[0] == '':
-                                sta_name=ista+'.'+'.'+itag.split('_')[0].upper()
-                            else:
-                                sta_name=ista+'.'+loc_id+'.'+itag.split('_')[0].upper()
-                            or1=inv1.get_orientation(sta_name)['azimuth']
+                            tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            newchan=itag.split('_')[0].replace('1','N')
+                            tr1.stats.channel=newchan.upper()
                             rotate_flag+=1
                             print('Rotated channel 1 to N for %s' %(sta_name))
                         elif chan=='2':
-                            tr2=ds.waveforms[ista][itag][0]
-                            if loc and loc[0] == '':
-                                sta_name=ista+'.'+'.'+itag.split('_')[0].upper()
-                            else:
-                                sta_name=ista+'.'+loc_id+'.'+itag.split('_')[0].upper()
-                            or2=inv1.get_orientation(sta_name)['azimuth']
+                            tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            newchan=itag.split('_')[0].replace('2','E')
+                            tr1.stats.channel=newchan.upper()
                             rotate_flag+=1
                             print('Rotated channel 2 to E for %s' %(sta_name))
+                        elif chan=='n':
+                            tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            rotate_flag+=1
+                            print('Correcting channel N for %s' %(sta_name))
+                        elif chan=='e':
+                            tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            rotate_flag+=1
+                            print('Correcting channel E for %s' %(sta_name))
                         else:
-                            no_rotate_flag=1
                             channels.append(itag)
-                            print('Channel not 1 or 2, no rotation needed')
-                            pass
-                    # Do channel rotation if rotate_flag==1
+                            no_rotate_flag=1
+                            print('Vertical channel, no correction and rotation needed')
+
+                    # Do channel rotation if rotate_flag==2
                     if rotate_flag==2:
                         orient=dict()
                         orient[ista]=(or1,or2,0)
                         # Correct any timestamp error if have
-                        tr1_len=tr1.stats.npts
-                        tr2_len=tr2.stats.npts
                         dt=1/tr1.stats.sampling_rate
                         tr1_start=tr1.stats.starttime
                         tr2_start=tr2.stats.starttime
-                        print(tr1.stats.starttime)
-                        print(tr2.stats.starttime)
-                        t_error=tr1_start-tr2_start
-                        # traces have the same length, no correction needed
-                        if tr1_len==tr2_len:
-                            trE,trN=utils.correct_orientations(tr1,tr2,orient)
-                        # traces are not the same length
+                        tr1_end=tr1.stats.endtime
+                        tr2_end=tr2.stats.endtime
+                        print(tr1_start)
+                        print(tr2_start)
+                        print(tr1_end)
+                        print(tr2_end)
+                        sgap=tr1_start-tr2_start
+                        egap=tr1_end-tr2_end
                         
-                        elif tr1_len<tr2_len:
-                            if t_error<0:
-                                if abs(t_error)<dt:
-                                    tr1.data=np.append(tr1.data,0)
-                                else:
-                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
-                                    continue
-                                tr1.stats.starttime=tr2.stats.starttime
-                            elif t_error==0:
-                                tr1.data=np.append(tr1.data,0)
-                                tr1.stats.starttime=tr2.stats.starttime
-                            else:
-                                if abs(t_error)>dt/2 and abs(t_error)<dt:
-                                    tr1.data=np.insert(tr1.data,0,0)
-                                elif abs(t_error)<dt/2:
-                                    tr1.data=np.append(tr1.data,0)
-                                else:
-                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
-                                    continue
-                                tr1.stats.starttime=tr2.stats.starttime
+                        if pad_thre==None:
+                            pad_thre=10*dt
                         else:
-                            # tr1 is longer (start time is earlier)
-                            if t_error<0:
-                                if abs(t_error)>dt/2 and abs(t_error)<dt:    # If time difference is greater than half dt and smaller than dt (closer to the next sampling point), zero pad at front
-                                    tr2.data=np.insert(tr2.data,0,0)
-                                elif abs(t_error)<dt/2:                      # Otherwise, zero pad at end
-                                    tr2.data=np.append(tr2.data,0)
-                                else:
-                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
-                                    continue
-                                # Update start and end time of the short trace using those of the longer trace
+                            pad_thre=pad_thre*dt
+                        
+                        # Check if time difference between two channels are too big. Big start and end time differences will be discarded and move to the next station
+                        if abs(sgap)//dt>pad_thre or abs(egap)//dt>pad_thre:
+                            print('Time error for station {0} in {1} is larger than sampling interval, check data'.format(ista,sfile))
+                            continue
+                        
+                        # First zero pad start time side (left)
+                        if abs(sgap)%dt>dt/2:
+                            zero=np.zeros(int(abs(sgap)//dt+1))
+                            if sgap<0:        # if tr1 starts earlier, add zero to tr2 on left
+                                tr2.data=np.insert(tr2.data,0,zero)
                                 tr2.stats.starttime=tr1.stats.starttime
-                            # tr2 is longer (start time is earlier)
-                            elif t_error==0:
-                                tr2.data=np.append(tr2.data,0)
+                            else:             # if tr1 starts later, add zero to tr1 on left
+                                tr1.data=np.insert(tr1.data,0,zero)
+                                tr1.stats.starttime=tr2.stats.starttime
+                        
+                        else:
+                            zero=np.zeros(int(abs(sgap)//dt))
+                            if sgap<0:
+                                tr2.data=np.insert(tr2.data,0,zero)
                                 tr2.stats.starttime=tr1.stats.starttime
                             else:
-                                if abs(t_error)<dt:
-                                    tr2.data=np.append(tr2.data,0)
-                                else:
-                                    print('Time error {:.4f}s is larger than sampling interval, check data'.format(t_error))
-                                    continue
-                                tr2.stats.starttime=tr1.stats.starttime
-                            print('Time error correction finished')
-                               
+                                tr1.data=np.insert(tr1.data,0,zero)
+                                tr1.stats.starttime=tr2.stats.starttime
+                        
+                        # Then zero pad end time side (right)
+                        if abs(egap)%dt>dt/2:
+                            zero=np.zeros(int(abs(egap)//dt+1))
+                            if egap<0:        # if tr1 ends earlier, add zero to tr1 on right
+                                tr1.data=np.append(tr1.data,zero)
+                            else:             # if tr1 ends later, add zero to tr2 on right
+                                tr2.data=np.append(tr2.data,zero)
+                        
+                        else:
+                            zero=np.zeros(int(abs(egap)//dt))
+                            if egap<0:
+                                tr1.data=np.append(tr1.data,zero)
+                            else:
+                                tr2.data=np.append(tr2.data,zero)
+                        
+                        tr1_len=tr1.data.shape
+                        tr2_len=tr2.data.shape
+                        # if traces have the same length, do orientation correction
+                        if  tr1_len==tr2_len:
                             trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                        else:
+                            print('STOP! Error in pading traces. Check start and end times')
+                            print(tr1_start)
+                            print(tr2_start)
+                            print(tr1_end)
+                            print(tr2_end)
+                            print(tr1.data.shape)
+                            print(tr2.data.shape)
+                            print(sfile,ista)
+                            trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                            sys.exit()
                             
                         stE=Stream([trE])
                         stN=Stream([trN])
@@ -209,7 +227,7 @@ def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqm
                     elif rotate_flag==1:
                         print('CONTINUE! Too less chennels for rotation, which requires 2 channels')
                         continue
-                    # Skip channel rotation if rotate_flag==1
+                    # Skip channel rotation if no_rotate_flag==1
                     if no_rotate_flag==1:
                         source = []
                         for tag in channels:
@@ -255,6 +273,16 @@ def assemble_fft(sfile,win_len,step,correct_orientation=False,freqmin=None,freqm
 ####
     return fftdata_all
 
+def trace_info(ds,loc,sta,tag,inv):
+    tr=ds.waveforms[sta][tag][0]
+    loc_id=tag.split('_')[-1]
+    if loc and '' in loc:
+        sta_name=sta+'.'+'.'+tag.split('_')[0].upper()
+    else:
+        sta_name=sta+'.'+loc_id+'.'+tag.split('_')[0].upper()
+    orient=inv.get_orientation(sta_name)['azimuth']
+    return tr,orient,sta_name
+
 def smooth_source_spect(fft1,cc_method,sn):
     '''
     this function smoothes amplitude spectrum of the 2D spectral matrix. (used in S1)
@@ -299,7 +327,7 @@ def smooth_source_spect(fft1,cc_method,sn):
 #
 def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
                     xcorr_only=False,substack=False,correct_orientation=False,substack_len=None,smoothspect_N=20,
-                    maxstd=10,freqmin=None,freqmax=None,time_norm='no',freq_norm='no',
+                    maxstd=10,freqmin=None,freqmax=None,pad_thre=None,time_norm='no',freq_norm='no',
                     smooth_N=20,exclude_chan=[None],outdir='.',v=True,output_structure="raw"):
     """
     Wrapper for computing correlation functions. It includes two key steps: 1) compute and assemble
@@ -315,6 +343,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     smoothspect_N=20,smooth_N=20: smoothing parametes when rma is used for frequency and time domain, respectively.
     maxstd=10: drop data segments with std > this threshold.
     freqmin=None,freqmax=None: frequency range for frequency doman normalizaiton/smoothing.
+    pad_thre: Maximum allowed time gaps between two horizontal traces when performing orientation correction.
     time_norm='no',freq_norm='no': normalization choices.
     exclude_chan=[None]: this is needed when some channels to be excluded
     outdir='.': path to save the output ASDF files.
@@ -357,7 +386,7 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     ftmp = open(tmpfile,'w')
 
     ##############compute FFT#############
-    fftdata=assemble_fft(sfile,win_len,step,correct_orientation,freqmin=freqmin,freqmax=freqmax,
+    fftdata=assemble_fft(sfile,win_len,step,correct_orientation,freqmin=freqmin,freqmax=freqmax,pad_thre=pad_thre,
                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
     ndata=len(fftdata)
 
