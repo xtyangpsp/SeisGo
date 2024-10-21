@@ -8,18 +8,19 @@ if not sys.warnoptions:
 
 # absolute path parameters
 rootpath  = "test_data"                                     # root path for this data processing
-CCFDIR    = os.path.join(rootpath,'CCF_test')                                    # dir to store CC data
+CCFDIR    = os.path.join(rootpath,'CCF_test')                               # dir to store CC data
 DATADIR   = os.path.join(rootpath,'raw_data')                               # dir where noise data is located
 locations = os.path.join(rootpath,'station.txt')                            # station info including network,station,channel,latitude,longitude,elevation: only needed when input_fmt is not asdf
 
 # some control parameters
-freq_norm   = 'rma'                                                  # 'no' for no whitening, or 'rma' for running-mean average, 'phase' for sign-bit normalization in freq domain
+freq_norm   = 'rma'                                                         # 'no' for no whitening, or 'rma' for running-mean average, 'phase' for sign-bit normalization in freq domain
 time_norm   = 'no'                                                          # 'no' for no normalization, or 'rma', 'one_bit' for normalization in time domain
 cc_method   = 'xcorr'                                                       # 'xcorr' for pure cross correlation, 'deconv' for deconvolution; FOR "COHERENCY" PLEASE set freq_norm to "rma" and time_norm to "no"
 acorr_only  = False                                                         # only perform auto-correlation
-xcorr_only  = True  
-correct_orientation = True                                                       # only perform cross-correlation or not
-exclude_chan = []        #Added by Xiaotao Yang. Channels in this list will be skipped.
+xcorr_only  = True                                                          # only perform cross-correlation or not
+correct_orientation = True                                                  # If Ture, correct orientations for horizontal channels and convert 1/2 to N/E channels
+pad_thre = 60                                                               # (unit: datapoints) For padding horizontal traces to match sizes when doing orient correction. If None, default is 10 data points.
+exclude_chan = []                                                           # Added by Xiaotao Yang. Channels in this list will be skipped.
 output_structure="source"
 # pre-processing parameters
 cc_len    = 3600*6                                                            # basic unit of data length for fft (sec)
@@ -85,7 +86,7 @@ for ick in range(rank,splits,size):
                          acorr_only=acorr_only,xcorr_only=xcorr_only,substack=substack,
                          smoothspect_N=smoothspect_N,substack_len=substack_len,
                          maxstd=max_over_std,freqmin=freqmin,freqmax=freqmax,
-                         time_norm=time_norm,freq_norm=freq_norm,smooth_N=smooth_N,
+                         time_norm=time_norm,freq_norm=freq_norm,smooth_N=smooth_N,pad_thre=pad_thre,
                          exclude_chan=exclude_chan,outdir=CCFDIR,output_structure=output_structure)
 
     t11 = time.time()
