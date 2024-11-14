@@ -7,7 +7,7 @@ if not sys.warnoptions:
     warnings.simplefilter("ignore")
 
 # absolute path parameters
-rootpath  = "data_craton"                                                   # root path for this data processing
+rootpath  = "test_data"                                     # root path for this data processing
 CCFDIR    = os.path.join(rootpath,'CCF_test')                               # dir to store CC data
 DATADIR   = os.path.join(rootpath,'raw_data')                               # dir where noise data is located
 locations = os.path.join(rootpath,'station.txt')                            # station info including network,station,channel,latitude,longitude,elevation: only needed when input_fmt is not asdf
