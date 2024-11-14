@@ -268,7 +268,7 @@ def correct_orientations(tr1,tr2,orient):
     Parameters
     ----------
     tr1,tr2: :class:`~obspy.core.Trace`
-        Seismic traces for horizontals.
+        Seismic traces for horizontals. tr1 corresponds to N, tr2 corresponds to E
     orient:: Dictionary
         Dictionary containing the orientation information for the horizonal
         components for each station in the format of [orient_h1,orient_h2,orient_error].
@@ -311,7 +311,7 @@ def correct_orientations(tr1,tr2,orient):
     trE.data = vEN[0, :]
     trN.data = vEN[1, :]
 
-    return trE,trN
+    return trN,trE
 
 def image_binary_gradient(data,radius=1):
     """
@@ -1437,10 +1437,11 @@ def slicing_trace(source,win_len_secs,step_secs=None,taper_frac=0.02):
         nseg=1
         npts_step = 0
     else:
-        nseg = int(np.floor((duration-win_len_secs)/step_secs))
+        nseg = int(np.floor((duration-win_len_secs)/step_secs))+1
         npts_step = int(step_secs*sps)
 
     # initialize variables
+    #print(duration,win_len_secs,step_secs)
     npts = int(win_len_secs*sps)
     trace_stdS = np.zeros(nseg,dtype=np.float32)
     dataS    = np.zeros(shape=(nseg,npts),dtype=np.float32)
