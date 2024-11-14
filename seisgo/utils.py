@@ -273,6 +273,12 @@ def correct_orientations(tr1,tr2,orient):
         Dictionary containing the orientation information for the horizonal
         components for each station in the format of [orient_h1,orient_h2,orient_error].
         This information can be assembed by calling get_orientations().
+    Output
+    ---------
+    trE, trN :class:`~obspy.core.Trace`
+        Seismic traces for horizontals.
+        The order of output is important, DO NOT change.
+        For OBS data, it does NOT need to be E or N. The variable name is set for convenient
     """
     # Check that all traces are valid Trace objects
     for tr in [tr1, tr2]:
@@ -311,7 +317,7 @@ def correct_orientations(tr1,tr2,orient):
     trE.data = vEN[0, :]
     trN.data = vEN[1, :]
 
-    return trN,trE
+    return trE,trN
 
 def image_binary_gradient(data,radius=1):
     """
