@@ -22,9 +22,11 @@ correct_orientation = True                                                  # If
 do_rotation = True                                                          # If Ture, rotate to RTZ coordinate. correct_orientation will be automatically set to True
 pad_thre = 60                                                               # (unit: datapoints) For padding horizontal traces to match sizes when doing orient correction. If None, default is 10 data points.
 exclude_chan = []                                                           # Added by Xiaotao Yang. Channels in this list will be skipped.
-channel_pairs = ['ZZ','TT']       # Less than 3 pairs is strongly recommended for efficiency
+
+channel_pairs = ['ZZ','TT'] ### !!! IMPORTANT !!! Less than 3 pairs are strongly recommended for efficiency. Set to 'None' will do all cross-correlations
+
 verbose = True
-output_structure="source"
+output_structure="source"                                                   # How the output files will be named. Acceptable formats are: "raw", "source", "station-pair", "station-component-pair", 
 # pre-processing parameters
 cc_len    = 3600*2                                                            # basic unit of data length for fft (sec)
 step      = 3600*0.5                                                             # (1-overlapping) between each cc_len (sec). The smaller the more chuncks
@@ -85,7 +87,7 @@ for ick in range(rank,splits,size):
     sfile=tdir[ick]
     t10=time.time()
     #call the correlation wrapper.
-    ndata,ttt1,ttt2,ttt3,ttt4,ttt5,ttt6=noise.do_correlation(sfile,cc_len,step,maxlag,channel_pairs,correct_orientation=correct_orientation,do_rotation=do_rotation,cc_method=cc_method,
+    ndata,total_t=noise.do_correlation(sfile,cc_len,step,maxlag,channel_pairs,correct_orientation=correct_orientation,do_rotation=do_rotation,cc_method=cc_method,
                          acorr_only=acorr_only,xcorr_only=xcorr_only,substack=substack,
                          smoothspect_N=smoothspect_N,substack_len=substack_len,
                          maxstd=max_over_std,freqmin=freqmin,freqmax=freqmax,
@@ -95,12 +97,12 @@ for ick in range(rank,splits,size):
     t11 = time.time()
     print('it takes %6.5fs to process the chunk of %s' % (t11-t10,sfile.split('/')[-1]))
     if do_rotation:
-        print('it takes %6.5fs to read inventory' % (ttt1))
-        print('it takes %6.5fs to assemble raw source data' % (ttt2))
-        print('it takes %6.5fs to assemble raw receiver data' % (ttt6))
-        print('it takes %6.5fs to do rotation' % (ttt3))
-        print('it takes %6.5fs to prepare data for FFT' % (ttt4))
-        print('it takes %6.5fs to compute FFT' % (ttt5))
+        print('it takes %6.5fs to read inventory' % (total_t[0]))
+        print('it takes %6.5fs to assemble raw source data' % (total_t[1]))
+        print('it takes %6.5fs to assemble raw receiver data' % (total_t[5]))
+        print('it takes %6.5fs to do rotation' % (total_t[2]))
+        print('it takes %6.5fs to prepare data for FFT' % (total_t[3]))
+        print('it takes %6.5fs to compute FFT' % (total_t[4]))
 
 #comm.barrier()
 
