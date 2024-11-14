@@ -58,7 +58,9 @@ def assemble_raw(sfile,ds,all_tags,loc,ista,inv1,v,correct_orientation=True,pad_
     if do_rotation:
         correct_orientation=True
     
-    if len(all_tags)==0:return None
+    if len(all_tags)==0:
+        print('Raw Data Error. No data')
+        return None
 
     #----loop through each stream----
     if len(all_tags)>3:
@@ -173,20 +175,20 @@ def assemble_raw(sfile,ds,all_tags,loc,ista,inv1,v,correct_orientation=True,pad_
                 tr1_len=tr1.data.shape
                 tr2_len=tr2.data.shape
                 # if traces have the same length, do orientation correction
-                if  tr1_len==tr2_len:
-                    trN,trE=utils.correct_orientations(tr1,tr2,orient)
-                    print('Orientation correction for {} is finished'.format(ista))
-                else:
-                    print('STOP! Error in pading traces. Check start and end times')
-                    print(tr1_start)
-                    print(tr2_start)
-                    print(tr1_end)
-                    print(tr2_end)
-                    print(tr1.data.shape)
-                    print(tr2.data.shape)
-                    print(sfile,ista)
-                    trE,trN=utils.correct_orientations(tr1,tr2,orient)
-                    sys.exit()
+                #if  tr1_len==tr2_len:
+                trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                print('Orientation correction for {} is finished'.format(ista))
+                #else:
+                #    print('STOP! Error in padding traces. Check start and end times')
+                #    print(tr1_start)
+                #    print(tr2_start)
+                #    print(tr1_end)
+                #    print(tr2_end)
+                #    print(tr1.data.shape)
+                #    print(tr2.data.shape)
+                #    print(sfile,ista)
+                #    trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                #    sys.exit()
                     
                 #stE=Stream([trE])
                 #stN=Stream([trN])
@@ -240,6 +242,8 @@ def assemble_fft(raw_data,win_len,step,freqmin=None,freqmax=None,
     fftdata_all: A list that contains all data in freq domain grouped by stations
     """
 
+    sfile,ds,sall_tags,sloc,issta,sinv1,v,correct_orientation=correct_orientation,pad_thre=pad_thre,do_rotation=do_rotation
+    
     fftdata_all=[]
     for i in range(len(raw_data['data'])):
         if len(raw_data['inv'])>1:
@@ -347,6 +351,12 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
 
     ====RETURNS====
     ndata: the number of station-component pairs in the sfile, that have been processed.
+    [ttt1...ttt6]: a list of running times for each step. ttt1: time for reading inventory and location id
+                                                          ttt2: time for assembling source raw data
+                                                          ttt3: time for rotating channels
+                                                          ttt4: time for preparing FFT data
+                                                          ttt5: time for performing FFT
+                                                          ttt6: time for assembling receiver raw data
     """
     if win_len in [1,2,3]:
         print("!!!WARNING: you may call do_correlation() in the old way with the 2nd argument as the ncomp info.")
@@ -443,7 +453,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
                 ttt2+=tt2-tt1
                 #print('##################################################### Assemble source raw data takes {:.5f}'.format(tt2-tt1))
                 if source is None:
-                    print('CONTINUE! Something wrong when assembling raw data.')
+                    print(f'CONTINUE! Something wrong when assembling raw data for {issta}.')
                     #sys.exit()
                     continue
                 
@@ -472,7 +482,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
                         tt12=time.time()
                         ttt6+=tt12-tt11
                         if receiver is None:
-                            print('CONTINUE! Something wrong when assembling raw data.')
+                            print(f'CONTINUE! Something wrong when assembling raw data for {irsta}.')
                             continue
                         
                         data_cache[irsta]=receiver
@@ -482,7 +492,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
                         
                         # perform rotation, the output should be a nested list which contains at most 9 lists, of which each contains two obspy.trace objects.
                         tt5=time.time()
-                        tr_pairs=rotation(source,receiver,channel_pairs)
+                        tr_pairs=rotation_enz2rtz(source,receiver,channel_pairs)
                         tt6=time.time()
                         ttt3+=tt6-tt5
                         #print('##################################################### Channel rotation takes {:.5f}'.format(tt6-tt5))
@@ -590,7 +600,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
     ftmp.write('done')
     ftmp.close()
 
-    return ndata,ttt1,ttt2,ttt3,ttt4,ttt5,ttt6
+    return ndata,[ttt1,ttt2,ttt3,ttt4,ttt5,ttt6]
 
 def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
                 substack_len=None,smoothspect_N=20,maxstd=10,terror=0.01):
@@ -961,6 +971,19 @@ def stacking(corrdata,method='linear',par=None):
     return dstack,cc_time
 
 def get_locator(ds, sta):
+    '''
+    This function reads obspy.core.inventory.inventory.Inventory and location id of a station from a h5 file
+
+    PARAMETERS:
+    -------------------
+    ds: h5 file containing raw data and metadata
+    sta: a string of station name
+
+    RETURNS:
+    -------------------
+    [loc,inv]: a list of loc and inventory. 'loc' is a list containing all unique location id for this station.
+    '''
+    
     inv = ds.waveforms[sta]['StationXML']
     loc = []
     id_list = inv.get_contents()['channels']
@@ -973,7 +996,7 @@ def get_locator(ds, sta):
     
     return [loc, inv]
 
-def rotation(sraw, rraw, channels=None):
+def rotation_enz2rtz(sraw, rraw, channels=None):
     '''
     This function transfers the Green's tensor from an E-N-Z system into a R-T-Z one.
     
