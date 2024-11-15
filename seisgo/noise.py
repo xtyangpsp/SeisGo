@@ -241,8 +241,6 @@ def assemble_fft(raw_data,win_len,step,freqmin=None,freqmax=None,
     RETURN:
     fftdata_all: A list that contains all data in freq domain grouped by stations
     """
-
-    sfile,ds,sall_tags,sloc,issta,sinv1,v,correct_orientation=correct_orientation,pad_thre=pad_thre,do_rotation=do_rotation
     
     fftdata_all=[]
     for i in range(len(raw_data['data'])):
