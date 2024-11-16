@@ -6,6 +6,7 @@ import pyasdf
 import datetime
 import numpy as np
 import pandas as pd
+import warnings
 from obspy.signal.invsim import cosine_taper
 from obspy.signal.regression import linear_regression
 from obspy import Stream, read
@@ -41,185 +42,393 @@ def compute_fft(trace,win_len,step,stainv=None,
                     freq_norm=freq_norm,smooth=smooth,smooth_spec=smooth_spec,misc=misc,
                     taper_frac=taper_frac,df=df)
 
-def assemble_raw(sfile,ds,all_tags,loc,ista,inv1,v,correct_orientation=True,pad_thre=None,do_rotation=True):
+def assemble_raw(ds,ista=None,v=True,correct_orientation=True,pad_thre=None,do_rotation=False):
     """
-    Read and assemble all raw data for one station from the raw data file "sfile".
+    Read and assemble all raw data for one station from the opened raw data file "ds".
+    
     Orientation correction is done in this step
-    sfile: raw data file in ASDF format.
+    ds: opened raw data file in ASDF format.
+    ista: station name. If 'None' all stations will be processed
+    v: verbose
     correct_orientation: orientation correction for horizontal channels, automatically convert 1/2 to N/E channels
     pad_thre: Maximum allowed time gaps between two horizontal traces when performing orientation correction.
+    do_rotation: perform horizontal enz2rtz rotation
     
     RETURN:
     
     raw: a dictionary contains list of obspy.trace objects that can be directly used by assemble_fft(), and corresponding inv file
     """
-    raw=dict()
     
-    if do_rotation:
-        correct_orientation=True
+    if isinstance(ds,str):
+        warnings.warn('The input argument should be already opened with pyasdf.ASDFDataSet(), check your input value.',UserWarning)
+        return 3
     
-    if len(all_tags)==0:
-        print('Raw Data Error. No data')
-        return None
-
-    #----loop through each stream----
-    if len(all_tags)>3:
-        print('Raw Data Error. Too many channels, check station metadata')
-        return None
-    else:
-        #Set rotate and no-rotate flags to 0 for each station to avoid error
-        #Do rotation of channels 1 or 2 to N or E
-        rotate_flag=0
-        no_rotate_flag=0
-        channels=[]
-        rawdata=[]
-        # Do orientation correction if correct_orientation is True
-        if correct_orientation==True:
-            #print('Rotating 1/2 channels to E/N channels for {}'.format(ista))
-            # Read channel info and decide if channel rotation is needed
-            for itag in all_tags:
-                #if v:print("Rotating 1/2 channels to E/N channels for station %s and trace %s" % (ista,itag))
-                chan=itag.split('_')[0][-1]
-                
-                # Read trace and orientation from each channel. Assume that for one station, channels are either only 1/2/z or e/n/z
-                if chan=='1':
-                    tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                    newchan=itag.split('_')[0].replace('1','N')
-                    tr1.stats.channel=newchan.upper()
-                    tr1.stats.component='N'
-                    rotate_flag+=1
-                    print('Rotated channel 1 to N for %s' %(sta_name))
-                elif chan=='2':
-                    tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                    newchan=itag.split('_')[0].replace('2','E')
-                    tr2.stats.channel=newchan.upper()
-                    tr2.stats.component='E'
-                    rotate_flag+=1
-                    print('Rotated channel 2 to E for %s' %(sta_name))
-                elif chan=='n':
-                    tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                    rotate_flag+=1
-                    print('Correcting channel N for %s' %(sta_name))
-                elif chan=='e':
-                    tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                    rotate_flag+=1
-                    print('Correcting channel E for %s' %(sta_name))
-                else:
-                    channels.append(itag)
-                    no_rotate_flag=1
-                    #print('Vertical channel, no correction and rotation needed')
-
-            # Do channel rotation if rotate_flag==2
-            if rotate_flag==2:
-                orient=dict()
-                orient[ista]=(or1,or2,0)
-                # Correct any timestamp error if have
-                dt=1/tr1.stats.sampling_rate
-                tr1_start=tr1.stats.starttime
-                tr2_start=tr2.stats.starttime
-                tr1_end=tr1.stats.endtime
-                tr2_end=tr2.stats.endtime
-                # if v:
-                #     print(tr1_start)
-                #     print(tr2_start)
-                #     print(tr1_end)
-                #     print(tr2_end)
-                #     print('################')
-                sgap=tr1_start-tr2_start
-                egap=tr1_end-tr2_end
-                
-                if pad_thre==None:
-                    pad_thre=10*dt
-                else:
-                    pad_thre=pad_thre*dt
-                
-                # Check if time difference between two channels are too big. Big start and end time differences will be discarded and move to the next station
-                if abs(sgap)//dt>pad_thre or abs(egap)//dt>pad_thre:
-                    print('Time error for station {0} in {1} is larger than zero padding threshold, check data'.format(ista,sfile))
-                    return None
-                
-                # First zero pad start time side (left)
-                if abs(sgap)%dt>dt/2:
-                    zero=np.zeros(int(abs(sgap)//dt+1))
-                    if sgap<0:        # if tr1 starts earlier, add zero to tr2 on left
-                        tr2.data=np.insert(tr2.data,0,zero)
-                        tr2.stats.starttime=tr1.stats.starttime
-                    else:             # if tr1 starts later, add zero to tr1 on left
-                        tr1.data=np.insert(tr1.data,0,zero)
-                        tr1.stats.starttime=tr2.stats.starttime
-                
-                else:
-                    zero=np.zeros(int(abs(sgap)//dt))
-                    if sgap<0:
-                        tr2.data=np.insert(tr2.data,0,zero)
-                        tr2.stats.starttime=tr1.stats.starttime
-                    else:
-                        tr1.data=np.insert(tr1.data,0,zero)
-                        tr1.stats.starttime=tr2.stats.starttime
-                
-                # Then zero pad end time side (right)
-                if abs(egap)%dt>dt/2:
-                    zero=np.zeros(int(abs(egap)//dt+1))
-                    if egap<0:        # if tr1 ends earlier, add zero to tr1 on right
-                        tr1.data=np.append(tr1.data,zero)
-                    else:             # if tr1 ends later, add zero to tr2 on right
-                        tr2.data=np.append(tr2.data,zero)
-                
-                else:
-                    zero=np.zeros(int(abs(egap)//dt))
-                    if egap<0:
-                        tr1.data=np.append(tr1.data,zero)
-                    else:
-                        tr2.data=np.append(tr2.data,zero)
-                
-                tr1_len=tr1.data.shape
-                tr2_len=tr2.data.shape
-                # if traces have the same length, do orientation correction
-                #if  tr1_len==tr2_len:
-                trE,trN=utils.correct_orientations(tr1,tr2,orient)
-                print('Orientation correction for {} is finished'.format(ista))
-                #else:
-                #    print('STOP! Error in padding traces. Check start and end times')
-                #    print(tr1_start)
-                #    print(tr2_start)
-                #    print(tr1_end)
-                #    print(tr2_end)
-                #    print(tr1.data.shape)
-                #    print(tr2.data.shape)
-                #    print(sfile,ista)
-                #    trE,trN=utils.correct_orientations(tr1,tr2,orient)
-                #    sys.exit()
-                    
-                #stE=Stream([trE])
-                #stN=Stream([trN])
-                rawdata=[trN,trE]
-
-            # Skip station if it has less than 2 horizontal channels
-            elif rotate_flag==1:
-                print('CONTINUE! Too less chennels for rotation, which requires 2 channels')
+    if ista is None:
+        Warning('IMPORTANT!! Station name should be specified for assembling raw data MORE efficiently.'
+                'Not setting station name has the potential of GREATLY increasing running time'
+                'Be aware of output value structure.',UserWarning)   
+        sta_list = ds.waveforms.list()
+        nsta=len(sta_list)
+        raw={}
+        if nsta==0:
+            print('no data available');
+            return []
+        if do_rotation:
+            correct_orientation=True
+        for ii in range(nsta):
+            # get source station and inventory
+            ista=sta_list[ii]
+            print('source: {}'.format(ista))
+            
+            raw1=dict()
+            
+            if do_rotation:
+                correct_orientation=True
+            
+            all_tags = ds.waveforms[ista].get_waveform_tags()
+            
+            try:
+                mdata=get_locator(ds,ista)
+                loc=mdata[0]
+                inv1=mdata[1]
+            except Exception as e:
+                return 1
+            
+            if len(all_tags)==0:
+                print('Raw Data Error. No data')
                 return None
-            # Skip channel rotation (for vertical channel) if no_rotate_flag==1
-            if no_rotate_flag==1:
-                for tag in channels:
-                    #print(tag,'was passed directly to fft')
-                    tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                    rawdata.append(tr)
-        
-        # Skip orientation correction if correct_orientation is False
-        else:
-            for itag in all_tags:
-                if v:print("Assembling raw data for station %s and trace %s" % (ista,itag))
-                # read waveform data
-                tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                #tr = ds.waveforms[ista][itag][0]
-                if len(tr.data)!=0:
-                    rawdata.append(tr)
+
+            #----loop through each stream----
+            if len(all_tags)>3:
+                print('Raw Data Error. Too many channels, check station metadata')
+                return None
+            else:
+                #Set rotate and no-rotate flags to 0 for each station to avoid error
+                #Do rotation of channels 1 or 2 to N or E
+                rotate_flag=0
+                no_rotate_flag=0
+                channels=[]
+                rawdata=[]
+                # Do orientation correction if correct_orientation is True
+                if correct_orientation==True:
+                    #print('Rotating 1/2 channels to E/N channels for {}'.format(ista))
+                    # Read channel info and decide if channel rotation is needed
+                    for itag in all_tags:
+                        #if v:print("Rotating 1/2 channels to E/N channels for station %s and trace %s" % (ista,itag))
+                        chan=itag.split('_')[0][-1]
+                        
+                        # Read trace and orientation from each channel. Assume that for one station, channels are either only 1/2/z or e/n/z
+                        if chan=='1':
+                            tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            newchan=itag.split('_')[0].replace('1','N')
+                            tr1.stats.channel=newchan.upper()
+                            tr1.stats.component='N'
+                            rotate_flag+=1
+                            print('Rotated channel 1 to N for %s' %(sta_name))
+                        elif chan=='2':
+                            tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            newchan=itag.split('_')[0].replace('2','E')
+                            tr2.stats.channel=newchan.upper()
+                            tr2.stats.component='E'
+                            rotate_flag+=1
+                            print('Rotated channel 2 to E for %s' %(sta_name))
+                        elif chan=='n':
+                            tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            rotate_flag+=1
+                            print('Correcting channel N for %s' %(sta_name))
+                        elif chan=='e':
+                            tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            rotate_flag+=1
+                            print('Correcting channel E for %s' %(sta_name))
+                        else:
+                            channels.append(itag)
+                            no_rotate_flag=1
+                            #print('Vertical channel, no correction and rotation needed')
+
+                    # Do channel rotation if rotate_flag==2
+                    if rotate_flag==2:
+                        orient=dict()
+                        orient[ista]=(or1,or2,0)
+                        # Correct any timestamp error if have
+                        dt=1/tr1.stats.sampling_rate
+                        tr1_start=tr1.stats.starttime
+                        tr2_start=tr2.stats.starttime
+                        tr1_end=tr1.stats.endtime
+                        tr2_end=tr2.stats.endtime
+                        # if v:
+                        #     print(tr1_start)
+                        #     print(tr2_start)
+                        #     print(tr1_end)
+                        #     print(tr2_end)
+                        #     print('################')
+                        sgap=tr1_start-tr2_start
+                        egap=tr1_end-tr2_end
+                        
+                        if pad_thre==None:
+                            pad_thre=10*dt
+                        else:
+                            pad_thre=pad_thre*dt
+                        
+                        # Check if time difference between two channels are too big. Big start and end time differences will be discarded and move to the next station
+                        if abs(sgap)//dt>pad_thre or abs(egap)//dt>pad_thre:
+                            return 2
+                        
+                        # First zero pad start time side (left)
+                        if abs(sgap)%dt>dt/2:
+                            zero=np.zeros(int(abs(sgap)//dt+1))
+                            if sgap<0:        # if tr1 starts earlier, add zero to tr2 on left
+                                tr2.data=np.insert(tr2.data,0,zero)
+                                tr2.stats.starttime=tr1.stats.starttime
+                            else:             # if tr1 starts later, add zero to tr1 on left
+                                tr1.data=np.insert(tr1.data,0,zero)
+                                tr1.stats.starttime=tr2.stats.starttime
+                        
+                        else:
+                            zero=np.zeros(int(abs(sgap)//dt))
+                            if sgap<0:
+                                tr2.data=np.insert(tr2.data,0,zero)
+                                tr2.stats.starttime=tr1.stats.starttime
+                            else:
+                                tr1.data=np.insert(tr1.data,0,zero)
+                                tr1.stats.starttime=tr2.stats.starttime
+                        
+                        # Then zero pad end time side (right)
+                        if abs(egap)%dt>dt/2:
+                            zero=np.zeros(int(abs(egap)//dt+1))
+                            if egap<0:        # if tr1 ends earlier, add zero to tr1 on right
+                                tr1.data=np.append(tr1.data,zero)
+                            else:             # if tr1 ends later, add zero to tr2 on right
+                                tr2.data=np.append(tr2.data,zero)
+                        
+                        else:
+                            zero=np.zeros(int(abs(egap)//dt))
+                            if egap<0:
+                                tr1.data=np.append(tr1.data,zero)
+                            else:
+                                tr2.data=np.append(tr2.data,zero)
+                        
+                        tr1_len=tr1.data.shape
+                        tr2_len=tr2.data.shape
+                        # if traces have the same length, do orientation correction
+                        #if  tr1_len==tr2_len:
+                        trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                        print('Orientation correction for {} is finished'.format(ista))
+                        #else:
+                        #    print('STOP! Error in padding traces. Check start and end times')
+                        #    print(tr1_start)
+                        #    print(tr2_start)
+                        #    print(tr1_end)
+                        #    print(tr2_end)
+                        #    print(tr1.data.shape)
+                        #    print(tr2.data.shape)
+                        #    print(sfile,ista)
+                        #    trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                        #    sys.exit()
+                            
+                        #stE=Stream([trE])
+                        #stN=Stream([trN])
+                        rawdata=[trN,trE]
+
+                    # Skip station if it has less than 2 horizontal channels
+                    elif rotate_flag==1:
+                        print('CONTINUE! Too less chennels for rotation, which requires 2 channels')
+                        return None
+                    # Skip channel rotation (for vertical channel) if no_rotate_flag==1
+                    if no_rotate_flag==1:
+                        for tag in channels:
+                            #print(tag,'was passed directly to fft')
+                            tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                            rawdata.append(tr)
+                
+                # Skip orientation correction if correct_orientation is False
                 else:
-                    print(sfile,'station {0} channel {1} is empty. Continue to the next channel'.format(ista,itag))
-                    continue
-    raw['data']=rawdata
-    raw['inv']=[inv1]
-    raw['coor']=inv1.get_coordinates(sta_name)
+                    for itag in all_tags:
+                        if v:print("Assembling raw data for station %s and trace %s" % (ista,itag))
+                        # read waveform data
+                        tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        #tr = ds.waveforms[ista][itag][0]
+                        if len(tr.data)!=0:
+                            rawdata.append(tr)
+
+            raw1['data']=rawdata
+            raw1['inv']=[inv1]
+            raw1['coor']=inv1.get_coordinates(sta_name)
+            raw[ista]=raw1    
+    else:
+        # add liens to extract tags, inv,    
+        raw=dict()
+        
+        if do_rotation:
+            correct_orientation=True
+        
+        all_tags = ds.waveforms[ista].get_waveform_tags()
+        
+        try:
+            mdata=get_locator(ds,ista)
+            loc=mdata[0]
+            inv1=mdata[1]
+        except Exception as e:
+            return 1
+        
+        if len(all_tags)==0:
+            print('Raw Data Error. No data')
+            return None
+
+        #----loop through each stream----
+        if len(all_tags)>3:
+            print('Raw Data Error. Too many channels, check station metadata')
+            return None
+        else:
+            #Set rotate and no-rotate flags to 0 for each station to avoid error
+            #Do rotation of channels 1 or 2 to N or E
+            rotate_flag=0
+            no_rotate_flag=0
+            channels=[]
+            rawdata=[]
+            # Do orientation correction if correct_orientation is True
+            if correct_orientation==True:
+                #print('Rotating 1/2 channels to E/N channels for {}'.format(ista))
+                # Read channel info and decide if channel rotation is needed
+                for itag in all_tags:
+                    #if v:print("Rotating 1/2 channels to E/N channels for station %s and trace %s" % (ista,itag))
+                    chan=itag.split('_')[0][-1]
+                    
+                    # Read trace and orientation from each channel. Assume that for one station, channels are either only 1/2/z or e/n/z
+                    if chan=='1':
+                        tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        newchan=itag.split('_')[0].replace('1','N')
+                        tr1.stats.channel=newchan.upper()
+                        tr1.stats.component='N'
+                        rotate_flag+=1
+                        print('Rotated channel 1 to N for %s' %(sta_name))
+                    elif chan=='2':
+                        tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        newchan=itag.split('_')[0].replace('2','E')
+                        tr2.stats.channel=newchan.upper()
+                        tr2.stats.component='E'
+                        rotate_flag+=1
+                        print('Rotated channel 2 to E for %s' %(sta_name))
+                    elif chan=='n':
+                        tr1,or1,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        rotate_flag+=1
+                        print('Correcting channel N for %s' %(sta_name))
+                    elif chan=='e':
+                        tr2,or2,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        rotate_flag+=1
+                        print('Correcting channel E for %s' %(sta_name))
+                    else:
+                        channels.append(itag)
+                        no_rotate_flag=1
+                        #print('Vertical channel, no correction and rotation needed')
+
+                # Do channel rotation if rotate_flag==2
+                if rotate_flag==2:
+                    orient=dict()
+                    orient[ista]=(or1,or2,0)
+                    # Correct any timestamp error if have
+                    dt=1/tr1.stats.sampling_rate
+                    tr1_start=tr1.stats.starttime
+                    tr2_start=tr2.stats.starttime
+                    tr1_end=tr1.stats.endtime
+                    tr2_end=tr2.stats.endtime
+                    # if v:
+                    #     print(tr1_start)
+                    #     print(tr2_start)
+                    #     print(tr1_end)
+                    #     print(tr2_end)
+                    #     print('################')
+                    sgap=tr1_start-tr2_start
+                    egap=tr1_end-tr2_end
+                    
+                    if pad_thre==None:
+                        pad_thre=10*dt
+                    else:
+                        pad_thre=pad_thre*dt
+                    
+                    # Check if time difference between two channels are too big. Big start and end time differences will be discarded and move to the next station
+                    if abs(sgap)//dt>pad_thre or abs(egap)//dt>pad_thre:
+                        return 2
+                    
+                    # First zero pad start time side (left)
+                    if abs(sgap)%dt>dt/2:
+                        zero=np.zeros(int(abs(sgap)//dt+1))
+                        if sgap<0:        # if tr1 starts earlier, add zero to tr2 on left
+                            tr2.data=np.insert(tr2.data,0,zero)
+                            tr2.stats.starttime=tr1.stats.starttime
+                        else:             # if tr1 starts later, add zero to tr1 on left
+                            tr1.data=np.insert(tr1.data,0,zero)
+                            tr1.stats.starttime=tr2.stats.starttime
+                    
+                    else:
+                        zero=np.zeros(int(abs(sgap)//dt))
+                        if sgap<0:
+                            tr2.data=np.insert(tr2.data,0,zero)
+                            tr2.stats.starttime=tr1.stats.starttime
+                        else:
+                            tr1.data=np.insert(tr1.data,0,zero)
+                            tr1.stats.starttime=tr2.stats.starttime
+                    
+                    # Then zero pad end time side (right)
+                    if abs(egap)%dt>dt/2:
+                        zero=np.zeros(int(abs(egap)//dt+1))
+                        if egap<0:        # if tr1 ends earlier, add zero to tr1 on right
+                            tr1.data=np.append(tr1.data,zero)
+                        else:             # if tr1 ends later, add zero to tr2 on right
+                            tr2.data=np.append(tr2.data,zero)
+                    
+                    else:
+                        zero=np.zeros(int(abs(egap)//dt))
+                        if egap<0:
+                            tr1.data=np.append(tr1.data,zero)
+                        else:
+                            tr2.data=np.append(tr2.data,zero)
+                    
+                    tr1_len=tr1.data.shape
+                    tr2_len=tr2.data.shape
+                    # if traces have the same length, do orientation correction
+                    #if  tr1_len==tr2_len:
+                    trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                    print('Orientation correction for {} is finished'.format(ista))
+                    #else:
+                    #    print('STOP! Error in padding traces. Check start and end times')
+                    #    print(tr1_start)
+                    #    print(tr2_start)
+                    #    print(tr1_end)
+                    #    print(tr2_end)
+                    #    print(tr1.data.shape)
+                    #    print(tr2.data.shape)
+                    #    print(sfile,ista)
+                    #    trE,trN=utils.correct_orientations(tr1,tr2,orient)
+                    #    sys.exit()
+                        
+                    #stE=Stream([trE])
+                    #stN=Stream([trN])
+                    rawdata=[trN,trE]
+
+                # Skip station if it has less than 2 horizontal channels
+                elif rotate_flag==1:
+                    print('CONTINUE! Too less chennels for rotation, which requires 2 channels')
+                    return None
+                # Skip channel rotation (for vertical channel) if no_rotate_flag==1
+                if no_rotate_flag==1:
+                    for tag in channels:
+                        #print(tag,'was passed directly to fft')
+                        tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        rawdata.append(tr)
+            
+            # Skip orientation correction if correct_orientation is False
+            else:
+                for itag in all_tags:
+                    if v:print("Assembling raw data for station %s and trace %s" % (ista,itag))
+                    # read waveform data
+                    tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                    #tr = ds.waveforms[ista][itag][0]
+                    if len(tr.data)!=0:
+                        rawdata.append(tr)
+
+        raw['data']=rawdata
+        raw['inv']=[inv1]
+        raw['coor']=inv1.get_coordinates(sta_name)
 ####
     return raw
     
@@ -241,7 +450,41 @@ def assemble_fft(raw_data,win_len,step,freqmin=None,freqmax=None,
     RETURN:
     fftdata_all: A list that contains all data in freq domain grouped by stations
     """
-    
+    if isinstance(raw_data,str):
+        warnings.warn('!!! Warning !!! You may call assemble_fft() the older way with the FIRST argument as sfile.'
+                      'This may cause GREAT INCREASE in processing time.'
+                      'Double check other input arguments for assemble_raw() as well, especially the SECOND argument'
+                      'This change is effective starting from version v0.8.4',
+                      UserWarning)
+        raw_data1 = assemble_raw(raw_data)
+        if len(raw_data1)>3:
+            raw_data=[]
+            raw_data.extend(raw_data1.values())
+            fftdata_all=[]
+            for j in range(len(raw_data)):
+                for i in range(len(raw_data[j]['data'])):
+                    inv=raw_data[j]['inv'][0]
+                    comp = raw_data[j]['data'][i].stats.channel
+                    if comp[-1] =='U': comp=comp.replace('U','Z')
+                    
+                    if comp in exclude_chan:
+                        print(comp+" is in the exclude_chan list. Skip it!")
+                        continue
+                    #print(raw_data['data'][i])
+                    fftdata=FFTData(raw_data[j]['data'][i],win_len,step,stainv=inv,
+                                    time_norm=time_norm,freq_norm=freq_norm,
+                                    smooth=smooth,freqmin=freqmin,freqmax=freqmax,
+                                    smooth_spec=smooth_spec,taper_frac=taper_frac,df=df)
+                    if fftdata.data is not None:
+                        fftdata_all.append(fftdata)
+                    else:
+                        print('CONTINUE! At least one fftdata is empty.')
+                        continue
+
+                return fftdata_all
+        else:
+            raw_data=raw_data1
+        
     fftdata_all=[]
     for i in range(len(raw_data['data'])):
         if len(raw_data['inv'])>1:
@@ -413,20 +656,20 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
         # Create a cache dict to store all assembled raw data
         data_cache={}
         
-        loc=[]
+        #loc=[]
         fftdata=[]
         tt3=time.time()
         
         # store location id for all stations into a cache list
-        for ii in range(len(sta_list)):
-            try:
-                loc1=get_locator(ds,sta_list[ii])
-                loc.append(loc1)
-            except Exception as e:
-                print('abort! no stationxml for %s in file %s'%(sta_list[ii],sfile))
-                continue
-        tt4=time.time()
-        ttt1+=tt4-tt3
+        # for ii in range(len(sta_list)):
+        #     try:
+        #         loc1=get_locator(ds,sta_list[ii])
+        #         loc.append(loc1)
+        #     except Exception as e:
+        #         print('abort! no stationxml for %s in file %s'%(sta_list[ii],sfile))
+        #         continue
+        # tt4=time.time()
+        # ttt1+=tt4-tt3
         #print('###################################################### Read inventory takes {:.5f}'.format(tt4-tt3))
         
         # Loop through all source stations
@@ -440,20 +683,24 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
                 source=data_cache[issta]
             else:
                 # get days information: works better than just list the tags
-                sall_tags = ds.waveforms[issta].get_waveform_tags()
-                sloc=loc[iiS][0]
-                sinv1=loc[iiS][1]
-                #fftdata=[]
-                #get source raw data
+                # get source raw data
                 tt1=time.time()
-                source=assemble_raw(sfile,ds,sall_tags,sloc,issta,sinv1,v,correct_orientation=correct_orientation,pad_thre=pad_thre,do_rotation=do_rotation)
+                source=assemble_raw(ds,issta,v,correct_orientation=correct_orientation,pad_thre=pad_thre,do_rotation=do_rotation)
+                if source==1:
+                    print('abort! no stationxml for %s in file %s'%(issta,sfile))
+                    continue
+                elif source==2:
+                    print('{0}: Time error for station {1} is larger than zero padding threshold, check data'.format(sfile,issta))
+                    continue
+                elif source==3:
+                    print('Check input arguments type or value.')
+                    sys.exit()
+                elif source is None:
+                    continue
+                
                 tt2=time.time()
                 ttt2+=tt2-tt1
                 #print('##################################################### Assemble source raw data takes {:.5f}'.format(tt2-tt1))
-                if source is None:
-                    print(f'CONTINUE! Something wrong when assembling raw data for {issta}.')
-                    #sys.exit()
-                    continue
                 
                 data_cache[issta]=source
             
@@ -471,17 +718,23 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
                     if irsta in data_cache:
                         receiver=data_cache[irsta]
                     else:
-                        rall_tags = ds.waveforms[irsta].get_waveform_tags()
-                        rloc=loc[iiR][0]
-                        rinv1=loc[iiR][1]
                         # get receiver raw data
                         tt11=time.time()
-                        receiver=assemble_raw(sfile,ds,rall_tags,rloc,irsta,rinv1,v,correct_orientation=correct_orientation,pad_thre=pad_thre,do_rotation=do_rotation)
+                        receiver=assemble_raw(ds,irsta,v,correct_orientation=correct_orientation,pad_thre=pad_thre,do_rotation=do_rotation)
+                        if receiver==1:
+                            print('abort! no stationxml for %s in file %s'%(issta,sfile))
+                            continue
+                        elif receiver==2:
+                            print('{0}: Time error for station {1} is larger than zero padding threshold, check data'.format(sfile,issta))
+                            continue
+                        elif receiver==3:
+                            print('Check input arguments type or value.')
+                            sys.exit()
+                        elif receiver is None:
+                            continue
+                        
                         tt12=time.time()
                         ttt6+=tt12-tt11
-                        if receiver is None:
-                            print(f'CONTINUE! Something wrong when assembling raw data for {irsta}.')
-                            continue
                         
                         data_cache[irsta]=receiver
                     
@@ -563,6 +816,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs,cc_method='xcorr',aco
                 # get index right for auto/cross correlation
                 istart=iiS
                 src=fftdata[iiS].net+"."+fftdata[iiS].sta
+                print('source',src)
                 # if acorr_only:iend=np.minimum(iiS+ncomp,ndata)
                 # if xcorr_only:istart=np.minimum(iiS+ncomp,ndata)
                 #-----------now loop II for each receiver B----------

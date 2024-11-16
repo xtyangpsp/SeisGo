@@ -33,7 +33,7 @@ step      = 3600*0.5                                                            
 smooth_N  = 150                                                              # Important. This value should be at least the max period of interet. Half moving window length for time/freq domain normalization if selected (points)
 
 # cross-correlation parameters
-maxlag         = 1800                                                        # lags of cross-correlation to save (sec)
+maxlag         = 1500                                                        # lags of cross-correlation to save (sec)
 substack       = False                                                      # sub-stack daily cross-correlation or not
 substack_len   = cc_len                                                  # how long to stack over (for monitoring purpose): need to be multiples of cc_len
 smoothspect_N  = 20                                                         # moving window length to smooth spectrum amplitude (points)
@@ -97,7 +97,6 @@ for ick in range(rank,splits,size):
     t11 = time.time()
     print('it takes %6.5fs to process the chunk of %s' % (t11-t10,sfile.split('/')[-1]))
     if do_rotation:
-        print('it takes %6.5fs to read inventory' % (total_t[0]))
         print('it takes %6.5fs to assemble raw source data' % (total_t[1]))
         print('it takes %6.5fs to assemble raw receiver data' % (total_t[5]))
         print('it takes %6.5fs to do rotation' % (total_t[2]))
