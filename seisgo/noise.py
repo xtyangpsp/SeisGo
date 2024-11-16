@@ -402,7 +402,8 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
         print("         This may cause errors with arguments getting the wrong values. In this version and later,")
         print("         ncomp is deprecated. No change for other arguments. This warning will be removed in")
         print("         versions v0.7.x and later.")
-
+    if rotate_raw:
+        correct_orientation=True
     if acorr_only and xcorr_only:
         raise ValueError('acorr_only and xcorr_only CAN NOT all be True.')
     output_o,output_o_short=helpers.xcorr_output_structure()
