@@ -14,14 +14,23 @@ OBSMASTER:
 
 UTILS:
 1. Moved correct_orientations() here.
+2. Edited how number of traces is calculated in slicing_trace()
 
 NOISE:
 1. Added trace_info() to extract trace and orientation info.
 2. Added the function to correct horizontal orientations and convert 1/2 channels to N/E channels.
+3. Optimized the workflow for cross-correlation
+4. Added the function to do channel rotation for specified channel pairs
+5. Added assemble_raw() to assemble raw data from h5 files
+6. Added assemble_fft() to prepare data for FFT
+7. Added get_locator() to read inventory and location id of stations
+8. Added rotation() to perform horizontal channel rotation
 
 2_XCORR_MPI:
 1. Added a switch named correct_orientation for channel orientation correction/conversion.
 2. Added pad_thre to define the maximum threshold of size gaps between channels when doing orientation correction.
+3. Added a switch named do_rotation for horizontal channel rotation
+4. Added a switch named channel_pairs for specifying which channels pairs are saved.
 
 =============================================================
 Updates in v0.8.3:
