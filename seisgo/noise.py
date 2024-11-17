@@ -81,7 +81,7 @@ def assemble_raw(ds,sta=None,v=True,correct_orientation=True,max_time_diff=None)
     sta_list_out=[] #save list of stations with data successfully extracted.
     for ista in sta_list:
         # get source station and inventory
-        print('source: {}'.format(ista))
+        #print('source: {}'.format(ista))
         
         raw1=dict()
         
@@ -547,6 +547,9 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
                             tt9=time.time()
                             fftdata=assemble_fft([pair],win_len,step,freqmin=freqmin,freqmax=freqmax,smooth_spec=smoothspect_N,
                                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
+                            if len(fftdata) < 2:
+                                print('Station pair {0}-{1} has empty fftdata.'.format(src,rcv))
+                                continue
                             tt10=time.time()
                             ttt4+=tt10-tt9
                             #print('##################################################### Prepare data for FFT takes {:.5f}'.format(tt10-tt9))
@@ -589,6 +592,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
                                          time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
                 if len(fftdata_sta) < 1:
                     print('Station {0} has empty fftdata. Continue to the next station'.fromat(issta))
+                    continue
                 else:
                     for tr in fftdata_sta: fftdata.append(tr)
         
