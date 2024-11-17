@@ -7,7 +7,7 @@ if not sys.warnoptions:
     warnings.simplefilter("ignore")
 
 # absolute path parameters
-rootpath  = "test_data"                                     # root path for this data processing
+rootpath  = "test_data"                                                     # root path for this data processing
 CCFDIR    = os.path.join(rootpath,'CCF_test')                               # dir to store CC data
 DATADIR   = os.path.join(rootpath,'raw_data')                               # dir where noise data is located
 locations = os.path.join(rootpath,'station.txt')                            # station info including network,station,channel,latitude,longitude,elevation: only needed when input_fmt is not asdf
@@ -19,8 +19,8 @@ cc_method   = 'xcorr'                                                       # 'x
 acorr_only  = False                                                         # only perform auto-correlation
 xcorr_only  = True                                                          # only perform cross-correlation or not
 correct_orientation = True                                                  # If Ture, correct orientations for horizontal channels and convert 1/2 to N/E channels
-do_rotation = True                                                          # If Ture, rotate to RTZ coordinate. correct_orientation will be automatically set to True
-pad_thre = 60                                                               # (unit: datapoints) For padding horizontal traces to match sizes when doing orient correction. If None, default is 10 data points.
+rotate_raw = True                                                          # If Ture, rotate to RTZ coordinate. correct_orientation will be automatically set to True
+max_time_diff = 60                                                               # (unit: datapoints) For padding horizontal traces to match sizes when doing orient correction. If None, default is 10 data points.
 exclude_chan = []                                                           # Added by Xiaotao Yang. Channels in this list will be skipped.
 
 channel_pairs = ['ZZ','TT'] ### !!! IMPORTANT !!! Less than 3 pairs are strongly recommended for efficiency. Set to 'None' will do all cross-correlations
@@ -60,7 +60,7 @@ if rank == 0:
             'freqmin':freqmin,'freqmax':freqmax,'freq_norm':freq_norm,'time_norm':time_norm,
             'cc_method':cc_method,'smooth_N':smooth_N,'substack':substack,'substack_len':substack_len,
             'smoothspect_N':smoothspect_N,'maxlag':maxlag,'max_over_std':max_over_std,
-            'max_kurtosis':max_kurtosis,'channel_correction':correct_orientation,'channel_pairs':channel_pairs}
+            'max_kurtosis':max_kurtosis,'channel_correction':correct_orientation,'rotate_raw':rotate_raw,'channel_pairs':channel_pairs}
     # save fft metadata for future reference
     fc_metadata  = os.path.join(CCFDIR,'fft_cc_data.txt')
     if not os.path.isdir(CCFDIR):os.makedirs(CCFDIR)
@@ -87,16 +87,16 @@ for ick in range(rank,splits,size):
     sfile=tdir[ick]
     t10=time.time()
     #call the correlation wrapper.
-    ndata,total_t=noise.do_correlation(sfile,cc_len,step,maxlag,channel_pairs,correct_orientation=correct_orientation,do_rotation=do_rotation,cc_method=cc_method,
+    ndata,total_t=noise.do_correlation(sfile,cc_len,step,maxlag,channel_pairs,correct_orientation=correct_orientation,rotate_raw=rotate_raw,cc_method=cc_method,
                          acorr_only=acorr_only,xcorr_only=xcorr_only,substack=substack,
                          smoothspect_N=smoothspect_N,substack_len=substack_len,
                          maxstd=max_over_std,freqmin=freqmin,freqmax=freqmax,
-                         time_norm=time_norm,freq_norm=freq_norm,smooth_N=smooth_N,pad_thre=pad_thre,
+                         time_norm=time_norm,freq_norm=freq_norm,smooth_N=smooth_N,max_time_diff=max_time_diff,
                          exclude_chan=exclude_chan,outdir=CCFDIR,v=verbose,output_structure=output_structure)
 
     t11 = time.time()
     print('it takes %6.5fs to process the chunk of %s' % (t11-t10,sfile.split('/')[-1]))
-    if do_rotation:
+    if rotate_raw:
         print('it takes %6.5fs to assemble raw source data' % (total_t[1]))
         print('it takes %6.5fs to assemble raw receiver data' % (total_t[5]))
         print('it takes %6.5fs to do rotation' % (total_t[2]))
