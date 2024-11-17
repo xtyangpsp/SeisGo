@@ -58,11 +58,11 @@ def assemble_raw(ds,sta=None,v=True,correct_orientation=True,max_time_diff=None)
     raw_all: a list of dictionary contains list of obspy.trace objects that can be directly used by assemble_fft(), and corresponding inv file.
     """
     if isinstance(ds,str):
-        warnings.warn('The input ds argument is recommended to be an opened ASDF object. If string, assume it is the *.h5 file name.')
+        warnings.warn('The input ds argument is recommended to be an opened ASDF object. If string, assume it is the *.h5 file name.',UserWarning)
         ds = pyasdf.ASDFDataSet(ds,mpi=False,mode='r')
     
     if sta is None:
-        Warning('IMPORTANT!! Station name should be specified for assembling raw data MORE efficiently.'
+        warnings.warn('IMPORTANT!! Station name should be specified for assembling raw data MORE efficiently.'
                 'Not setting station name has the potential of GREATLY increasing running time'
                 'Be aware of output value structure.',UserWarning)   
         sta_list = ds.waveforms.list()
@@ -237,8 +237,9 @@ def assemble_raw(ds,sta=None,v=True,correct_orientation=True,max_time_diff=None)
                     continue
                 # Skip channel rotation (for vertical channel) if no_rotate_flag==1
                 if no_rotate_flag==1:
-                    tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
-                    rawdata.append(tr)
+                    for itag in channels:
+                        tr,ori,sta_name=trace_info(ds,loc,ista,itag,inv1)
+                        rawdata.append(tr)
             
             # Skip orientation correction if correct_orientation is False
             else:
@@ -257,7 +258,7 @@ def assemble_raw(ds,sta=None,v=True,correct_orientation=True,max_time_diff=None)
         sta_list_out.append(ista)
 
     #return
-    return raw_all
+    return raw_all,sta_list_out
     
 
 #assemble FFT with given asdf file name
@@ -287,8 +288,11 @@ def assemble_fft(raw_data,win_len,step,freqmin=None,freqmax=None,
 
     fftdata_all=[]
     for rdata in raw_data:
-        inv = rdata['inv'][0]
         for i in range(len(rdata['data'])):
+            if len(rdata['inv'])>1:
+                inv=rdata['inv'][i][0]
+            else:
+                inv=rdata['inv'][0]
             comp = rdata['data'][i].stats.channel
             if comp[-1] =='U': comp=comp.replace('U','Z')
             
@@ -478,14 +482,14 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
             print('source: {}'.format(issta))
             
             # check if the station has assembled raw data
-            if issta in list(data_cache.keys()):
+            if issta in data_cache:
                 source=data_cache[issta]
             else:
                 # get days information: works better than just list the tags
                 # get source raw data
                 tt1=time.time()
                 source=assemble_raw(ds,issta,v,correct_orientation=correct_orientation,max_time_diff=max_time_diff)[0]
-                if source is None:
+                if source is None or len(source)==0:
                     continue
                 else:
                     source=source[0]
@@ -513,7 +517,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
                         # get receiver raw data
                         tt11=time.time()
                         receiver=assemble_raw(ds,irsta,v,correct_orientation=correct_orientation,max_time_diff=max_time_diff)[0]
-                        if receiver is None:
+                        if receiver is None or len(receiver)==0:
                             continue
                         else:
                             receiver=receiver[0]
@@ -541,7 +545,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
                             #print(freqmin)
                             ##############compute FFT#############
                             tt9=time.time()
-                            fftdata=assemble_fft(pair,win_len,step,freqmin=freqmin,freqmax=freqmax,smooth_spec=smoothspect_N,
+                            fftdata=assemble_fft([pair],win_len,step,freqmin=freqmin,freqmax=freqmax,smooth_spec=smoothspect_N,
                                     time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
                             tt10=time.time()
                             ttt4+=tt10-tt9
