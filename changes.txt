@@ -1,7 +1,13 @@
-Updates in v0.8.4:
+Updates in v0.9.0:
 SCRIPTS:
 1. Added the scripts for the whole workflow of extracting EGFs.
 2. Removed some old scripts that are incompatible with the new usage and functions.
+
+SCRIPTS/2_XCORR_MPI.py:
+1. Added a switch named correct_orientation for channel orientation correction/conversion.
+2. Added pad_thre to define the maximum threshold of size gaps between channels when doing orientation correction.
+3. Added a switch named do_rotation for horizontal channel rotation
+4. Added a switch named channel_pairs for specifying which channel pairs are saved.
 
 SIMULATION MODEL:
 1. Added build_vmodel() to create a layered model with linearly increasing velocity.
@@ -14,23 +20,18 @@ OBSMASTER:
 
 UTILS:
 1. Moved correct_orientations() here.
-2. Edited how number of traces is calculated in slicing_trace()
+2. Fixed a bug where the number of traces in slicing_trace() is 1 trace less than the true number.
 
 NOISE:
 1. Added trace_info() to extract trace and orientation info.
 2. Added the function to correct horizontal orientations and convert 1/2 channels to N/E channels.
-3. Optimized the workflow for cross-correlation
-4. Added the function to do channel rotation for specified channel pairs
-5. Added assemble_raw() to assemble raw data from h5 files
-6. Added assemble_fft() to prepare data for FFT
-7. Added get_locator() to read inventory and location id of stations
-8. Added rotation() to perform horizontal channel rotation
-
-2_XCORR_MPI:
-1. Added a switch named correct_orientation for channel orientation correction/conversion.
-2. Added pad_thre to define the maximum threshold of size gaps between channels when doing orientation correction.
-3. Added a switch named do_rotation for horizontal channel rotation
-4. Added a switch named channel_pairs for specifying which channels pairs are saved.
+3. Optimized the workflow for cross-correlation with the option to do rotation before xcorr.
+3a. Added the function to do channel rotation specified channel pairs
+3b. do_correlation(): added an option to specify which channel pairs are saved.
+3c. Added assemble_raw() to assemble raw data from h5 files
+3d. Updated assemble_fft() to prepare data for FFT with rotation and specified xcorr pairs.
+4. Added get_locator() to read inventory and location id of stations
+5. Added rotation() to perform horizontal channel rotation
 
 =============================================================
 Updates in v0.8.3:
