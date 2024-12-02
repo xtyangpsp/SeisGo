@@ -591,7 +591,7 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
                 fftdata_sta=assemble_fft([source],win_len,step,freqmin=freqmin,freqmax=freqmax,smooth_spec=smoothspect_N,
                                          time_norm=time_norm,freq_norm=freq_norm,smooth=smooth_N,exclude_chan=exclude_chan)
                 if len(fftdata_sta) < 1:
-                    print('Station {0} has empty fftdata. Continue to the next station'.fromat(issta))
+                    print('Station {0} has empty fftdata. Continue to the next station'.format(issta))
                     continue
                 else:
                     for tr in fftdata_sta: fftdata.append(tr)
