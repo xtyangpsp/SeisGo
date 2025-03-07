@@ -1516,34 +1516,59 @@ def shaping_corrdata(ccfile,wavelet,width,shift,trim_end=False,outdir=".",comp="
                 cdata.save(output_format,outdir=outdir0,file=ofile,v=verbose)
 
 #
-def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
+def get_stationpairs(ccfiles,getcclist=False,gettimerange=False,getcoord=False,verbose=False):
     """
     Extract unique station pairs from all cc files in ASDF format.
 
     ====PARAMETERS===
     ccfiles: a list of cc files.
     getcclist: get cc component list. default False.
+    gettimerange: get the whole time range (start and end dates) of the data. Default is False.
+    getcoord: get station coordinates. Default is False.
     verbose: verbose flag; default False.
     ====RETURNS===
     pairs_all: all netstaion pairs in the format of NET1.STA1_NET2.STA2
-    netsta_all: all net.sta (unique list)
-    ccomp_all: all unique list of cc components.
+    netsta_all: all net.sta (unique list
+    ccomp_all: all unique list of cc components. [optional, only return if getcclist is True]
+    trange: time range of all ccdata. [optional, only return if gettimerange is True]
+    coord: station coordinates. [optional, only return if getcoord is True]
     """
     if isinstance(ccfiles,str):ccfiles=[ccfiles]
     pairs_all = []
+    
     ccomp_all=[]
-    if gettimerange:
-        ts=[]
-        te=[]
+    ts=[]
+    te=[]
+    coord=dict() #store station coordinates.
     for f in ccfiles:
         # load the data from daily compilation
         try:
             ds=pyasdf.ASDFDataSet(f,mpi=False,mode='r')
 
             pairlist   = ds.auxiliary_data.list()
-            if getcclist:
+            if getcclist or gettimerange or getcoord:
                 for p in pairlist:
                     chanlist=ds.auxiliary_data[p].list()
+                    if getcoord:
+                        para=ds.auxiliary_data[p][chanlist[0]].parameters
+                        slat,slon,rlat,rlon = [para['latS'],para['lonS'],para['latR'],para['lonR']]
+                        if "eleS" in  list(para.keys()):
+                            sele = para['eleS']
+                        else:
+                            sele = 0.0
+                        if "eleR" in  list(para.keys()):
+                            rele = para['eleR']
+                        else:
+                            rele = 0.0
+                        #
+                        lat=[slat, rlat]
+                        lon=[slon, rlon]
+                        ele=[sele, rele]
+                        netsta=p.split('_')
+                        for k,ns in enumerate(netsta):
+                            if ns not in list(coord.keys()):
+                                coord[ns]=[lat[k],lon[k],ele[k]]
+                        
                     for c in chanlist:
                         if gettimerange:
                             para=ds.auxiliary_data[p][c].parameters
@@ -1552,47 +1577,52 @@ def get_stationpairs(ccfiles,getcclist=False,verbose=False,gettimerange=False):
                                 ttime += para['time_mean']
                             ts.append(np.min(ttime))
                             te.append(np.max(ttime))
-                        c1,c2=c.split('_')
-                        ccomp_all.extend(c1[-1]+c2[-1])
-                ccomp_all=sorted(set(ccomp_all))
-            elif gettimerange:
-                for p in pairlist:
-                    chanlist=ds.auxiliary_data[p].list()
-                    for c in chanlist:
-                        para=ds.auxiliary_data[p][c].parameters
-                        ttime=para['time']
-                        if 'time_mean' in list(para.keys()):
-                            ttime += para['time_mean']
-                        ts.append(np.min(ttime))
-                        te.append(np.max(ttime))
+                        if getcclist:
+                            c1,c2=c.split('_')
+                            ccomp_all.extend(c1[-1]+c2[-1])
+                if getcclist:
+                    ccomp_all=sorted(set(ccomp_all))
 
             pairs_all.extend(pairlist)
             pairs_all=sorted(set(pairs_all))
 
         except Exception as e:
-            if verbose:print('continue! no data in %s: %s'%(f,str(e)))
+            if verbose:print('continue! no data or error in %s: %s'%(f,str(e)))
             continue
 
-    netsta_all=[]
+    netsta_all=[] #split the pairs label to get net.sta list.
     for p in pairs_all:
         netsta=p.split('_')
         netsta_all.extend(netsta)
 
     netsta_all=sorted(set(netsta_all))
 
+    #### format return sequence based on user inquiries.
     if getcclist:
         if gettimerange:
             trange=[np.min(ts),np.max(te)]
-            return pairs_all,netsta_all,ccomp_all,trange
+            if getcoord:
+                return pairs_all,netsta_all,ccomp_all,trange,coord
+            else:
+                return pairs_all,netsta_all,ccomp_all,trange
         else:
-            return pairs_all,netsta_all,ccomp_all
+            if getcoord:
+                return pairs_all,netsta_all,ccomp_all,coord
+            else:
+                return pairs_all,netsta_all,ccomp_all
     else:
         if gettimerange:
             trange=[np.min(ts),np.max(te)]
-            return pairs_all,netsta_all,trange
+            if getcoord:
+                return pairs_all,netsta_all,trange,coord
+            else:
+                return pairs_all,netsta_all,trange
         else:
-            return pairs_all,netsta_all
-
+            if getcoord:
+                return pairs_all,netsta_all,coord
+            else:
+                return pairs_all,netsta_all
+#
 def get_cctimerange(ccfiles,verbose=False):
     """
     Extract time range from all cc files in ASDF format.
