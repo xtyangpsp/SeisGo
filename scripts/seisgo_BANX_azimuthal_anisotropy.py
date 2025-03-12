@@ -243,7 +243,7 @@ def main():
         print('Using %d processes to process %d receiver sites'%(nproc,len(ReceiverList_Sites)))
         ############
         
-        pool.starmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites[:8]])
+        pool.starmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites])
         # If running interactively, change the above line to: 
         # results = pool.startmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites])
         pool.close()
