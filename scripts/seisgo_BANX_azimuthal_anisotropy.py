@@ -1,0 +1,231 @@
+#!/usr/bin/env python
+# coding: utf-8
+import os,sys
+import numpy as np
+from seisgo import noise,utils
+from multiprocessing import Pool
+import pygmt as gmt
+from seisgo.anisotropy import do_BANX
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
+# ## BANX wrapper with control parameters
+def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver_box):
+    """
+    Wrapper function for do_BANX function in anisotropy module.
+    This function is called by the main script mainly for parallelization purpose.
+    """
+    XCorrComp = 'ZZ'
+    # Subarray parameters:
+    Min_Stations = 10   
+
+    # SNR:
+    Min_SNR = 5
+
+    # Scaling factors
+    Min_Radius_scaling = 1
+    Max_Radius_scaling = 1.5
+    Min_Distance_scaling = 3
+
+    # Beamforming space:
+    Max_Slowness = 0.5   # [s/km] Maximum slowness in the beamforming
+    Slowness_Step = 0.005  #[s/km] Slowness interval
+
+    # Beamforming limit:
+    Vel_Reference = 3.5  # [km/s]
+    Vel_Perturbation = 0.4 # [Percentage fraction] 0.5 = %50                                                                                              
+
+    Taper_Length_Scaling= 5 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
+
+    AZIBIN_STEP = 6 # azimuthal bin step size in degrees used in the QC step after beamforming of all sources.
+    # QC baz coverage
+    Min_BAZ_measurements = 1 #minimum number of measurements in each azimuthal bin. Should be >=3. Use 1 for testing here.
+    Min_Good_BAZBIN = 5 #minimum number of good bins with >= Min_BAZ_measurements in each azimuthal bin. Should be >=5 (recommended).
+
+    MinTime = 0.0 #start time of the xcorr data.
+
+    Sampling_Rate_Target = 20 #target sampling rate. Needs to be integer times the data sampling rate to avoid resampling error.
+    #The data will be resampled to Sampling_Rate_Target (samples per second).
+
+    Period_Band = [15,30]
+
+    DoubleSided = True
+
+    ####################################################
+    #### plotting controls ##############################
+    ####################################################
+    show_fig = False #figures will be plotted by not shown.
+    # plot moveout of good traces
+    plot_moveout = True
+    moveout_scaling = 4
+
+    # plot cluster map and the source
+    plot_clustermap = True
+
+    #slowness image
+    plot_beampower =True
+
+    # plot phase velocity of the reference station
+    plot_station_result = True
+
+    ########################################################
+    #### Calling do_BANX function in anisotropy module. ####
+    ########################################################
+    Beam_Local, anisotropy=do_BANX(stationdict_all, reference_site, Period_Band, Vel_Reference,datadir,
+                                    outdir_root,sampling_rate=Sampling_Rate_Target,min_stations=Min_Stations, 
+                                    min_snr=Min_SNR, min_radius_scaling=Min_Radius_scaling,
+                                    max_radius_scaling=Max_Radius_scaling, min_distance_scaling=Min_Distance_scaling, 
+                                    max_slowness=Max_Slowness,slowness_step=Slowness_Step,velocity_perturbation=Vel_Perturbation, 
+                                    trace_start_time=MinTime,taper_length_scaling=Taper_Length_Scaling,
+                                    azimuth_step=AZIBIN_STEP,min_baz_measurements=Min_BAZ_measurements,min_good_bazbin=Min_Good_BAZBIN,
+                                    doublesided=DoubleSided, cc_comp =XCorrComp,receiver_box=receiver_box,show_fig=show_fig,
+                                    plot_moveout=plot_moveout, moveout_scaling=moveout_scaling,
+                                    plot_clustermap=plot_clustermap, plot_beampower=plot_beampower,
+                                    plot_station_result=plot_station_result,verbose=True)
+    
+    return Beam_Local, anisotropy
+
+## Main script
+# This is the main script for BANX processing.
+def main():
+    """
+    Main script for BANX processing.
+    """
+    # Read number of processors from command line.
+    narg = len(sys.argv)
+    if narg == 1:
+        nproc=1
+    else:
+        nproc=int(sys.argv[1])
+
+    """
+    Most of the time, users only need to change the following parameters:
+    """
+    # set root directory
+    rootdir='.'
+    datadir=os.path.join(rootdir,'data_craton/PAIRS_TWOSIDES_stack_robust')
+    outdir_root=os.path.join(rootdir,'data_craton/BANX_out')
+    if not os.path.isdir(outdir_root):os.makedirs(outdir_root)
+    ReceiverBox_lat=[36,42]
+    ReceiverBox_lon=[-92,-84]
+    ##########################################################
+    ####### End of user parameters. ############################
+    ##########################################################
+
+    # ## Extract the netsta list and their coordinates from the xcorr data
+    # The coordinates for each net.sta are stored in dictionaries.
+    # load data
+    sourcelist=utils.get_filelist(datadir)
+    netsta_all=[]
+    coord_all=dict()
+    for src in sourcelist:
+        # srcdir=os.path.join(datadir,src)
+        ccfiles=utils.get_filelist(src,'h5',pattern='P_stack')
+        _,netsta,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
+        netsta_all.extend(netsta)
+        coord_all = coord_all | coord
+
+    #
+    netsta_all=sorted(set(netsta_all))
+
+
+    # ## Subset the station list for the receiver box region
+    #set receiver region box
+    #this is usually a smaller region than the entire dataset. 
+    # Stations within this box region are used as receivers while all
+    # stations may be used as the sources.
+    # set receiver box for do_BANX function.
+    ReceiverBox = [ReceiverBox_lon[0],ReceiverBox_lon[1],ReceiverBox_lat[0],ReceiverBox_lat[1]]
+
+    ReceiverList_Sites=[] #net.sta strings.
+    ReceiverList_Coord=[] #lat, lon
+
+    SourceList_Sites=[]
+    SourceList_Coord=[]
+    for i in range(len(netsta_all)):
+        #Master site
+        coord0 = coord_all[netsta_all[i]][:2] #coordinates: lat, lon in order.
+        SourceList_Sites.append(netsta_all[i])
+        SourceList_Coord.append(coord0)
+        if coord0[0] >= ReceiverBox_lat[0] and coord0[0] <= ReceiverBox_lat[1] and \
+                    coord0[1] >= ReceiverBox_lon[0] and coord0[1] <= ReceiverBox_lon[1]:
+            ReceiverList_Sites.append(netsta_all[i])
+            ReceiverList_Coord.append(coord0)
+    #
+    """
+    Plot the station map.
+    """
+    #plot station map.
+    source_coord_array=np.array(SourceList_Coord)
+    marker_style="i0.17c"
+    map_style="plain"
+    projection="M3.i"
+    frame="af"
+    title="station map"
+    GMT_FONT_TITLE="14p,Helvetica-Bold"
+    lon_all,lat_all=source_coord_array[:,1],source_coord_array[:,0]
+
+    region="%6.2f/%6.2f/%5.2f/%5.2f"%(np.min(lon_all),np.max(lon_all),np.min(lat_all),np.max(lat_all))
+    fig = gmt.Figure()
+    gmt.config(MAP_FRAME_TYPE=map_style, FONT_TITLE=GMT_FONT_TITLE)
+    fig.coast(region=region, resolution="f",projection=projection, 
+            water="0/180/255",frame=frame,land="240",
+            borders=["1/1p,black", "2/0.5p,100"])
+    fig.basemap(frame='+t'+title+'')
+    fig.plot(
+        x=lon_all,
+        y=lat_all,
+        style=marker_style,
+        pen="0.5p,red",
+    )
+    #plot receiver box
+    lon_box=[ReceiverBox_lon[0],ReceiverBox_lon[1],ReceiverBox_lon[1],ReceiverBox_lon[0],ReceiverBox_lon[0]]
+    lat_box=[ReceiverBox_lat[0],ReceiverBox_lat[0],ReceiverBox_lat[1],ReceiverBox_lat[1],ReceiverBox_lat[0]]
+    fig.plot(
+        x=lon_box,
+        y=lat_box,
+        pen="1p,blue",
+    )
+    fig.savefig(os.path.join(rootdir,'station_map.pdf'))
+    fig.show()
+
+
+    """"
+    Start the main loop
+    """
+    #######################################
+    #### Loop over the reference sites ####
+    #######################################
+    if nproc <2:
+        Beam_Local_all, anisotropy_all = [],[]
+        for i in range(len(ReceiverList_Sites)):
+            #Master site
+            Ref_Site = ReceiverList_Sites[i]
+            print('Processing reference site %s --- %d/%d'%(Ref_Site,i+1,len(ReceiverList_Sites)))
+            
+            Beam_Local, anisotropy=BANX_wrapper(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox)
+            #end here for debug/test.
+            Beam_Local_all.append(Beam_Local)
+            anisotropy_all.append(anisotropy)
+        #
+    else:
+        #parallelization
+        print('Using %d processes to process %d receiver sites'%(nproc,len(ReceiverList_Sites)))
+        ############
+        pool = Pool(processes=nproc)
+        pool.starmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites])
+        # If running interactively, change the above line to: 
+        # results = pool.startmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites])
+        pool.close()
+
+        # unpack results. Needed when running interactively. Otherwise, the results are not unpacked and have been saved to files.
+        
+        # Beam_Local_all, anisotropy_all = zip(*results)
+##end of main
+
+########### 
+if __name__ == "__main__":
+    main()
+    
+
+
+
