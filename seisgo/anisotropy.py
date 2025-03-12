@@ -128,11 +128,11 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
         raise ValueError('Period band should be in list or numpy array format.')
     #Create directories for this period band
     outdir=os.path.join(outdir_root,str(period_band[0])+'_'+str(period_band[1]))
-    if not os.path.isdir(outdir):os.makedirs(outdir)
+    if not os.path.isdir(outdir):os.makedirs(outdir, exist_ok=True)
     figdir=os.path.join(outdir,'figures')
-    if not os.path.isdir(figdir):os.makedirs(figdir)
+    if not os.path.isdir(figdir):os.makedirs(figdir, exist_ok=True)
     figdir_refsite=os.path.join(figdir,reference_site)
-    if not os.path.isdir(figdir_refsite):os.makedirs(figdir_refsite)
+    if not os.path.isdir(figdir_refsite):os.makedirs(figdir_refsite, exist_ok=True)
 
     if doublesided:
         N_Sides = 2
