@@ -446,6 +446,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
                      pen="1p,black",)
             fig.savefig(os.path.join(figdir_refsite,reference_site+'_'+Source_Name+'_stationmap.pdf'))
             if show_fig: fig.show()
+            else: gmt.set_display('none')
        
         # Beamforming
         if verbose: print('  Performing beamforming ...')

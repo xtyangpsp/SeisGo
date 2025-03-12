@@ -19,12 +19,12 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
     Min_Stations = 10   
 
     # SNR:
-    Min_SNR = 5
+    Min_SNR = 3
 
     # Scaling factors
     Min_Radius_scaling = 1
     Max_Radius_scaling = 1.5
-    Min_Distance_scaling = 3
+    Min_Distance_scaling = 2.5
 
     # Beamforming space:
     Max_Slowness = 0.5   # [s/km] Maximum slowness in the beamforming
@@ -34,7 +34,7 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
     Vel_Reference = 3.5  # [km/s]
     Vel_Perturbation = 0.4 # [Percentage fraction] 0.5 = %50                                                                                              
 
-    Taper_Length_Scaling= 5 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
+    Taper_Length_Scaling= 10 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
 
     AZIBIN_STEP = 6 # azimuthal bin step size in degrees used in the QC step after beamforming of all sources.
     # QC baz coverage
@@ -59,7 +59,7 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
     moveout_scaling = 4
 
     # plot cluster map and the source
-    plot_clustermap = True
+    plot_clustermap = False #not plot if on HPC cluster. some display issue may happend if plotting.
 
     #slowness image
     plot_beampower =True
@@ -110,6 +110,8 @@ def main():
     if not os.path.isdir(outdir_root):os.makedirs(outdir_root, exist_ok=True)
     ReceiverBox_lat=[36,38.5]
     ReceiverBox_lon=[-92,-84]
+    plot_station_map = True
+    ######
     ##########################################################
     ####### End of user parameters. ############################
     ##########################################################
@@ -119,14 +121,14 @@ def main():
     # load data
     sourcelist=utils.get_filelist(datadir)
     t1 = time.time()
-    netsta_all=[]
+    # netsta_all=[]
     coord_all=dict()
     if nproc < 2:
         for src in sourcelist:
             # srcdir=os.path.join(datadir,src)
             ccfiles=utils.get_filelist(src,'h5',pattern='P_stack')
-            _,netsta,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
-            netsta_all.extend(netsta)
+            _,_,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
+            # netsta_all.extend(netsta)
             coord_all = coord_all | coord
     else:
         #parallelization
@@ -135,16 +137,23 @@ def main():
                                                        False,False,True) for src in sourcelist])
         # If running interactively, change the above line to: 
         # results = pool.startmap(noise.get_stationpairs, [(src,True) for src in sourcelist])
-        print(results)
         # unpack results. Needed when running interactively. Otherwise, the results are not unpacked and have been saved to files.
-        _, netsta_all, coord_all = zip(*results)
-        netsta_all = [item for sublist in netsta_all for item in sublist]
+        _, _, coord_all = zip(*results)
+        # netsta_all = [item for sublist in netsta_all for item in sublist]
         coord_all = {k: v for d in coord_all for k, v in d.items()}
     #
-    print('Extracted %d net.sta from %d source files in %.2f seconds.'%(len(netsta_all),len(sourcelist),time.time()-t1))
     # remove duplicates
-    netsta_all=sorted(set(netsta_all))
-
+    netsta_all=list(coord_all.keys()) #sorted(set(netsta_all))
+    print('Extracted %d net.sta from %d source files in %.2f seconds.'%(len(netsta_all),len(sourcelist),time.time()-t1))
+    
+    stationfile = os.path.join(rootdir,'station_info.csv')
+    fout = open(stationfile,'w')
+    fout.write('net.sta, lat, lon, ele\n')
+    for i in range(len(netsta_all)):
+        coord0 = coord_all[netsta_all[i]]
+        fout.write('%s, %f, %f, %f\n'%(netsta_all[i],coord0[0],coord0[1],coord0[2]))
+    fout.close()
+    print('Station information saved to %s'%stationfile)
     # ## Subset the station list for the receiver box region
     #set receiver region box
     #this is usually a smaller region than the entire dataset. 
@@ -171,40 +180,42 @@ def main():
     """
     Plot the station map.
     """
-    #plot station map.
-    source_coord_array=np.array(SourceList_Coord)
-    marker_style="i0.17c"
-    map_style="plain"
-    projection="M3.i"
-    frame="af"
-    title="station map"
-    GMT_FONT_TITLE="14p,Helvetica-Bold"
-    lon_all,lat_all=source_coord_array[:,1],source_coord_array[:,0]
+    if plot_station_map:
+        #plot station map.
+        source_coord_array=np.array(SourceList_Coord)
+        marker_style="i0.17c"
+        map_style="plain"
+        projection="M3.i"
+        frame="af"
+        title="station map"
+        GMT_FONT_TITLE="14p,Helvetica-Bold"
+        lon_all,lat_all=source_coord_array[:,1],source_coord_array[:,0]
 
-    region="%6.2f/%6.2f/%5.2f/%5.2f"%(np.min(lon_all),np.max(lon_all),np.min(lat_all),np.max(lat_all))
-    fig = gmt.Figure()
-    gmt.config(MAP_FRAME_TYPE=map_style, FONT_TITLE=GMT_FONT_TITLE)
-    fig.coast(region=region, resolution="f",projection=projection, 
-            water="0/180/255",frame=frame,land="240",
-            borders=["1/1p,black", "2/0.5p,100"])
-    fig.basemap(frame='+t'+title+'')
-    fig.plot(
-        x=lon_all,
-        y=lat_all,
-        style=marker_style,
-        pen="0.5p,red",
-    )
-    #plot receiver box
-    lon_box=[ReceiverBox_lon[0],ReceiverBox_lon[1],ReceiverBox_lon[1],ReceiverBox_lon[0],ReceiverBox_lon[0]]
-    lat_box=[ReceiverBox_lat[0],ReceiverBox_lat[0],ReceiverBox_lat[1],ReceiverBox_lat[1],ReceiverBox_lat[0]]
-    fig.plot(
-        x=lon_box,
-        y=lat_box,
-        pen="1p,blue",
-    )
-    fig.savefig(os.path.join(rootdir,'station_map.pdf'))
-    fig.show()
-
+        region="%6.2f/%6.2f/%5.2f/%5.2f"%(np.min(lon_all),np.max(lon_all),np.min(lat_all),np.max(lat_all))
+        fig = gmt.Figure()
+        gmt.config(MAP_FRAME_TYPE=map_style, FONT_TITLE=GMT_FONT_TITLE)
+        fig.coast(region=region, resolution="f",projection=projection, 
+                water="0/180/255",frame=frame,land="240",
+                borders=["1/1p,black", "2/0.5p,100"])
+        fig.basemap(frame='+t'+title+'')
+        fig.plot(
+            x=lon_all,
+            y=lat_all,
+            style=marker_style,
+            pen="0.5p,red",
+        )
+        #plot receiver box
+        lon_box=[ReceiverBox_lon[0],ReceiverBox_lon[1],ReceiverBox_lon[1],ReceiverBox_lon[0],ReceiverBox_lon[0]]
+        lat_box=[ReceiverBox_lat[0],ReceiverBox_lat[0],ReceiverBox_lat[1],ReceiverBox_lat[1],ReceiverBox_lat[0]]
+        fig.plot(
+            x=lon_box,
+            y=lat_box,
+            pen="1p,blue",
+        )
+        fig.savefig(os.path.join(rootdir,'station_map.pdf'))
+        gmt.set_display('none')
+        fig.show()
+    #
 
     """"
     Start the main loop
