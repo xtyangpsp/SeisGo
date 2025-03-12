@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-import os,sys
+import os,sys,time
 import numpy as np
 from seisgo import noise,utils
 from multiprocessing import Pool
@@ -96,7 +96,10 @@ def main():
         nproc=1
     else:
         nproc=int(sys.argv[1])
-
+    #
+    if nproc > 1:
+        # Create a pool of workers
+        pool = Pool(processes=nproc)
     """
     Most of the time, users only need to change the following parameters:
     """
@@ -104,8 +107,8 @@ def main():
     rootdir='.'
     datadir=os.path.join(rootdir,'data_craton/PAIRS_TWOSIDES_stack_robust')
     outdir_root=os.path.join(rootdir,'data_craton/BANX_out')
-    if not os.path.isdir(outdir_root):os.makedirs(outdir_root)
-    ReceiverBox_lat=[36,42]
+    if not os.path.isdir(outdir_root):os.makedirs(outdir_root, exist_ok=True)
+    ReceiverBox_lat=[36,38.5]
     ReceiverBox_lon=[-92,-84]
     ##########################################################
     ####### End of user parameters. ############################
@@ -115,18 +118,32 @@ def main():
     # The coordinates for each net.sta are stored in dictionaries.
     # load data
     sourcelist=utils.get_filelist(datadir)
+    t1 = time.time()
     netsta_all=[]
     coord_all=dict()
-    for src in sourcelist:
-        # srcdir=os.path.join(datadir,src)
-        ccfiles=utils.get_filelist(src,'h5',pattern='P_stack')
-        _,netsta,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
-        netsta_all.extend(netsta)
-        coord_all = coord_all | coord
-
+    if nproc < 2:
+        for src in sourcelist:
+            # srcdir=os.path.join(datadir,src)
+            ccfiles=utils.get_filelist(src,'h5',pattern='P_stack')
+            _,netsta,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
+            netsta_all.extend(netsta)
+            coord_all = coord_all | coord
+    else:
+        #parallelization
+        print('Using %d processes to process %d source files'%(nproc,len(sourcelist)))
+        results=pool.starmap(noise.get_stationpairs, [(utils.get_filelist(src,'h5',pattern='P_stack'),
+                                                       False,False,True) for src in sourcelist])
+        # If running interactively, change the above line to: 
+        # results = pool.startmap(noise.get_stationpairs, [(src,True) for src in sourcelist])
+        print(results)
+        # unpack results. Needed when running interactively. Otherwise, the results are not unpacked and have been saved to files.
+        _, netsta_all, coord_all = zip(*results)
+        netsta_all = [item for sublist in netsta_all for item in sublist]
+        coord_all = {k: v for d in coord_all for k, v in d.items()}
     #
+    print('Extracted %d net.sta from %d source files in %.2f seconds.'%(len(netsta_all),len(sourcelist),time.time()-t1))
+    # remove duplicates
     netsta_all=sorted(set(netsta_all))
-
 
     # ## Subset the station list for the receiver box region
     #set receiver region box
@@ -196,23 +213,26 @@ def main():
     #### Loop over the reference sites ####
     #######################################
     if nproc <2:
-        Beam_Local_all, anisotropy_all = [],[]
+        # Beam_Local_all, anisotropy_all = [],[]
         for i in range(len(ReceiverList_Sites)):
             #Master site
             Ref_Site = ReceiverList_Sites[i]
             print('Processing reference site %s --- %d/%d'%(Ref_Site,i+1,len(ReceiverList_Sites)))
             
-            Beam_Local, anisotropy=BANX_wrapper(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox)
+            # Beam_Local, anisotropy=BANX_wrapper(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox)
+            _,_=BANX_wrapper(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox)
             #end here for debug/test.
-            Beam_Local_all.append(Beam_Local)
-            anisotropy_all.append(anisotropy)
+            # Beam_Local_all.append(Beam_Local)
+            # anisotropy_all.append(anisotropy)
+            break
+
         #
     else:
         #parallelization
         print('Using %d processes to process %d receiver sites'%(nproc,len(ReceiverList_Sites)))
         ############
-        pool = Pool(processes=nproc)
-        pool.starmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites])
+        
+        pool.starmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites[:8]])
         # If running interactively, change the above line to: 
         # results = pool.startmap(BANX_wrapper, [(coord_all,Ref_Site, datadir, outdir_root, ReceiverBox) for Ref_Site in ReceiverList_Sites])
         pool.close()

@@ -294,6 +294,9 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
                 ReceiverCluster_Dist.append(cdata1.dist)
                 
         #
+        if len(ReceiverCluster_CorrData) < min_stations:
+            print('  Not enough stations in the cluster. Skip!')
+            continue
         ReceiverCluster_Sites = site_temp
         ReceiverCluster_Coord = coord_temp
 
