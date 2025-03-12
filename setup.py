@@ -116,6 +116,7 @@ setup(
                         'kaleido',
                         'minisom',
                         'stockwell',
-                        'kneed'
+                        'kneed',
+                        'utm'
         ]
 )

@@ -5,7 +5,7 @@
 ############################################
 #import needed packages.
 import sys,time,scipy,obspy,pyasdf
-import datetime,os, glob
+import datetime,os, glob, utm
 import numpy as np
 import pandas as pd
 from numba import jit
@@ -2510,3 +2510,78 @@ def xcorr(x, y, maxlags=10):
     c = c[Nx - 1 - maxlags:Nx + maxlags]
 
     return c
+def cart2pol(x, y):
+    """
+    cart2pol -- Transform Cartesian to polar coordinates
+
+    =====
+    PARAMETERS:
+    x -- x coordinate
+    y -- y coordinate
+    =====
+    RETURNS:
+    theta -- Angle in radians
+    rho -- Distance from origin
+    =====
+
+    Source: https://github.com/numpy/numpy/issues/5228 by User espdev.
+    """
+    theta = np.arctan2(y, x)
+    rho = np.hypot(x, y)
+    return theta, rho
+
+def pol2cart(theta, rho):
+    """
+    pol2cart -- Transform polar to Cartesian coordinates
+
+    =====
+    PARAMETERS:
+    theta -- Angle in radians
+    rho -- Distance from origin
+    =====
+    RETURNS:
+    x -- x coordinate
+    y -- y coordinate
+    =====
+    
+    Source: https://github.com/numpy/numpy/issues/5228 by User espdev.
+    """
+    x = rho * np.cos(theta)
+    y = rho * np.sin(theta)
+    return x, y
+
+def cart2compass(x,y):
+    """
+    CART2COMPASS convert cartesian coordinates into
+    speed and direction data (degN).
+
+    THETA,RHO = CART2COMPASS convert the vectors x and y
+      from a cartesian reference system into rho (e.g. speed) with
+      direction theta (degree North).
+     
+    Modified from the MATLAB function (same name) by Arnaud Laurent
+
+    ===PARAMETER===
+    x: x component of the vector.
+    y: y component of the vector.
+    ===RETURN===
+    theta: direction of the vector in degrees (0-360) from north.
+    rho: magnitude of the vector.
+    ===REFERENCE===
+    https://www.mathworks.com/matlabcentral/fileexchange/24432-cart2compass
+    """
+    theta,rho = cart2pol(x,y) #theta in radians, rho in x and y unit.
+    #convert theta to degrees.
+    theta = np.rad2deg(theta)
+    
+    #convert theta to degrees from north.
+    if theta < 0:
+        theta += 360
+    elif theta>=0 and theta<90:
+        theta = np.abs(theta - 90)
+    elif theta>=90 and theta<=360:
+        theta = np.abs(450 - theta)
+    else:
+        pass
+    
+    return theta,rho
