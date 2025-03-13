@@ -604,25 +604,25 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     
     Beam_Local = pd.DataFrame(np.array(Beam_Local),columns=['lat','lon','sharpness','velocity','baz','power',
                                                             'radius','num','velref','baz_cluster'])
-    # following are needed for QC of the BAZ coverage.
-    BAZ_check = Beam_Local['baz'].copy()
-    BAZ_check[BAZ_check<0] += 180
-    BAZ_check[BAZ_check>180] -= 180
-    histcount=np.histogram(BAZ_check,bins=AZIBIN_EDGES)[0]
-    good_idx = np.where(histcount >= min_baz_measurements)[0]
-    if len(good_idx) < min_good_bazbin:
-        print('  Not enough good BAZ bins. Skip!')
-        return None, None
-    
-    # Estimate anisotropy parameters by curve fitting.
-    # Only use the bins with good measurements. Need to add weight in the future.
     if verbose: print('  Fitting anisotropy parameters ...')
     #reuse good_idx to filter the data
     good_idx = np.where((Beam_Local['sharpness'] >= min_beam_sharpness) & (Beam_Local['velocity'] >= Phase_Velocity_Limits[0]) & \
                         (Beam_Local['velocity'] <= Phase_Velocity_Limits[1]))[0]
-    if len(good_idx) < min_stations:
-        print('  Not enough good measurements after QC by sharpness and velocities. Skip!')
-    fitcoef=curve_fit(compute_anisotropy,Beam_Local['baz'][good_idx],Beam_Local['velocity'][good_idx],p0=[3.5,0.1,0.1])[0]
+    Beam_Local_subset = Beam_Local.iloc[good_idx]
+    
+    # following are needed for QC of the BAZ coverage.
+    BAZ_check = Beam_Local_subset['baz'].copy()
+    BAZ_check[BAZ_check<0] += 180
+    BAZ_check[BAZ_check>180] -= 180
+    histcount=np.histogram(BAZ_check,bins=AZIBIN_EDGES)[0]
+    goodazbin_idx = np.where(histcount >= min_baz_measurements)[0]
+    if len(goodazbin_idx) < min_good_bazbin:
+        print('  Not enough azimuthal coverage of sources after QC with sharpness and velocity value. Skip!')
+        return None, None
+    
+    # Estimate anisotropy parameters by curve fitting.
+    # Only use the bins with good measurements. Need to add weight in the future.
+    fitcoef=curve_fit(compute_anisotropy,Beam_Local_subset['baz'],Beam_Local_subset['velocity'],p0=[3.5,0.1,0.1])[0]
     A0 = fitcoef[0]
     A1 = fitcoef[1]
     A2 = fitcoef[2]
@@ -639,12 +639,12 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     else:
         pass
     print('  Anisotropy: %.2f%%, Fast direction (degrees from north): %.2f'%(RHO,THETA))
-    ReceiverCluster_Center_Final = np.round(get_ArrayAttributes(Beam_Local['lat'].values,Beam_Local['lon'].values)[1],4)
+    ReceiverCluster_Center_Final = np.round(get_ArrayAttributes(Beam_Local_subset['lat'].values,Beam_Local_subset['lon'].values)[1],4)
 
     if verbose: print('  Final cluster center: %.4f, %.4f'%(ReceiverCluster_Center_Final[0],ReceiverCluster_Center_Final[1]))
 
     # Save the anisotropy results
-    beam_outfile=os.path.join(outdir,reference_site+'_beam.csv')
+    beam_outfile=os.path.join(outdir,reference_site+'_beam_noQC.csv')
     Beam_Local.to_csv(beam_outfile,index=False)
     print('  Beam results saved to: ',beam_outfile)
 
@@ -661,7 +661,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     if plot_station_result:
         fig=plt.figure(figsize=[7,5])
         ax = fig.add_subplot(6,1,(1,2))
-        ax.hist(Beam_Local['baz'],bins=180,range=[0,360],color='tab:blue',label='BAZ')
+        ax.hist(Beam_Local_subset['baz'],bins=180,range=[0,360],color='tab:blue',label='BAZ')
         # plt.xlabel('BAZ')
         ax.set_ylabel('Source count')
         ax.set_xlim([0,360])
@@ -670,8 +670,8 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
 
         ax2 = fig.add_subplot(6,1,(3,6))
         #plt beam baz v.s. velocity
-        sc=ax2.scatter(Beam_Local['baz'],Beam_Local['velocity'],s=40,marker='o',linewidths=0.5,
-                    facecolor='none',c=Beam_Local['sharpness'],edgecolor='k',label='Data')
+        sc=ax2.scatter(Beam_Local_subset['baz'],Beam_Local_subset['velocity'],s=5*Beam_Local_subset['sharpness'],marker='o',linewidths=0.5,
+                    facecolor='none',c=Beam_Local_subset['sharpness'],edgecolor='k',label='Data')
         #plot the fitted curve
         x_fit=np.linspace(0,360,100)
         y_fit=compute_anisotropy(x_fit,*fitcoef)
