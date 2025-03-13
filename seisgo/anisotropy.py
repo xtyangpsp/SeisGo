@@ -5,6 +5,14 @@ from seisgo import noise,utils
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import pygmt as gmt
+from matplotlib.colors import ListedColormap
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import matplotlib.ticker as mticker
+import matplotlib as mpl
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rc('font',family='Helvetica')
 
 """
 This module contains functions to compute anisotropy. 
@@ -76,10 +84,10 @@ def compute_anisotropy(x, a, b, c):
 #################### BANX method ####################
 def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, datadir,outdir_root='.',sampling_rate=None,
             min_stations=10, min_snr=5, min_radius_scaling=1,max_radius_scaling=1.5, min_distance_scaling=2.5, 
-            max_slowness=0.5,slowness_step=0.005,velocity_perturbation=0.4,trace_start_time=0,taper_length_scaling=5,
-            azimuth_step=6,min_baz_measurements=3,min_good_bazbin=5,doublesided=True, cc_comp ='ZZ', 
-            show_fig=True, plot_moveout=True, moveout_scaling = 4, plot_clustermap=True, map_region=None,map_projection='M3.5i',receiver_box=None,
-            plot_beampower=True, plot_station_result=True, verbose=False):
+            signal_extent_scaling=3,max_slowness=0.5,slowness_step=0.005,velocity_perturbation=0.4,trace_start_time=0,taper_length_scaling=5,
+            azimuth_step=6,min_baz_measurements=3,min_good_bazbin=5,min_beam_sharpness=0,doublesided=True, cc_comp ='ZZ', 
+            show_fig=True, plot_moveout=True, moveout_scaling = 4, plot_clustermap=True, map_region=None,map_engine='cartopy',receiver_box=None,
+            plot_beampower=True, plot_station_result=True, verbose=False,map_region_precision=0):
     """
     Perform BANX method to compute azimuthal anisotropy.
     ===PARAMETER===
@@ -95,14 +103,18 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     min_radius_scaling: minimum radius scaling factor. Default is 1.
     max_radius_scaling: maximum radius scaling factor. Default is 1.5.
     min_distance_scaling: minimum distance scaling factor. Default is 2.5.
+    signal_extent_scaling: scaling factor for the signal extent (before and after the predicted arrival). Default is 3. (3 times the longest period)
+
     max_slowness: maximum slowness. Default is 0.5.
     slowness_step: slowness step. Default is 0.005.
     velocity_perturbation: velocity perturbation. Default is 0.4. (40%)
     trace_start_time: start time of the xcorr data. Default is 0.
     taper_length_scaling: taper length scaling factor relative to the longest period. Default is 5.
+
     azimuth_step: azimuthal step used in QC. Default is 6.
     min_baz_measurements: minimum number of measurements in each azimuthal bin used in QC. Should be >=3. Default is 3.
     min_good_bazbin: minimum number of good bins with >= min_baz_measurements in each azimuthal bin used in QC. Should be >=5 (recommended). Default is 5.
+    min_beam_sharpness: minimum beam sharpness to pass the QC. Default is 0 [no QC by sharpness].
     doublesided: data contains both negative and positive sides of the cross-correlation data. Default is True.
     cc_comp: cross-correlation component. Default is 'ZZ'.
         
@@ -110,6 +122,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     plot_moveout: plot moveout of the cluster traces to the source. Default is True.
     moveout_scaling: scaling factor for the moveout plot. Default is 4.
     plot_clustermap: plot map view of the cluster stations and the source. Default is True.
+    map_engine: map plotting engine. 'cartopy' [default] or 'gmt'.
     receiver_box: receiver box for the map view. Default is None. Format [lon_min, lon_max, lat_min, lat_max].
     plot_beampower: plot beam power after beamforming with the picked max power slowness positions/values. Default is True.
     plot_station_result: plot station results with all sources after QC. Default is True.
@@ -206,18 +219,40 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
 
     # gmt plotting parameters
     source_coord_array=np.array(SourceList_Coord)
-    marker_style="i0.17c"
-    map_style="plain"
-    frame="af"
-    GMT_FONT_TITLE="14p,Helvetica-Bold"
     lon_all,lat_all=source_coord_array[:,1],source_coord_array[:,0]
 
     if receiver_box is not None:
         lon_box=[receiver_box[0],receiver_box[1],receiver_box[1],receiver_box[0],receiver_box[0]]
         lat_box=[receiver_box[2],receiver_box[2],receiver_box[3],receiver_box[3],receiver_box[2]]
     if map_region is None:
-        map_region = [np.min(lon_all),np.max(lon_all),np.min(lat_all),np.max(lat_all)]
+        map_region = np.round([np.min(lon_all),np.max(lon_all),np.min(lat_all),np.max(lat_all)],map_region_precision)
 
+    if plot_clustermap:
+        if map_engine.lower() == 'gmt':
+            marker_style="i0.17c"
+            map_style="plain"
+            frame="af"
+            GMT_FONT_TITLE="14p,Helvetica-Bold"
+            projection = 'M3.5i'
+        elif map_engine.lower() == 'cartopy':
+            projection=ccrs.LambertAzimuthalEqualArea(central_longitude=np.mean([np.min(lon_all),np.max(lon_all)]), 
+                                    central_latitude=np.mean([np.min(lat_all),np.max(lat_all)]), 
+                                    false_easting=0.0, false_northing=0.0,globe=None)
+            scale = '10m'
+            states10 = cfeature.NaturalEarthFeature(
+                        category='cultural',
+                        name='admin_1_states_provinces_lines',
+                        scale=scale,
+                        facecolor='none',
+                        edgecolor='k')
+            country10 = cfeature.NaturalEarthFeature(
+                        category='cultural',
+                        name = 'admin_0_boundary_lines_land',
+                        scale = scale,
+                        facecolor='none',
+                        edgecolor='k')
+        else:
+            raise ValueError('Wrong map_engine. Should be cartopy or gmt')
     ################################
     ##### Main beamforming block ###
     ################################
@@ -380,7 +415,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             data_temp=cdata.data.copy()
             tt = ReceiverCluster_TravelTimes[ic]
             #signal time window is half longest period away from the predicted time.
-            signal_twin = [tt - 0.5*np.max(period_band), tt + 0.5*np.max(period_band)]
+            signal_twin = [tt - signal_extent_scaling*np.max(period_band), tt + signal_extent_scaling*np.max(period_band)]
             signal_idx = [np.argmin(np.abs(TimeVector - signal_twin[0])), np.argmin(np.abs(TimeVector - signal_twin[1]))]
             signal_absmax = np.max(np.abs(data_temp[signal_idx[0]:signal_idx[1]]))
             
@@ -399,6 +434,8 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
                 
                 if plot_moveout:
                     plt.plot(TimeVector,moveout_scaling * cdata.data + cdata.dist,'k-',lw=0.5)
+                    plt.plot(tt,cdata.dist,'r|',markerfacecolor='none',markersize=5)
+                    plt.plot([signal_twin[0],signal_twin[1]],[cdata.dist,cdata.dist],'b|',lw=1)
             #
         #
         
@@ -427,26 +464,54 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
         #
         # Plot map view of good stations and the source.
         if plot_clustermap:
-            if verbose: print('  Plotting cluster map ...')
-            fig = gmt.Figure()
-            gmt.config(MAP_FRAME_TYPE=map_style, FONT_TITLE=GMT_FONT_TITLE)
-            fig.coast(region=map_region, resolution="f",projection=map_projection, 
-                    water="0/180/255",frame=frame,land="240",borders=["1/1p,black", "2/0.5p,100"])
-            fig.basemap(frame='+t'+reference_site+' -> '+Source_Name)
-            #plot receiver cluster
-            fig.plot(x=GoodCoord[:,1],y=GoodCoord[:,0],style=marker_style,pen="0.5p,red",)
-            #plot receiver box
-            if receiver_box is not None:
-                fig.plot(x=lon_box,y=lat_box,pen="1p,blue",)
-            #plot source
-            fig.plot(x=Source_Coord[1],y=Source_Coord[0],style="a0.3c",pen="1p,red",)
-            #plot line from cluster center to source
-            fig.plot(x=[ReceiverCluster_Center[1],Source_Coord[1]],
-                     y=[ReceiverCluster_Center[0],Source_Coord[0]],
-                     pen="1p,black",)
-            fig.savefig(os.path.join(figdir_refsite,reference_site+'_'+Source_Name+'_stationmap.pdf'))
-            if show_fig: fig.show()
-            else: gmt.set_display('none')
+            if map_engine.lower() == 'cartopy':
+                plt.figure(figsize=[5,4],facecolor='w')
+                ax=plt.axes(projection=projection)
+                #plot receiver cluster
+                plt.plot(GoodCoord[:,1],GoodCoord[:,0],'r^',markersize=4,markerfacecolor='none',transform=ccrs.PlateCarree())
+                #plot receiver box
+                if receiver_box is not None:
+                    plt.plot(lon_box,lat_box,'b-',lw=1,transform=ccrs.PlateCarree())
+                #plot source
+                plt.plot(Source_Coord[1],Source_Coord[0],'r*',markersize=10, markerfacecolor='none',transform=ccrs.PlateCarree())
+                #plot line from cluster center to source
+                plt.plot([ReceiverCluster_Center[1],Source_Coord[1]],[ReceiverCluster_Center[0],Source_Coord[0]],'k-',
+                        lw=1.5,transform=ccrs.PlateCarree())
+                ax.set_extent((map_region[0],map_region[1],map_region[2]*0.95,map_region[3]*1.0))
+                ax.coastlines(resolution='10m',color='k', linewidth=.5)
+                gl=ax.gridlines(crs=ccrs.PlateCarree(),draw_labels=True, dms=True, x_inline=False, y_inline=False,
+                                color='gray', alpha=0.5, linestyle='--',linewidth=0.5)
+                ax.add_feature(country10,lw=1)
+                ax.add_feature(states10,lw=0.5)
+                gl.xlocator = mticker.FixedLocator(np.arange(map_region[0],map_region[1]+2.5,5))
+                gl.ylocator = mticker.FixedLocator(np.arange(map_region[2],map_region[3]+2.5,5))
+                gl.xlabels_top = False
+                plt.title(reference_site+' -> '+Source_Name,pad=20)
+                
+                plt.savefig(os.path.join(figdir_refsite,reference_site+'_'+Source_Name+'_stationmap.pdf'),format='pdf',dpi=300)
+                if show_fig: plt.show()
+                else: plt.close()
+            elif map_engine.lower() == 'gmt':
+                if verbose: print('  Plotting cluster map ...')
+                fig = gmt.Figure()
+                gmt.config(MAP_FRAME_TYPE=map_style, FONT_TITLE=GMT_FONT_TITLE)
+                fig.coast(region=map_region, resolution="f",projection=map_projection, 
+                        water="0/180/255",frame=frame,land="240",borders=["1/1p,black", "2/0.5p,100"])
+                fig.basemap(frame='+t'+reference_site+' -> '+Source_Name)
+                #plot receiver cluster
+                fig.plot(x=GoodCoord[:,1],y=GoodCoord[:,0],style=marker_style,pen="0.5p,red",)
+                #plot receiver box
+                if receiver_box is not None:
+                    fig.plot(x=lon_box,y=lat_box,pen="1p,blue",)
+                #plot source
+                fig.plot(x=Source_Coord[1],y=Source_Coord[0],style="a0.3c",pen="1p,red",)
+                #plot line from cluster center to source
+                fig.plot(x=[ReceiverCluster_Center[1],Source_Coord[1]],
+                         y=[ReceiverCluster_Center[0],Source_Coord[0]],
+                         pen="1p,black",)
+                fig.savefig(os.path.join(figdir_refsite,reference_site+'_'+Source_Name+'_stationmap.pdf'))
+                if show_fig: fig.show()
+                else: gmt.set_display('none')
        
         # Beamforming
         if verbose: print('  Performing beamforming ...')
@@ -525,7 +590,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             plt.xlabel('Ux')
             plt.ylabel('Uy')
             plt.colorbar(label='Normalized Power')
-            plt.title('Beam, Ref: '+reference_site+', Source: '+Source_Name)
+            plt.title('Ref: '+reference_site+', Source: '+Source_Name+'\nSharpness: %.1f, Velocity: %.2f km/s'%(Beam_Sharpness,Beam_Velocity))
             plt.savefig(os.path.join(figdir_refsite,reference_site+'_'+Source_Name+'_beam.pdf'))
             if show_fig: plt.show()
             else: plt.close()
@@ -551,7 +616,13 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     
     # Estimate anisotropy parameters by curve fitting.
     # Only use the bins with good measurements. Need to add weight in the future.
-    fitcoef,fitcov=curve_fit(compute_anisotropy,Beam_Local['baz'],Beam_Local['velocity'],p0=[3.5,0.1,0.1])
+    if verbose: print('  Fitting anisotropy parameters ...')
+    #reuse good_idx to filter the data
+    good_idx = np.where((Beam_Local['sharpness'] >= min_beam_sharpness) & (Beam_Local['velocity'] >= Phase_Velocity_Limits[0]) & \
+                        (Beam_Local['velocity'] <= Phase_Velocity_Limits[1]))[0]
+    if len(good_idx) < min_stations:
+        print('  Not enough good measurements after QC by sharpness and velocities. Skip!')
+    fitcoef=curve_fit(compute_anisotropy,Beam_Local['baz'][good_idx],Beam_Local['velocity'][good_idx],p0=[3.5,0.1,0.1])[0]
     A0 = fitcoef[0]
     A1 = fitcoef[1]
     A2 = fitcoef[2]

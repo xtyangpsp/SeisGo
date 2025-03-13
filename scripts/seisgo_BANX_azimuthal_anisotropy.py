@@ -19,27 +19,31 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
     Min_Stations = 10   
 
     # SNR:
-    Min_SNR = 3
+    Min_SNR = 5
 
     # Scaling factors
     Min_Radius_scaling = 1
     Max_Radius_scaling = 1.5
     Min_Distance_scaling = 2.5
+    Signal_Extent_Scaling = 3 # used to set the signal window when computing the signal to noise ratio. 
+    # The window would be [predicted arrival time - Signal_Extent_Scaling*Max_Period, predicted arrival time + Signal_Extent_Scaling*Max_Period] 
 
     # Beamforming space:
-    Max_Slowness = 0.5   # [s/km] Maximum slowness in the beamforming
+    Max_Slowness = 0.65   # [s/km] Maximum slowness in the beamforming
     Slowness_Step = 0.005  #[s/km] Slowness interval
 
     # Beamforming limit:
-    Vel_Reference = 3.5  # [km/s]
-    Vel_Perturbation = 0.4 # [Percentage fraction] 0.5 = %50                                                                                              
+    Vel_Reference = 3.2  # [km/s]
+    Vel_Perturbation = 0.5 # [Percentage fraction] 0.5 = %50                                                                                              
 
-    Taper_Length_Scaling= 10 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
+    Taper_Length_Scaling= 15 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
 
     AZIBIN_STEP = 6 # azimuthal bin step size in degrees used in the QC step after beamforming of all sources.
     # QC baz coverage
     Min_BAZ_measurements = 1 #minimum number of measurements in each azimuthal bin. Should be >=3. Use 1 for testing here.
     Min_Good_BAZBIN = 5 #minimum number of good bins with >= Min_BAZ_measurements in each azimuthal bin. Should be >=5 (recommended).
+
+    Min_Beam_Sharpness = 5 #minimum beam sharpness to be considered as a good measurement.
 
     MinTime = 0.0 #start time of the xcorr data.
 
@@ -59,8 +63,8 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
     moveout_scaling = 4
 
     # plot cluster map and the source
-    plot_clustermap = False #not plot if on HPC cluster. some display issue may happend if plotting.
-
+    plot_clustermap = True #not plot if on HPC cluster. some display issue may happend if plotting.
+    map_engine = 'cartopy'
     #slowness image
     plot_beampower =True
 
@@ -74,12 +78,12 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
                                     outdir_root,sampling_rate=Sampling_Rate_Target,min_stations=Min_Stations, 
                                     min_snr=Min_SNR, min_radius_scaling=Min_Radius_scaling,
                                     max_radius_scaling=Max_Radius_scaling, min_distance_scaling=Min_Distance_scaling, 
-                                    max_slowness=Max_Slowness,slowness_step=Slowness_Step,velocity_perturbation=Vel_Perturbation, 
-                                    trace_start_time=MinTime,taper_length_scaling=Taper_Length_Scaling,
+                                    signal_extent_scaling=Signal_Extent_Scaling,max_slowness=Max_Slowness,slowness_step=Slowness_Step,
+                                    velocity_perturbation=Vel_Perturbation, trace_start_time=MinTime,taper_length_scaling=Taper_Length_Scaling,
                                     azimuth_step=AZIBIN_STEP,min_baz_measurements=Min_BAZ_measurements,min_good_bazbin=Min_Good_BAZBIN,
-                                    doublesided=DoubleSided, cc_comp =XCorrComp,receiver_box=receiver_box,show_fig=show_fig,
-                                    plot_moveout=plot_moveout, moveout_scaling=moveout_scaling,
-                                    plot_clustermap=plot_clustermap, plot_beampower=plot_beampower,
+                                    min_beam_sharpness=Min_Beam_Sharpness,doublesided=DoubleSided, cc_comp =XCorrComp,
+                                    receiver_box=receiver_box,show_fig=show_fig,plot_moveout=plot_moveout, moveout_scaling=moveout_scaling,
+                                    plot_clustermap=plot_clustermap, map_engine = map_engine, plot_beampower=plot_beampower,
                                     plot_station_result=plot_station_result,verbose=True)
     
     return Beam_Local, anisotropy
@@ -235,8 +239,7 @@ def main():
             #end here for debug/test.
             # Beam_Local_all.append(Beam_Local)
             # anisotropy_all.append(anisotropy)
-            break
-
+            # break
         #
     else:
         #parallelization
