@@ -424,7 +424,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             noise_absrms = utils.rms(data_temp)
             snr = signal_absmax / noise_absrms
             # print('    SNR: ',snr)
-            if snr >= min_snr:
+            if snr >= min_snr and cdata.dist >= Min_Distance:
                 GoodMatrix.append(cdata.data)
                 GoodDist.append(cdata.dist)
                 GoodCoord.append(ReceiverCluster_Coord[ic])
