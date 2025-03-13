@@ -644,8 +644,8 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     if verbose: print('  Final cluster center: %.4f, %.4f'%(ReceiverCluster_Center_Final[0],ReceiverCluster_Center_Final[1]))
 
     # Save the anisotropy results
-    beam_outfile=os.path.join(outdir,reference_site+'_beam_noQC.csv')
-    Beam_Local.to_csv(beam_outfile,index=False)
+    beam_outfile=os.path.join(outdir,reference_site+'_beam.csv')
+    Beam_Local_subset.to_csv(beam_outfile,index=False)
     print('  Beam results saved to: ',beam_outfile)
 
     anisotropy=[period_band[0],period_band[1],Max_Radius,min_stations,
