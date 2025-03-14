@@ -12,7 +12,7 @@ import matplotlib.ticker as mticker
 import matplotlib as mpl
 mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['ps.fonttype'] = 42
-mpl.rc('font',family='Helvetica')
+# mpl.rc('font',family='Helvetica')
 
 """
 This module contains functions to compute anisotropy. 
