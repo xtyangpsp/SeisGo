@@ -2,6 +2,7 @@
 # coding: utf-8
 import os,sys,time
 import numpy as np
+import pandas as pd
 from seisgo import noise,utils
 from multiprocessing import Pool
 import pygmt as gmt
@@ -114,6 +115,8 @@ def main():
     if not os.path.isdir(outdir_root):os.makedirs(outdir_root, exist_ok=True)
     ReceiverBox_lat=[36,38.5]
     ReceiverBox_lon=[-92,-84]
+    stationinfo_file='station_info.csv'
+    use_stationfile=True
     plot_station_map = True
     ######
     ##########################################################
@@ -124,40 +127,51 @@ def main():
     # The coordinates for each net.sta are stored in dictionaries.
     # load data
     sourcelist=utils.get_filelist(datadir)
-    t1 = time.time()
-    # netsta_all=[]
-    coord_all=dict()
-    if nproc < 2:
-        for src in sourcelist:
-            # srcdir=os.path.join(datadir,src)
-            ccfiles=utils.get_filelist(src,'h5',pattern='P_stack')
-            _,_,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
-            # netsta_all.extend(netsta)
-            coord_all = coord_all | coord
+    if use_stationfile:
+        station_df=pd.read_csv(stationinfo_file)
+        coord_all=dict()
+        for i in range(len(station_df)):
+            coord_all[station_df['net.sta'].iloc[i]] = [station_df['lat'].iloc[i],station_df['lon'].iloc[i],station_df['ele'].iloc[i]]
+
+        #
+        print('Read %d station from %s'%(len(list(coord_all.keys())),stationinfo_file))
     else:
-        #parallelization
-        print('Using %d processes to process %d source files'%(nproc,len(sourcelist)))
-        results=pool.starmap(noise.get_stationpairs, [(utils.get_filelist(src,'h5',pattern='P_stack'),
-                                                       False,False,True) for src in sourcelist])
-        # If running interactively, change the above line to: 
-        # results = pool.startmap(noise.get_stationpairs, [(src,True) for src in sourcelist])
-        # unpack results. Needed when running interactively. Otherwise, the results are not unpacked and have been saved to files.
-        _, _, coord_all = zip(*results)
-        # netsta_all = [item for sublist in netsta_all for item in sublist]
-        coord_all = {k: v for d in coord_all for k, v in d.items()}
-    #
-    # remove duplicates
-    netsta_all=list(coord_all.keys()) #sorted(set(netsta_all))
-    print('Extracted %d net.sta from %d source files in %.2f seconds.'%(len(netsta_all),len(sourcelist),time.time()-t1))
-    
-    stationfile = os.path.join(rootdir,'station_info.csv')
-    fout = open(stationfile,'w')
-    fout.write('net.sta, lat, lon, ele\n')
-    for i in range(len(netsta_all)):
-        coord0 = coord_all[netsta_all[i]]
-        fout.write('%s, %f, %f, %f\n'%(netsta_all[i],coord0[0],coord0[1],coord0[2]))
-    fout.close()
-    print('Station information saved to %s'%stationfile)
+        t1 = time.time()
+        # netsta_all=[]
+        coord_all=dict()
+        if nproc < 2:
+            for src in sourcelist:
+                # srcdir=os.path.join(datadir,src)
+                ccfiles=utils.get_filelist(src,'h5',pattern='P_stack')
+                _,_,coord=noise.get_stationpairs(ccfiles,getcoord=True,verbose=True)
+                # netsta_all.extend(netsta)
+                coord_all = coord_all | coord
+        else:
+            #parallelization
+            print('Using %d processes to process %d source files'%(nproc,len(sourcelist)))
+            results=pool.starmap(noise.get_stationpairs, [(utils.get_filelist(src,'h5',pattern='P_stack'),
+                                                        False,False,True) for src in sourcelist])
+            # If running interactively, change the above line to: 
+            # results = pool.startmap(noise.get_stationpairs, [(src,True) for src in sourcelist])
+            # unpack results. Needed when running interactively. Otherwise, the results are not unpacked and have been saved to files.
+            _, _, coord_all = zip(*results)
+            # netsta_all = [item for sublist in netsta_all for item in sublist]
+            coord_all = {k: v for d in coord_all for k, v in d.items()}
+        #
+        # remove duplicates
+        netsta_all=list(coord_all.keys()) #sorted(set(netsta_all))
+        print('Extracted %d net.sta from %d source files in %.2f seconds.'%(len(netsta_all),len(sourcelist),time.time()-t1))
+        
+        stationfile = os.path.join(rootdir,stationinfo_file)
+        fout = open(stationfile,'w')
+        fout.write('net.sta, lat, lon, ele\n')
+        for i in range(len(netsta_all)):
+            coord0 = coord_all[netsta_all[i]]
+            fout.write('%s, %f, %f, %f\n'%(netsta_all[i],coord0[0],coord0[1],coord0[2]))
+        fout.close()
+        print('Station information saved to %s'%stationfile)
+
+
     # ## Subset the station list for the receiver box region
     #set receiver region box
     #this is usually a smaller region than the entire dataset. 
