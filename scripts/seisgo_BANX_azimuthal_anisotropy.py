@@ -164,10 +164,10 @@ def main():
         
         stationfile = os.path.join(rootdir,stationinfo_file)
         fout = open(stationfile,'w')
-        fout.write('net.sta, lat, lon, ele\n')
+        fout.write('net.sta,lat,lon,ele\n')
         for i in range(len(netsta_all)):
             coord0 = coord_all[netsta_all[i]]
-            fout.write('%s, %f, %f, %f\n'%(netsta_all[i],coord0[0],coord0[1],coord0[2]))
+            fout.write('%s,%f,%f,%f\n'%(netsta_all[i],coord0[0],coord0[1],coord0[2]))
         fout.close()
         print('Station information saved to %s'%stationfile)
 
