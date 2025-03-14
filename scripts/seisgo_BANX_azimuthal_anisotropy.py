@@ -111,7 +111,7 @@ def main():
     # set root directory
     rootdir='.'
     datadir=os.path.join(rootdir,'data_craton/PAIRS_TWOSIDES_stack_robust')
-    outdir_root=os.path.join(rootdir,'data_craton/BANX_out')
+    outdir_root=os.path.join(rootdir,'BANX_results')
     if not os.path.isdir(outdir_root):os.makedirs(outdir_root, exist_ok=True)
     ReceiverBox_lat=[36,38.5]
     ReceiverBox_lon=[-92,-84]
@@ -126,16 +126,16 @@ def main():
     # ## Extract the netsta list and their coordinates from the xcorr data
     # The coordinates for each net.sta are stored in dictionaries.
     # load data
-    sourcelist=utils.get_filelist(datadir)
     if use_stationfile:
         station_df=pd.read_csv(stationinfo_file)
         coord_all=dict()
         for i in range(len(station_df)):
             coord_all[station_df['net.sta'].iloc[i]] = [station_df['lat'].iloc[i],station_df['lon'].iloc[i],station_df['ele'].iloc[i]]
-
-        #
-        print('Read %d station from %s'%(len(list(coord_all.keys())),stationinfo_file))
+        # remove duplicates
+        netsta_all=list(coord_all.keys()) #sorted(set(netsta_all))
+        print('Read %d station from %s'%(len(netsta_all),stationinfo_file))
     else:
+        sourcelist=utils.get_filelist(datadir)
         t1 = time.time()
         # netsta_all=[]
         coord_all=dict()
@@ -149,7 +149,7 @@ def main():
         else:
             #parallelization
             print('Using %d processes to process %d source files'%(nproc,len(sourcelist)))
-            results=pool.starmap(noise.get_stationpairs, [(utils.get_filelist(src,'h5',pattern='P_stack'),
+            results=pool.starmap(noise.get_stationpairs, [(utils.get_filelist(src,'h5','P_stack'),
                                                         False,False,True) for src in sourcelist])
             # If running interactively, change the above line to: 
             # results = pool.startmap(noise.get_stationpairs, [(src,True) for src in sourcelist])
@@ -170,7 +170,6 @@ def main():
             fout.write('%s,%f,%f,%f\n'%(netsta_all[i],coord0[0],coord0[1],coord0[2]))
         fout.close()
         print('Station information saved to %s'%stationfile)
-
 
     # ## Subset the station list for the receiver box region
     #set receiver region box
