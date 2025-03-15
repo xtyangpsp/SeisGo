@@ -285,7 +285,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
         if len(flist_all) < N_Sides*min_stations:
             continue
             
-        print('  Source: '+Source_Sites[j]+' -> '+str(int(0.5*len(flist_all)))+' pairs')
+        print('  Source: '+Source_Sites[j]+' -> '+str(int(len(flist_all)/N_Sides))+' pairs')
 
         #######################################################
         # subset receiver cluster sites to find only those with data.
@@ -407,8 +407,8 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
         x_km=[]
         y_km=[]
         # UTM demean
-        x_km_all = (ReceiverCluster_UTM[0] - np.mean(ReceiverCluster_UTM[0]))/1000
-        y_km_all = (ReceiverCluster_UTM[1] - np.mean(ReceiverCluster_UTM[1]))/1000
+        x_km_all = (ReceiverCluster_UTM[0] - np.min(ReceiverCluster_UTM[0]))/1000
+        y_km_all = (ReceiverCluster_UTM[1] - np.min(ReceiverCluster_UTM[1]))/1000
         if plot_moveout:
             plt.figure(figsize=[5,4])
         for ic,cdata in enumerate(ReceiverCluster_CorrData):
@@ -416,6 +416,8 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             tt = ReceiverCluster_TravelTimes[ic]
             #signal time window is half longest period away from the predicted time.
             signal_twin = [tt - signal_extent_scaling*np.max(period_band), tt + signal_extent_scaling*np.max(period_band)]
+            if signal_twin[0] < trace_start_time: signal_twin[0]=trace_start_time
+            if signal_twin[1] > MaxTime: signal_twin[1]=MaxTime
             signal_idx = [np.argmin(np.abs(TimeVector - signal_twin[0])), np.argmin(np.abs(TimeVector - signal_twin[1]))]
             signal_absmax = np.max(np.abs(data_temp[signal_idx[0]:signal_idx[1]]))
             
@@ -425,7 +427,14 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             snr = signal_absmax / noise_absrms
             # print('    SNR: ',snr)
             if snr >= min_snr and cdata.dist >= Min_Distance:
-                GoodMatrix.append(cdata.data)
+                data_mutenoise=cdata.data.copy()
+                ################################################################################
+                # !!!!!!!!!!!!!!!! mute noise window to zeros !!!!!!!!!!!!!!!!
+                ################################################################################
+                data_mutenoise[:signal_idx[0]]=0.0
+                data_mutenoise[signal_idx[1]:]=0.0
+                
+                GoodMatrix.append(data_mutenoise)
                 GoodDist.append(cdata.dist)
                 GoodCoord.append(ReceiverCluster_Coord[ic])
                 #x and y coordinates of the stations
@@ -450,7 +459,7 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             plt.ylim([np.min(GoodDist) - 5*moveout_scaling, np.max(GoodDist) + 5*moveout_scaling])
             plt.xlabel('Time (s)')
             plt.ylabel('Distance (km)')
-            plt.title('Ref: '+reference_site+', Source: '+Source_Name)
+            plt.title('Ref: '+reference_site+', Source: '+Source_Name+': '+str(len(GoodDist)))
             plt.savefig(os.path.join(figdir_refsite,reference_site+'_'+Source_Name+'_moveout.pdf'))
             if show_fig: plt.show()
             else: plt.close()
