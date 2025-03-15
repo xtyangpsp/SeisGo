@@ -20,40 +20,41 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
     Min_Stations = 10   
 
     # SNR:
-    Min_SNR = 5
+    Min_SNR = 10
 
     # Scaling factors
     Min_Radius_scaling = 1
-    Max_Radius_scaling = 1.5
-    Min_Distance_scaling = 2.5
-    Signal_Extent_Scaling = 3 # used to set the signal window when computing the signal to noise ratio. 
+    Max_Radius_scaling = 1.25
+    Min_Distance_scaling = 3
+    Signal_Extent_Scaling = 2.5 # used to set the signal window when computing the signal to noise ratio. 
     # The window would be [predicted arrival time - Signal_Extent_Scaling*Max_Period, predicted arrival time + Signal_Extent_Scaling*Max_Period] 
 
+    Vel_Signal_Window = 3.2
     # Beamforming space:
-    Max_Slowness = 0.65   # [s/km] Maximum slowness in the beamforming
+    Max_Slowness = 0.5   # [s/km] Maximum slowness in the beamforming
     Slowness_Step = 0.005  #[s/km] Slowness interval
 
     # Beamforming limit:
-    Vel_Reference = 3.2  # [km/s]
-    Vel_Perturbation = 0.5 # [Percentage fraction] 0.5 = %50                                                                                              
+    Vel_Reference = 3.5  # [km/s]
+    Vel_Perturbation = 0.4 # [Percentage fraction] 0.5 = %50                                                                                              
 
-    Taper_Length_Scaling= 15 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
+    Taper_Length_Scaling= 7 # Taper length scaling factor. The taper length is Taper_Length_Scaling*Max_Period.
 
     AZIBIN_STEP = 6 # azimuthal bin step size in degrees used in the QC step after beamforming of all sources.
     # QC baz coverage
     Min_BAZ_measurements = 1 #minimum number of measurements in each azimuthal bin. Should be >=3. Use 1 for testing here.
     Min_Good_BAZBIN = 5 #minimum number of good bins with >= Min_BAZ_measurements in each azimuthal bin. Should be >=5 (recommended).
 
-    Min_Beam_Sharpness = 5 #minimum beam sharpness to be considered as a good measurement.
+    Min_Beam_Sharpness = 10 #minimum beam sharpness to be considered as a good measurement.
 
     MinTime = 0.0 #start time of the xcorr data.
 
-    Sampling_Rate_Target = 20 #target sampling rate. Needs to be integer times the data sampling rate to avoid resampling error.
+    Sampling_Rate_Target = 5 #target sampling rate. Needs to be integer times the data sampling rate to avoid resampling error.
     #The data will be resampled to Sampling_Rate_Target (samples per second).
 
     Period_Band = [15,30]
 
-    DoubleSided = True
+    DoubleSided = False
 
     ####################################################
     #### plotting controls ##############################
@@ -79,6 +80,7 @@ def BANX_wrapper(stationdict_all, reference_site, datadir, outdir_root, receiver
                                     outdir_root,sampling_rate=Sampling_Rate_Target,min_stations=Min_Stations, 
                                     min_snr=Min_SNR, min_radius_scaling=Min_Radius_scaling,
                                     max_radius_scaling=Max_Radius_scaling, min_distance_scaling=Min_Distance_scaling, 
+                                    signal_window_velocity=Vel_Signal_Window,
                                     signal_extent_scaling=Signal_Extent_Scaling,max_slowness=Max_Slowness,slowness_step=Slowness_Step,
                                     velocity_perturbation=Vel_Perturbation, trace_start_time=MinTime,taper_length_scaling=Taper_Length_Scaling,
                                     azimuth_step=AZIBIN_STEP,min_baz_measurements=Min_BAZ_measurements,min_good_bazbin=Min_Good_BAZBIN,
@@ -110,10 +112,10 @@ def main():
     """
     # set root directory
     rootdir='.'
-    datadir=os.path.join(rootdir,'data_craton/PAIRS_TWOSIDES_stack_robust')
+    datadir=os.path.join(rootdir,'data_craton/PAIRS_AVERAGEDSIDES_stack_robust_egf') #'data_craton/PAIRS_TWOSIDES_stack_robust')
     outdir_root=os.path.join(rootdir,'BANX_results')
     if not os.path.isdir(outdir_root):os.makedirs(outdir_root, exist_ok=True)
-    ReceiverBox_lat=[36,38.5]
+    ReceiverBox_lat=[36,39.5]
     ReceiverBox_lon=[-92,-84]
     stationinfo_file='station_info.csv'
     use_stationfile=True

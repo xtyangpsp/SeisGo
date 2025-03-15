@@ -84,10 +84,11 @@ def compute_anisotropy(x, a, b, c):
 #################### BANX method ####################
 def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, datadir,outdir_root='.',sampling_rate=None,
             min_stations=10, min_snr=5, min_radius_scaling=1,max_radius_scaling=1.5, min_distance_scaling=2.5, 
-            signal_extent_scaling=3,max_slowness=0.5,slowness_step=0.005,velocity_perturbation=0.4,trace_start_time=0,taper_length_scaling=5,
-            azimuth_step=6,min_baz_measurements=3,min_good_bazbin=5,min_beam_sharpness=0,doublesided=True, cc_comp ='ZZ', 
-            show_fig=True, plot_moveout=True, moveout_scaling = 4, plot_clustermap=True, map_region=None,map_engine='cartopy',receiver_box=None,
-            plot_beampower=True, plot_station_result=True, verbose=False,map_region_precision=0):
+            signal_window_velocity=None,signal_extent_scaling=3,max_slowness=0.5,slowness_step=0.005,velocity_perturbation=0.4,
+            trace_start_time=0,taper_length_scaling=5,azimuth_step=6,min_baz_measurements=3,min_good_bazbin=5,min_beam_sharpness=0,
+            doublesided=True, cc_comp ='ZZ', show_fig=True, plot_moveout=True, moveout_scaling = 4, plot_clustermap=True, 
+            map_region=None,map_engine='cartopy',receiver_box=None,plot_beampower=True, plot_station_result=True, 
+            verbose=False,map_region_precision=0):
     """
     Perform BANX method to compute azimuthal anisotropy.
     ===PARAMETER===
@@ -104,6 +105,8 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     max_radius_scaling: maximum radius scaling factor. Default is 1.5.
     min_distance_scaling: minimum distance scaling factor. Default is 2.5.
     signal_extent_scaling: scaling factor for the signal extent (before and after the predicted arrival). Default is 3. (3 times the longest period)
+    signal_window_velocity: group velocity to calculate the predicted arrival time to decide the signal window. 
+                    If None [default], will use 80% of the reference_velocity.
 
     max_slowness: maximum slowness. Default is 0.5.
     slowness_step: slowness step. Default is 0.005.
@@ -152,6 +155,9 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
     else:
         N_Sides = 1
 
+    #
+    if signal_window_velocity is None:
+        signal_window_velocity = 0.8*reference_velocity
     #
     SourceList_Sites = list(stationdict_all.keys())
     if sampling_rate is None:
@@ -354,15 +360,17 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
         """
         # Calculating the theoretical arrival times
         """
-        ReceiverCluster_TravelTimes = np.array(ReceiverCluster_Dist) / reference_velocity
+        ReceiverCluster_TravelTimes = np.array(ReceiverCluster_Dist) / signal_window_velocity
         # print(ReceiverCluster_TravelTimes)
 
         # Interpolate or resample if the target sampling rate is different from the data sampling rate
         Sampling_Delta_Data = ReceiverCluster_CorrData[0].dt
         Sampling_Rate_Data = int(1/Sampling_Delta_Data)
+        if SamplingRate_Target == Sampling_Rate_Data:
+            resample = False
         if resample:
             #max time is the maximum travel time + taper length
-            MaxTime = np.round(np.max(ReceiverCluster_TravelTimes) + (taper_length_scaling * Max_Period),2)
+            MaxTime = np.round(np.max(ReceiverCluster_TravelTimes) + (signal_extent_scaling+taper_length_scaling) * Max_Period,2)
             if MaxTime > ReceiverCluster_CorrData[0].lag:
                 MaxTime = ReceiverCluster_CorrData[0].lag
             # Creating a homogeneous time vector:
@@ -394,7 +402,6 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
             for cdata in ReceiverCluster_CorrData:
                 cdata.data = cdata.data[:len(TimeVector)]
                 cdata.lag = MaxTime
-
                 
         # Quality control with SNR cutoff
         #1. set a time window around the predicted travel time.
