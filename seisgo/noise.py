@@ -1743,14 +1743,20 @@ def extract_corrdata(sfile,pair=None,comp=['all'],mpi=False,dataless=False):
                                 side = para['side']
                             else:
                                 n_expect=int(maxlag/dt + 1)
-                                n_pts = data.shape[1]
-                                if n_pts + 1 > 1.75*n_expect # check for 75% over one side length
+                                if substack:
+                                    n_pts = data.shape[1]
+                                else:
+                                    n_pts = data.shape[0]
+                                if n_pts + 1 > 1.75*n_expect: # check for 75% over one side length
                                     side = "A"
                                 else:
                                     side = "O"
                         else: #determine automatically based on the length of the data and the expected length with the lag
                             n_expect=int(maxlag/dt + 1)
-                            n_pts = data.shape[1]
+                            if substack:
+                                n_pts = data.shape[1]
+                            else:
+                                n_pts = data.shape[0]
                             if n_pts + 1 > 1.75*n_expect: # check for 75% over one side length
                                 side = "A"
                             else:
@@ -1764,7 +1770,8 @@ def extract_corrdata(sfile,pair=None,comp=['all'],mpi=False,dataless=False):
                                 side = "U"
                         else:
                             side = "U"
-                except Exception:
+                except Exception as e:
+                    print(e)
                     print('continue! something wrong with %s %s'%(spair,ipath))
                     continue
 

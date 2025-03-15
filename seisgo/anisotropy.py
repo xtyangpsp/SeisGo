@@ -304,19 +304,19 @@ def do_BANX(stationdict_all, reference_site, period_band, reference_velocity, da
 
                 cdata_temp1 = noise.extract_corrdata(filtered_list[0])
                 cdata1 = cdata_temp1[list(cdata_temp1.keys())[0]][cc_comp] 
-
-                cdata_temp2 = noise.extract_corrdata(filtered_list[1])
-                cdata2 = cdata_temp2[list(cdata_temp2.keys())[0]][cc_comp] 
-                if len(cdata1.data) > 0 and len(cdata2.data) > 0:
-                    #average the negative and positive sides.
-                    cdata1.data = (cdata1.data + cdata2.data)/2
-                    cdata1.side = None
-                elif len(cdata2.data) > 1:
-                    cdata1.data = cdata2.data
-                elif len(cdata1.data) > 1:
-                    pass
-                else:
-                    continue
+                if N_Sides == 2: #average two sides
+                    cdata_temp2 = noise.extract_corrdata(filtered_list[1])
+                    cdata2 = cdata_temp2[list(cdata_temp2.keys())[0]][cc_comp] 
+                    if len(cdata1.data) > 0 and len(cdata2.data) > 0:
+                        #average the negative and positive sides.
+                        cdata1.data = (cdata1.data + cdata2.data)/2
+                        cdata1.side = None
+                    elif len(cdata2.data) > 1:
+                        cdata1.data = cdata2.data
+                    elif len(cdata1.data) > 1:
+                        pass
+                    else:
+                        continue
 
                 #filter the data
                 cdata1.filter(fmin=1/period_band[1],fmax=1/period_band[0],corners=4,zerophase=True)
