@@ -1751,7 +1751,7 @@ def extract_corrdata(sfile,pair=None,comp=['all'],mpi=False,dataless=False):
                         else: #determine automatically based on the length of the data and the expected length with the lag
                             n_expect=int(maxlag/dt + 1)
                             n_pts = data.shape[1]
-                            if n_pts + 1 > 1.75*n_expect # check for 75% over one side length
+                            if n_pts + 1 > 1.75*n_expect: # check for 75% over one side length
                                 side = "A"
                             else:
                                 side = "O"
