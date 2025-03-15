@@ -69,8 +69,13 @@ def xcorr_output_structure():
 def xcorr_sides():
     """
     Side options/labels for xcorr data.
+    a: both negative and positive sides joined.
+    n: negative
+    p: positive
+    o: one-sided, unclear negative or positive.
+    u: not applicable
     """
-    o=["a","n","p"]
+    o=["a","n","p","o","u"]
 
     return o
 

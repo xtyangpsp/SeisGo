@@ -488,8 +488,8 @@ class CorrData(object):
         self.time=time
         self.data=data
         self.stack_method=stack_method
-        if side.lower() not in ["a","p","n"]:
-            raise ValueError("Wrong side attribute value [%s], which has to be one of A, N, P."%(side))
+        if side.lower() not in helpers.xcorr_sides():
+            raise ValueError("Wrong side attribute value [%s], which has to be one of [%s]."%(side,str(helpers.xcorr_sides())))
         else:
             self.side=side
         self.substack=substack
@@ -1412,7 +1412,7 @@ class CorrData(object):
         if self.side.lower() == 'a':
             cdatan,cdatap=self.split()
             nplot=2
-        elif self.side.lower() =='n':
+        elif self.side.lower() =='n' or self.side.lower() =='o':
             cdatan=self.copy()
             cdatap=None
             nplot=1

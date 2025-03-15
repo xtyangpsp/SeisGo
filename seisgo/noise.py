@@ -1727,10 +1727,7 @@ def extract_corrdata(sfile,pair=None,comp=['all'],mpi=False,dataless=False):
                         cc_step = para['cc_step']
                     else:
                         cc_step = None
-                    if "side" in  list(para.keys()):
-                        side = para['side']
-                    else:
-                        side = "A"
+                    
                     ##special handling of time, in case time_mean is saved to reduce the attribute memory_size
                     if "time_mean" in list(para.keys()):
                         tmean=para["time_mean"]
@@ -1739,8 +1736,34 @@ def extract_corrdata(sfile,pair=None,comp=['all'],mpi=False,dataless=False):
                         stack_method=para["stack_method"]
                     else:
                         stack_method=None
-                    if not dataless: data = np.array(ds.auxiliary_data[spair][ipath].data)
-                    else: data = None
+                    if not dataless:
+                        data = np.array(ds.auxiliary_data[spair][ipath].data)
+                        if "side" in  list(para.keys()):
+                            if para['side'].lower() in helpers.xcorr_sides():
+                                side = para['side']
+                            else:
+                                n_expect=int(maxlag/dt + 1)
+                                n_pts = data.shape[1]
+                                if n_pts + 1 > 1.75*n_expect # check for 75% over one side length
+                                    side = "A"
+                                else:
+                                    side = "O"
+                        else: #determine automatically based on the length of the data and the expected length with the lag
+                            n_expect=int(maxlag/dt + 1)
+                            n_pts = data.shape[1]
+                            if n_pts + 1 > 1.75*n_expect # check for 75% over one side length
+                                side = "A"
+                            else:
+                                side = "O"
+                    else: #dataless
+                        data = None
+                        if "side" in  list(para.keys()):
+                            if para['side'].lower() in helpers.xcorr_sides():
+                                side = para['side']
+                            else:
+                                side = "U"
+                        else:
+                            side = "U"
                 except Exception:
                     print('continue! something wrong with %s %s'%(spair,ipath))
                     continue

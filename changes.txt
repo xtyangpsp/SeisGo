@@ -4,12 +4,19 @@ ANISOTROPY:
 
 NOISE:
 1. get_stationpairs(): added the option to collect station coordinates.
+2. extract_corrdata(): added capibility to determine the side.
+
+HELPERS:
+1. xcorr_sides(): added "o" for one-sided but unclear negative or positive and "u" for unavailable side (e.g.,empty data)
 
 UTILS:
 1. Added cart2pol(), pol2cart(), and cart2compass() to convert coordinates between cartisian and polar.
 
 SETUP:
 1. Removed requirement for python<3.12. It seems to work with 3.12 on Purdue cluster, at least.
+
+TYPES:
+1. Added capibility to handle more side symbols for corrdata.
 
 =======================================================
 Updates in v0.9.0:
