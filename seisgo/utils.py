@@ -23,7 +23,7 @@ from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
 from shapely.geometry import MultiPoint, MultiLineString,Polygon, Point
-from shapely.ops import cascaded_union, polygonize
+from shapely.ops import unary_union, polygonize
 import netCDF4 as nc
 from scipy.spatial import Delaunay
 from math import sqrt
