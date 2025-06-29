@@ -12,6 +12,7 @@ HELPERS:
 UTILS:
 1. Added cart2pol(), pol2cart(), and cart2compass() to convert coordinates between cartisian and polar.
 2. Replace cascaded_union [deprecated by shapely] with unary_union.
+3. sta_info_from_inv(): added a mode option to deal with the case when inventory stores an array of statiosn in one object.
 
 SETUP:
 1. Removed requirement for python<3.12. It seems to work with 3.12 on Purdue cluster, at least.

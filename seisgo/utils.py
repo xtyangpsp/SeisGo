@@ -963,12 +963,16 @@ def mag_duration(mag, type_curve=1):
 # sta_info_from_inv(inv) is modified from noise_module (with the same name)
 #Check NoisePy: https://github.com/mdenolle/NoisePy
 # added functionality to process an array of inventory
-def sta_info_from_inv(inv):
+def sta_info_from_inv(inv,mode='single'):
     '''
     this function outputs station info from the obspy inventory object.
     PARAMETERS:
     ----------------------
     inv: obspy inventory object
+    mode: "single" (one inv object only contains one station) or 
+          "array" (one inv object contains one network with multiple stations).
+          default is "single".
+          
     RETURNS:
     ----------------------
     sta: station name
@@ -986,30 +990,49 @@ def sta_info_from_inv(inv):
     elv=[]
     location=[]
 
-    for i in range(len(inv[0])):
-        sta.append(inv[0][i].code)
-        net.append(inv[0].code)
-        lon.append(inv[0][i].longitude)
-        lat.append(inv[0][i].latitude)
-        if inv[0][i][0].elevation:
-            elv.append(inv[0][i][0].elevation)
-        else:
-            elv.append(0.)
-
-        # print(inv[0][i])
-        # print(inv[0][i].location_code)
-        if len(inv[0][i][0].location_code)>0:
-            location.append(inv[0][i][0].location_code)
-        else:
-            location.append('00')
-
-    if len(inv[0])==1:
-        sta=sta[0]
-        net=net[0]
-        lon=lon[0]
-        lat=lat[0]
-        elv=elv[0]
-        location=location[0]
+    if mode.lower() == "single":
+        for i in range(len(inv[0])):
+            sta.append(inv[0][i].code)
+            net.append(inv[0].code)
+            lon.append(inv[0][i].longitude)
+            lat.append(inv[0][i].latitude)
+            if inv[0][i][0].elevation:
+                elv.append(inv[0][i][0].elevation)
+            else:
+                elv.append(0.)
+    
+            # print(inv[0][i])
+            # print(inv[0][i].location_code)
+            if len(inv[0][i][0].location_code)>0:
+                location.append(inv[0][i][0].location_code)
+            else:
+                location.append('00')
+    
+        if len(inv[0])==1:
+            sta=sta[0]
+            net=net[0]
+            lon=lon[0]
+            lat=lat[0]
+            elv=elv[0]
+            location=location[0]
+    elif mode.lower() == "array":
+        for i in range(len(inv)):
+            for j in range(len(inv[i])):
+                sta.append(inv[i][j].code)
+                net.append(inv[i].code)
+                lon.append(inv[i][j].longitude)
+                lat.append(inv[i][j].latitude)
+                if inv[i][j].elevation:
+                    elv.append(inv[i][j].elevation)
+                else:
+                    elv.append(0.)
+            
+                # print(inv[0][i])
+                # print(inv[0][i].location_code)
+                try:
+                    location.append(inv[i][j].location_code)
+                except:
+                    location.append('00')
     # print(sta,net,lon,lat,elv,location)
     return sta,net,lon,lat,elv,location
 
