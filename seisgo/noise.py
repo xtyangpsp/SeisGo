@@ -365,7 +365,7 @@ def smooth_source_spect(fft1,cc_method,sn):
     return sfft1.reshape(N,Nfft2)
 
 def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr',acorr_only=False,
-                    xcorr_only=False,substack=False,correct_orientation=False,rotate_raw=True,substack_len=None,smoothspect_N=20,
+                    xcorr_only=False,substack=False,correct_orientation=False,rotate_raw=False,substack_len=None,smoothspect_N=20,
                     maxstd=10,freqmin=None,freqmax=None,max_time_diff=None,time_norm='no',freq_norm='no',
                     smooth_N=20,exclude_chan=[None],outdir='.',v=True,output_structure="raw"):
     """
@@ -380,8 +380,8 @@ def do_correlation(sfile,win_len,step,maxlag,channel_pairs=None,cc_method='xcorr
     acorr_only=False: only compute autocorrelation when True.
     xcorr_only=False: Only compute cross-correlations when True.
     substack=False,substack_len=None: keep substack or not. If True, specify substack_len (in seconds.)
-    correct_orientation: orientation correction for horizontal channels, automatically convert 1/2 to N/E channels
-    rotate_raw: rotate from E-N-Z to R-T-Z
+    correct_orientation: orientation correction for horizontal channels, automatically convert 1/2 to N/E channels. Default False.
+    rotate_raw: rotate from E-N-Z to R-T-Z. Default False.
     smoothspect_N=20,smooth_N=20: smoothing parametes when rma is used for frequency and time domain, respectively.
     maxstd=10: drop data segments with std > this threshold.
     freqmin=None,freqmax=None: frequency range for frequency doman normalizaiton/smoothing.
