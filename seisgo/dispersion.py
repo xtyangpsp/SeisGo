@@ -132,7 +132,7 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
         side='a'
         zero_idx=int((len(t)-1)/2)
         if figsize is None:
-            figsize=(10,4)
+            figsize=(8,3)
     elif t[0]<-1.0*dt:
         side='n'
         zero_idx=len(t)-1
@@ -174,7 +174,7 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
                         tmin=d[j]/v
                         tmin_idx=zero_idx - int(tmin/dt)
                         dsec=d_in[j][tmin_idx - win_len_samples : tmin_idx]
-                        if not any(np.isnan(dsec)):
+                        if not any(np.isnan(dsec)) and len(dsec)==win_len_samples:
                             dvec.append(dsec)
                     if energy_type.lower() == 'power_sum':
                         peak_energy=np.sum(np.power(np.mean(dvec,axis=1),2))
@@ -188,7 +188,7 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
                         tmin=d[j]/v
                         tmin_idx=zero_idx + int(tmin/dt)
                         dsec=d_in[j][tmin_idx : tmin_idx + win_len_samples]
-                        if not any(np.isnan(dsec)):
+                        if not any(np.isnan(dsec)) and len(dsec)==win_len_samples:
                             dvec.append(dsec)
                     #
                     if energy_type.lower() == 'power_sum':
@@ -217,39 +217,45 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
             plt.imshow(np.flip(np.array(dout_n_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
-            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
-            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
+            plt.yticks(np.linspace(vmin,vmax,5),fontsize=12)
             plt.clim(clim)
-            plt.colorbar()
-            plt.title('dispersion from negative lag: '+energy_type,fontsize=13)
+            ax=plt.colorbar()
+            ax.set_label('normalized energy (%s)'%(energy_type.replace('_',' ')))
+            plt.title('negative lag: '+energy_type.replace('_',' '),fontsize=13)
 
             plt.subplot(1,2,2)
             plt.imshow(np.flip(np.array(dout_p_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
-            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
-            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
+            plt.yticks(np.linspace(vmin,vmax,5),fontsize=12)
             plt.clim(clim)
-            plt.colorbar()
-            plt.title('dispersion from positive lag: '+energy_type,fontsize=13)
+            ax=plt.colorbar()
+            ax.set_label('normalized energy (%s)'%(energy_type.replace('_',' ')))
+            plt.title('positive lag: '+energy_type.replace('_',' '),fontsize=13)
+
+            plt.tight_layout()
         elif side == 'n':
             plt.imshow(np.flip(np.array(dout_n_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
-            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
-            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
+            plt.yticks(np.linspace(vmin,vmax,5),fontsize=12)
             plt.clim(clim)
-            plt.colorbar()
-            plt.title('dispersion from negative lag: '+energy_type,fontsize=13)
+            ax=plt.colorbar()
+            ax.set_label('normalized energy (%s)'%(energy_type.replace('_',' ')))
+            plt.title('negative lag: '+energy_type.replace('_',' '),fontsize=13)
         elif side == 'p':
             plt.imshow(np.flip(np.array(dout_p_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
-            # plt.xticks(np.arange(pmin,pmax+1,5),fontsize=12)
-            # plt.yticks(np.arange(vmin,vmax+.5,.5),fontsize=12)
+            plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
+            plt.yticks(np.linspace(vmin,vmax,5),fontsize=12)
             plt.clim(clim)
-            plt.colorbar()
-            plt.title('dispersion from positive lag: '+energy_type,fontsize=13)
+            ax=plt.colorbar()
+            ax.set_label('normalized energy (%s)'%(energy_type.replace('_',' ')))
+            plt.title('positive lag: '+energy_type.replace('_',' '),fontsize=13)
         #
         plt.show()
 
