@@ -69,6 +69,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
     for inet in net_list:
         for ista in sta_list:
             dataflag = 0
+            ista=str(ista)
             for ichan in chan_list:
                 # gather station info
                 try:
@@ -451,7 +452,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     #loop through all stations.
     for i in range(len(station)):
         inet=network[i]
-        ista=station[i]
+        ista=str(station[i])
         ichan=channel[i]
 
         for nt in range(max_tries):
