@@ -930,18 +930,19 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
 
 
 #test functions
-def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=None,\
-                            ylim=None,save=False,figsize=None,figdir=None,format='png',minsnr=None):
+def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
+                            ylim=None,save=False,figsize=None,figdir=None,format='pdf',
+                              minsnr=None,comp_label=True):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
     ---------------------
-    sfile: cross-correlation functions outputed by S2
-    sta: source station name
+    sfile: cross-correlation functions after splitting to two sides.
+    sta: source station name      e.g. AV.OKCE
     dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
     freqmin: min frequency to be filtered
     freqmax: max frequency to be filtered
-    ccomp: x-correlation component names, could be a string or a list of strings.
+    ccomp: x-correlation component names, could be a string or a list of strings. e.g. 'ZZ'
     scale: plot the waveforms with scaled amplitudes
     lag: lag times for displaying
     save: set True to save the figures (in pdf format)
@@ -952,22 +953,32 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
     ----------------------
     plot_xcorr_moveout_wiggle('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
     '''
-    if not isinstance(freq[0],list):freq=[freq]
-    freq=np.array(freq)
-    figlabels=['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)','(i)']
+
+    figlabels=list(string.ascii_lowercase)
+    
+    '''
+    creates a list called figlabels containing lowercase letters from the English alphabet. 
+    This line of code uses the ascii_lowercase constant from the string module in Python, 
+    which is a string containing all lowercase letters from 'a' to 'z'
+    '''
+    
+    # Handle frequency input
+    if not isinstance(freq[0],list):freq=[freq] 
+    freq=np.array(freq) 
+    figlabels=['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)','(i)'] 
     if freq.shape[0]>9:
         raise ValueError('freq includes more than 9 (maximum allowed for now) elements!')
     elif freq.shape[0]==9:
-        subplot=[3,3]
+        subplot=[3,3]                
         figsize0=[14,7.5]
     elif freq.shape[0] >=7 and freq.shape[0] <=8:
-        subplot=[2,4]
+        subplot=[2,4]                
         figsize0=[18,10]
     elif freq.shape[0] >=5 and freq.shape[0] <=6:
-        subplot=[2,3]
+        subplot=[2,3]               
         figsize0=[14,7.5]
     elif freq.shape[0] ==4:
-        subplot=[2,2]
+        subplot=[2,2]               
         figsize0=[10,6]
     else:
         subplot=[1,freq.shape[0]]
@@ -977,8 +988,11 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
             figsize0=[8,3]
         else:
             figsize0=[4,3]
+            
+    # Handle figure size
     if figsize is None:figsize=figsize0
-    #
+        
+    # Handle quality control (QC) based on minimum SNR
     qc=False
     if minsnr is not None:
         qc=True
@@ -987,112 +1001,181 @@ def plot_xcorr_moveout_wiggle(sfiles,sta,dtype,freq,ccomp=None,scale=1.0,lag=Non
     if save:
         if figdir==None:print('no path selected! save figures in the default path')
 
-    receiver = sta+'.h5'
-    stack_method = dtype.split('_')[-1]
-    if isinstance(ccomp,str):ccomp=[ccomp]
+    # GET ALL FILES
 
-    # extract common variables
+    # Search for files with names ending in 'P_stack.h5' across all station source subdirectories
+    ccfiles = sorted(glob.glob(os.path.join(CCFDIR, '**', '*_P.h5'), recursive=True))
+    
+    source_ccfiles_p = []
+    
+    for file in ccfiles:
+        #ccfile_path_example = 'data_okmok/PAIRS_TWOSIDES_gaussian_a0.1t0.3/5F.OK01/5F.OK01_5F.OK02_ZZ_P_stack.h5'
+        split_path = file.split("/")[-1].split("_")
+        if split_path[0] == sta or split_path[1] == sta:
+            source_ccfiles_p.append(file)
+        else: 
+            continue
+        
+    corrdict_all_p=dict()  # create an empty dictionary named corrdict_all_p, which will be used to store pos lag correlation data
+
+    print('assembling all corrdata ...')
+    for ifile in source_ccfiles_p:             # loops through each file in source_ccfiles_p  
+        # tt00=time.time()
+        corrdict=noise.extract_corrdata(ifile)         # extracts correlation data from the file
+        pair=list(corrdict.keys())[0]                  # extracts the first key from the 'corrdict' dictionary and saves to variable named 'pair'
+        corrdict_all_p[pair]=corrdict[pair]           # store the extracted data to the corrdict_all_p dictionary with the pair as the key in corrdict_all_p
+    
+    # search for files with names ending in 'N_stack.h5' across all station source subdirectories 
+    ccfiles_n = sorted(glob.glob(os.path.join(CCFDIR, '**', '*_N.h5'), recursive=True))
+
+    source_ccfiles_n = []
+    
+    for file in ccfiles_n:
+        #ccfile_path_example = 'data_okmok/PAIRS_TWOSIDES_gaussian_a0.1t0.3/5F.OK01/5F.OK01_5F.OK02_ZZ_N_stack.h5'
+        split_path = file.split("/")[-1].split("_")
+        if split_path[0] == sta or split_path[1] == sta:
+            source_ccfiles_n.append(file)
+        else: 
+            continue
+    
+    corrdict_all_n=dict()   # create an empty dictionary named corrdict_all_n, which will be used to store neg lag correlation data
+    
+    print('assembling all corrdata ...')
+    for ifile in source_ccfiles_n:
+        #tt00=time.time()
+        corrdict=noise.extract_corrdata(ifile)
+        pair=list(corrdict.keys())[0]                  
+        corrdict_all_n[pair]=corrdict[pair]
+
+    # extract common variables including lag time, station-pairs, component, time increment
+    pairs=list(corrdict_all_p.keys())                  
+    
+    complist=list(corrdict_all_p[pairs[0]].keys())      
+   
+    dt = corrdict_all_p[pairs[0]][complist[0]].dt     
+    
+    maxlag = corrdict_all_p[pairs[0]][complist[0]].lag 
+    
     try:
-        ds    = pyasdf.ASDFDataSet(sfiles[0],mpi=False,mode='r')
-        complist=ds.auxiliary_data[dtype].list()
-        dt    = ds.auxiliary_data[dtype][complist[0]].parameters['dt']
-        maxlag= ds.auxiliary_data[dtype][complist[0]].parameters['maxlag']
-    except Exception:
-        print("exit! cannot open %s to read"%sfiles[0]);sys.exit()
-    if ccomp is None:ccomp=complist
-    # lags for display
-    if lag is None:lag=maxlag
-    if lag>maxlag:raise ValueError('lag excceds maxlag!')
-    tt = np.arange(-lag,lag+dt,dt)
-    indx0= int(maxlag/dt) #zero time index
-    indx1 = int((maxlag-lag)/dt)
-    indx2 = indx1+2*int(lag/dt)+1
-
-    # load cc and parameter matrix
-    for ic in range(len(ccomp)):
-        comp = ccomp[ic]
-
-        data0 = np.zeros(shape=(len(sfiles),indx2-indx1),dtype=np.float32)
-        dist = np.zeros(len(sfiles),dtype=np.float32)
-        snrneg = np.zeros(len(sfiles),dtype=np.float32)
-        snrpos = np.zeros(len(sfiles),dtype=np.float32)
-        iflip = np.zeros(len(sfiles),dtype=np.int16)
-        for ii in range(len(sfiles)):
-            sfile = sfiles[ii]
-            iflip[ii] = 0
-            treceiver = sfile.split('_')[-1]
-            if treceiver == receiver:
-                iflip[ii] = 1
-
-            ds = pyasdf.ASDFDataSet(sfile,mpi=False,mode='r')
+        stack_method=corrdict_all_p[pairs[0]][complist[0]].stack_method
+    except Exception as e:
+        print(e)
+        stack_method="unknown"
+        
+    # define lag times for display
+    if lag is None:lag=maxlag      
+    
+    # create time array for display
+    tt = np.arange(-lag,lag+dt,dt)  
+    
+    # define indices for data extraction
+    indx0= int(maxlag/dt) 
+    indx1 = int((maxlag-lag)/dt) 
+    indx2 = indx1+2*int(lag/dt)+1  
+      
+    # load crosss-correlation data and and parameter matrix; 
+    data0 = np.zeros(shape=(len(source_ccfiles_p),indx2-indx1),dtype=np.float32)   
+    dist = np.zeros(len(source_ccfiles_p),dtype=np.float32)    
+    snrneg = np.zeros(len(source_ccfiles_p),dtype=np.float32)    
+    snrpos = np.zeros(len(source_ccfiles_p),dtype=np.float32)    
+    # iflip = np.zeros(len(source_ccfiles_p),dtype=np.int16)       
+    
+    for ii,p in enumerate(pairs):                 # loop iterates over each pair of stations (p) in the pairs list while also keeping track of the index using ii
+        complist=list(corrdict_all_p[p].keys())   # retrieves list of component names associated with the current pair of stations p
+        if ccomp in complist:
             try:
-                # load data to variables
-                dist[ii] = ds.auxiliary_data[dtype][comp].parameters['dist']
-                ngood= ds.auxiliary_data[dtype][comp].parameters['ngood']
-                data0[ii]  = ds.auxiliary_data[dtype][comp].data[indx1:indx2]
+            # load data to variables
+                cdata=corrdict_all_p[p][ccomp]     # retrieves the pos lag CorrData corresponding to the desired component ccomp for the current pair of stations from the corrdict_all_p dictionary  
+                cdata.stack(method='robust',overwrite=True)
+                cdata_n=corrdict_all_n[p][ccomp]   # retrieves the neg lag CorrData corresponding to the desired component ccomp for the currrent pair of stations from the corrdict_all_n dictionary
+                cdata_n.stack(method='robust',overwrite=True)
+                dist[ii] = cdata.dist              # stores the inter-station distance associated with the current pair of stations in the dist array at index ii
+                datacombine=np.concatenate((np.flip(cdata_n.data[1:]),cdata.data))  #  Combines the negative lag data from cdata_n and the positive lag data from cdata into a single array
+                data0[ii] = datacombine[indx1:indx2]        # assigns a slice of the array of waveform data from datacombine to an element of the array data0
 
                 if qc:
                     #get the pseudo-SNR: maximum absolute amplitude/mean absolute amplitude.
-                    dneg=ds.auxiliary_data[dtype][comp].data[indx1:indx0-1]
-                    dpos=ds.auxiliary_data[dtype][comp].data[indx0+1:indx2]
+                    dneg=datacombine[indx1:indx0-1]
+                    dpos=datacombine[indx0+1:indx2]
                     snrneg[ii]=np.max(np.abs(dneg))/np.mean(np.abs(dneg))
                     snrpos[ii]=np.max(np.abs(dpos))/np.mean(np.abs(dpos))
-#                     print([snrneg,snrpos])
+    
+                # set iflip values accordingly
+                # iflip is an array that stores info about flipping data
+                cdata_sta_pair_list = cdata.sta
+                
+                cdata_net_list = cdata.net
+        
+                s1 = cdata_net_list[0] + '.' + cdata_sta_pair_list[0]
+                s2 = cdata_net_list[1] + '.' + cdata_sta_pair_list[1] 
+    
+                # set up conditions under which data must be flipped
+                if s2 == sta:
+                    data0[ii]=np.flip(data0[ii],axis=0)
+        
             except Exception as e:
-                print("continue! error working on %s "%sfile);
-                print(e)
                 continue
+                
+# calculate maximum and minimum inter-station distances
+    mdist=np.max(dist)           
+    mindist=np.min(dist)          
 
-        mdist=np.max(dist)
-        mindist=np.min(dist)
-        plt.figure(figsize=figsize, facecolor = 'white')
-        for f in range(freq.shape[0]):
-            freqmin=freq[f][0]
-            freqmax=freq[f][1]
-            plt.subplot(subplot[0],subplot[1],f+1)
+# create subplots within a single figure, with each subplot corresponding to a different frequency range specified in the 'freq' array
+    plt.figure(figsize=figsize)      
+    for f in range(freq.shape[0]):  
+        freqmin=freq[f][0]           
+        freqmax=freq[f][1]           
+                                     
+        plt.subplot(subplot[0],subplot[1],f+1)      
 
-            for i2 in range(data0.shape[0]):
-                tdata = bandpass(data0[i2],freqmin,freqmax,1/dt,corners=4, zerophase=True)
-                tdata /= np.max(tdata,axis=0)
+        # iterate over cross correlation data and plot waveforms
+        
+        for i2 in range(data0.shape[0]):          
+            tdata = bandpass(data0[i2],freqmin,freqmax,1/dt,corners=4, zerophase=True) # filter and save the waveform data to retain only the freq content between freqmin and freqmax
+            if np.max(np.abs(tdata),axis=0) ==0:       
+                continue                                  
+            tdata /= np.max(np.abs(tdata),axis=0)         
+            if ylim is not None:                           
+                if dist[i2]>ylim[1] or dist[i2]<ylim[0]:   
+                    continue                                
+            if qc:
+                if np.max([snrneg[i2],snrpos[i2]]) < minsnr:
+                    continue
+                                
+            plt.plot(tt,scale*tdata+dist[i2],'k',linewidth=0.8)
+                
+        # set title and axis labels
+        stemp=figlabels[f].lower()   
+        plt.title('%s. %s: %g-%g Hz' % (stemp,sta,freqmin,freqmax),loc='left',fontsize=14)
+        plt.xlabel('Time lag (s)',fontsize=14)
+        plt.ylabel('Inter-station distance (km)',fontsize=14)
 
-                if ylim is not None:
-                    if dist[i2]>ylim[1] or dist[i2]<ylim[0]:
-                        continue
-                if qc:
-                    if np.max([snrneg[i2],snrpos[i2]]) < minsnr:
-                        continue
+        # set limits and add zero lag line
+        plt.xlim([-1.0*lag,lag])   
+        if ylim is None:
+            ylim=[0.8*mindist,1.1*mdist]  
+        plt.plot([0,0],ylim,'b--',linewidth=1)
+        
+        plt.ylim(ylim)
+        font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
+        if comp_label:
+            plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),ccomp,fontdict=font,
+                 bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
+            
+    # adjust layout position and display the plot of subplots
+        plt.tight_layout()      
 
-                if iflip[i2]:
-                    plt.plot(tt,scale*np.flip(tdata,axis=0)+dist[i2],'k',linewidth=0.8)
-                else:
-                    plt.plot(tt,scale*tdata+dist[i2],'k',linewidth=0.8)
-            plt.title('%s %s filtered %5.3f-%5.3f Hz' % (figlabels[f],sta,freqmin,freqmax))
-            plt.xlabel('time (s)')
-            plt.ylabel('offset (km)')
+    # save figure or show
+    if save:
+        outfname = 'moveout_'+sta+'_wiggle_'+ccomp+'.'+format
+        format='pdf'
+        plt.savefig(outfname, format=format, dpi=800)
+    #else:
+    plt.show()
+    #
 
-            plt.xlim([-1.0*lag,lag])
-            if ylim is None:
-                ylim=[0.8*mindist,1.1*mdist]
-            plt.plot([0,0],ylim,'b--',linewidth=1)
-
-            plt.ylim(ylim)
-            font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
-            plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),comp,fontdict=font,
-                     bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
-        plt.tight_layout()
-
-        # save figure or show
-        if save:
-            if len(ccomp)>1:
-                outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+str(len(ccomp))+\
-                            'ccomp_minsnr'+str(minsnr)+'.'+format
-            else:
-                outfname = figdir+'/moveout_'+sta+'_wiggle_'+str(stack_method)+'_'+ccomp[0]+\
-                            '_minsnr'+str(minsnr)+'.'+format
-            plt.savefig(outfname, format=format, dpi=300)
-            plt.close()
-        else:
-            plt.show()
+    #
+    return data0,tt,dist
 def plot_dispersion_image(d,v,p,figsize=[6,4],cmap='jet',clim=[0,1],save=False,outfile=None,
                         title=None,format='png',dpi=300):
     """
