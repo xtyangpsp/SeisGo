@@ -1,4 +1,4 @@
-import os,sys,obspy,scipy,pyasdf
+import os,sys,obspy,scipy,pyasdf,string,glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -965,7 +965,7 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
     # Handle frequency input
     if not isinstance(freq[0],list):freq=[freq] 
     freq=np.array(freq) 
-    figlabels=['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)','(i)'] 
+    # figlabels=['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)','(i)'] 
     if freq.shape[0]>9:
         raise ValueError('freq includes more than 9 (maximum allowed for now) elements!')
     elif freq.shape[0]==9:
