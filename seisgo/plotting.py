@@ -932,7 +932,7 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
 #test functions
 def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
                             ylim=None,save=False,figsize=None,figdir=None,format='pdf',
-                              minsnr=None,comp_label=True):
+                              minsnr=None,comp_label=True,xticks=None,yticks=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
@@ -949,6 +949,9 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
     figdir: diresied directory to save the figure (if not provided, save to default dir)
     minsnr: mimumum SNR as a QC criterion, the SNR is computed as max(abs(trace))/mean(abs(trace)),
             without signal and noise windows.
+    comp_label: set True to label the components on the top of each subplot
+    xticks: set the x ticks for all subplots, if None, automatically set
+    yticks: set the y ticks for all subplots, if None, automatically set
     USAGE:
     ----------------------
     plot_xcorr_moveout_wiggle('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
@@ -1152,11 +1155,17 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
 
         # set limits and add zero lag line
         plt.xlim([-1.0*lag,lag])   
+        if xticks is None:
+            xticks=np.linspace(-1.0*lag,lag,5)
+        plt.xticks(xticks)
         if ylim is None:
             ylim=[0.8*mindist,1.1*mdist]  
         plt.plot([0,0],ylim,'b--',linewidth=1)
         
         plt.ylim(ylim)
+        if yticks is None:
+            yticks=np.linspace(ylim[0],ylim[1],5)
+        plt.yticks(yticks)
         font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
         if comp_label:
             plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),ccomp,fontdict=font,
