@@ -931,30 +931,31 @@ def plot_xcorr_moveout_heatmap(sfiles,sta,dtype,freq,comp,dist_inc,lag=None,save
 
 #test functions
 def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
-                            ylim=None,save=False,figsize=None,figdir=None,format='pdf',
-                              minsnr=None,comp_label=True,xticks=None,yticks=None):
+                            ylim=None,save=False,figsize=None,subplot=None,figdir=None,format='pdf',
+                              minsnr=None,xticks=None,yticks=None):
     '''
     display the moveout waveforms of the cross-correlation functions stacked for all time chuncks.
     PARAMETERS:
     ---------------------
     sfile: cross-correlation functions after splitting to two sides.
     sta: source station name      e.g. AV.OKCE
-    dtype: datatype either 'Allstack0pws' or 'Allstack0linear'
-    freqmin: min frequency to be filtered
-    freqmax: max frequency to be filtered
+    freq: frequency to be filtered, multiple pairs are allowed. e.g., [[freqmin1, freqmax1],[freqmin2, freqmax2]]
     ccomp: x-correlation component names, could be a string or a list of strings. e.g. 'ZZ'
-    scale: plot the waveforms with scaled amplitudes
+    scale: plot the waveforms with scaled amplitudes. 1 value or a list.
     lag: lag times for displaying
+    ylim: ylimit.
     save: set True to save the figures (in pdf format)
+    figsize: figure size as [width, height]
+    subplot: specify subplot rows and columns, as [row,column]
+    format: figure format to save, default: "pdf"
+
     figdir: diresied directory to save the figure (if not provided, save to default dir)
     minsnr: mimumum SNR as a QC criterion, the SNR is computed as max(abs(trace))/mean(abs(trace)),
             without signal and noise windows.
-    comp_label: set True to label the components on the top of each subplot
+
     xticks: set the x ticks for all subplots, if None, automatically set
     yticks: set the y ticks for all subplots, if None, automatically set
-    USAGE:
-    ----------------------
-    plot_xcorr_moveout_wiggle('temp.h5','Allstack0pws',0.1,0.2,'ZZ',200,True,'./temp')
+ 
     '''
 
     figlabels=list(string.ascii_lowercase)
@@ -972,28 +973,38 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
     if freq.shape[0]>9:
         raise ValueError('freq includes more than 9 (maximum allowed for now) elements!')
     elif freq.shape[0]==9:
-        subplot=[3,3]                
+        subplot0=[3,3]                
         figsize0=[14,7.5]
     elif freq.shape[0] >=7 and freq.shape[0] <=8:
-        subplot=[2,4]                
+        subplot0=[2,4]                
         figsize0=[18,10]
     elif freq.shape[0] >=5 and freq.shape[0] <=6:
-        subplot=[2,3]               
+        subplot0=[2,3]               
         figsize0=[14,7.5]
     elif freq.shape[0] ==4:
-        subplot=[2,2]               
+        subplot0=[2,2]               
         figsize0=[10,6]
     else:
-        subplot=[1,freq.shape[0]]
+        subplot0=[1,freq.shape[0]]
         if freq.shape[0]==3:
             figsize0=[13,3]
         elif freq.shape[0]==2:
             figsize0=[8,3]
         else:
             figsize0=[4,3]
-            
+    
+    if freq.ndim ==1:
+        figsize0=[4,3]
+        subplot0=[1,freq.ndim]
     # Handle figure size
     if figsize is None:figsize=figsize0
+    if subplot is None: subplot=subplot0
+    if ylim is not None:
+        ylim = np.array(ylim)
+        if ylim.ndim > 1:
+            if ylim.shape[0] < freq.shape[0]:
+                raise ValueError('ylim includes less elements than freq. ylim could have either one pair or equal number of pairs as freq!')
+            
         
     # Handle quality control (QC) based on minimum SNR
     qc=False
@@ -1043,7 +1054,7 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
     
     corrdict_all_n=dict()   # create an empty dictionary named corrdict_all_n, which will be used to store neg lag correlation data
     
-    print('assembling all corrdata ...')
+    # print('assembling all corrdata ...')
     for ifile in source_ccfiles_n:
         #tt00=time.time()
         corrdict=noise.extract_corrdata(ifile)
@@ -1138,14 +1149,20 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
             if np.max(np.abs(tdata),axis=0) ==0:       
                 continue                                  
             tdata /= np.max(np.abs(tdata),axis=0)         
-            if ylim is not None:                           
-                if dist[i2]>ylim[1] or dist[i2]<ylim[0]:   
-                    continue                                
+            if ylim is not None:    
+                if ylim.ndim ==1:                       
+                    if dist[i2]>ylim[1] or dist[i2]<ylim[0]:   
+                        continue
+                else:
+                    if dist[i2]>ylim[f,1] or dist[i2]<ylim[f,0]:   
+                        continue                        
             if qc:
                 if np.max([snrneg[i2],snrpos[i2]]) < minsnr:
                     continue
-                                
-            plt.plot(tt,scale*tdata+dist[i2],'k',linewidth=0.8)
+            if np.array(scale).ndim==0:                    
+                plt.plot(tt,scale*tdata+dist[i2],'k',linewidth=0.8,alpha=0.75)
+            else:
+                plt.plot(tt,scale[f]*tdata+dist[i2],'k',linewidth=0.8,alpha=0.75)
                 
         # set title and axis labels
         stemp=figlabels[f].lower()   
@@ -1160,16 +1177,26 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
         plt.xticks(xticks)
         if ylim is None:
             ylim=[0.8*mindist,1.1*mdist]  
-        plt.plot([0,0],ylim,'b--',linewidth=1)
-        
-        plt.ylim(ylim)
+            plt.plot([0,0],ylim,'b--',linewidth=1)
+            plt.ylim(ylim)
+        elif ylim.ndim==1:
+            plt.plot([0,0],ylim,'b--',linewidth=1)
+            plt.ylim(ylim)
+        else:
+            plt.plot([0,0],ylim[f],'b--',linewidth=1)
+            plt.ylim(ylim[f])
+
+
         if yticks is None:
-            yticks=np.linspace(ylim[0],ylim[1],5)
-        plt.yticks(yticks)
+            if ylim.ndim ==1:      
+                yticks0=np.linspace(ylim[0],ylim[1],5)                 
+            else:
+                yticks0=np.linspace(ylim[f,0],ylim[f,1],5)   
+        else:
+            yticks0=yticks
+
+        plt.yticks(yticks0)
         font = {'family': 'serif', 'color':  'red', 'weight': 'bold','size': 14}
-        if comp_label:
-            plt.text(lag*0.75,ylim[0]+0.07*(ylim[1]-ylim[0]),ccomp,fontdict=font,
-                 bbox=dict(facecolor='white',edgecolor='none',alpha=0.85))
             
     # adjust layout position and display the plot of subplots
         plt.tight_layout()      
