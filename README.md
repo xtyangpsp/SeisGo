@@ -30,7 +30,9 @@ This package is under active development. The currently available modules are li
 
 8. `stacking`: stacking of seismic data.
 
-9. `types`: This module contains the definition of major data types and classes.
+9. `anisotropy`: module to house anisotropy codes. As of now, it contains functions to compute the azimuthal anisotropy using BANX method (Beamforming Azimuthal Anisotropy using Noise Cross-correlation). The main worklow was converted from the original MATLAB codes by Jorge C. Castellanos-Martinez, provided by the author. See the related publication for more details (Castellanos et al., 2020).
+
+10. `types`: This module contains the definition of major data types and classes.
 
 ## Installation
 **SeisGo** is available on PyPi (https://pypi.org/project/seisgo/). You can install it as a regular package `pip install seisgo`. The following instruction shows how to install seisgo with a virtual environment with github repository.
@@ -40,11 +42,13 @@ This package is under active development. The currently available modules are li
 Make sure you have a working Anaconda installed. This step is required to have all dependencies installed for the package. You can also manually install the listed packages **without** creating the `seisgo` environment OR if you already have these packages installed. **The order of the following commands MATTERS.**
 
 ```
-$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python<3.12 cartopy obspy mpi4py stockwell
+$ conda create -n seisgo -c conda-forge jupyter numpy scipy pandas numba pycwt python cartopy obspy mpi4py stockwell
 $ conda activate seisgo
 ```
 
-The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mpi4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.7.x but versions >= 3.6 also seem to work from a few tests. You can create jupyter kernel:
+The `jupyter` package is currently not required, **unless** you plan to run the accompanied Jupyter notebooks in **<notebooks>** directory. `mpi4py` is **required** to run parallel scripts stored in **scripts** directory. The modules have been fully tested on python 3.12.x.
+
+You can create jupyter kernel:
 
 ```
 $ conda activate seisgo
@@ -76,7 +80,7 @@ python
 > import pygmt
 ```
 
-2. Download `SeisGo`
+1. Download `SeisGo`
 
 `cd` to the directory you want to save the package files. Then,
 ```
@@ -267,6 +271,7 @@ Any bugs and ideas are welcome. Please file an issue through GitHub.
 
 ## References
 * Bell, S. W., D. W. Forsyth, & Y. Ruan (2015), Removing Noise from the Vertical Component Records of Ocean-Bottom Seismometers: Results from Year One of the Cascadia Initiative, Bull. Seismol. Soc. Am., 105(1), 300-313, doi:10.1785/0120140054.
+* Castellanos, J. C., Perry-Houts, J., Clayton, R. W., Kim, Y., Stanciu, A. C., Niday, B., & Humphreys, E. (2020). Seismic anisotropy reveals crustal flow driven by mantle vertical loading in the Pacific NW. Science Advances, 6(28), 1-10. https://doi.org/10.1126/sciadv.abb0476
 * Clements, T., & Denolle, M. A. (2020). SeisNoise.jl: Ambient Seismic Noise Cross Correlation on the CPU and GPU in Julia. Seismological Research Letters. https://doi.org/10.1785/0220200192
 * Janiszewski, H A, J B Gaherty, G A Abers, H Gao, Z C Eilon, Amphibious surface-wave phase-velocity measurements of the Cascadia subduction zone, Geophysical Journal International, Volume 217, Issue 3, June 2019, Pages 1929-1948, https://doi.org/10.1093/gji/ggz051
 * Jiang, C., & Denolle, M. A. (2020). NoisePy: A New High-Performance Python Tool for Ambient-Noise Seismology. Seismological Research Letters. https://doi.org/10.1785/0220190364
