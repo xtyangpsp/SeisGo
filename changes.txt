@@ -1,4 +1,4 @@
-Updates in v0.9.1
+Updates in v1.0.0
 ANISOTROPY:
 1. This is a new module for anisotropy analysis. Currently, only implemented BANX (beamforming anisotropy analysis from noise cross-correlations)
 
