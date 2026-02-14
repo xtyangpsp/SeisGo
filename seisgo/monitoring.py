@@ -14,15 +14,14 @@ from scipy.stats import linregress
 
 '''
 The dvv measuring functions are from Congcong Yuan at Harvard, originally written by Chengxin Jiang and Marine Denolle.
-Xiaotao Yang adapted them for SeisGo and added wrapper functions.
+Xiaotao Yang adapted them for SeisGo, homogenized the interface calling different methods, and added wrapper functions.
 
-Note by Congcong: several utility functions are modified based on https://github.com/tclements/noise
 '''
 
 ########################################################
 ################ WRAPPER FUNCTIONS ##################
 ########################################################
-def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resolution=None,
+def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,resolution=None,
             vmin=1.0,normalize=True,whiten='no',whiten_smooth=20, whiten_pad=100,
             method='wts',dvmax=0.05,subfreq=True,plot=False,figsize=(8,8),
             savefig=False,figdir='.',figname=None,figformat='png',save=False,outdir='.',outfile=None,
@@ -33,13 +32,13 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     =====PARAMETERS=======
     corrdata: CorrData object that stores the correlaiton result.
     freq: minimum and maximum frequencies for dvv measurements.
-    win: window length for dvv measurements.
+    win_len: window length for dvv measurements.
     ref: reference trace/stack. default is None (will get by stacking all in the data)
     dvmax: maximum dvv searching range. default: 0.05 (5%).
     vmin: minimum velocity for the main phase, only considered in cross-correlations between
         two stations. default 1.0 km/s.
     offset: offset from 0.0 seconds (for autocorr) and from the maximum arrival time of the main
-        phase (for xcorr)
+        phase (for xcorr). default is 1.0 seconds.
     resolution: in seconds, specifying the temporal resolution (resampling/substacking) before measuring
         dvv.
     stack_method: stacking method to get the reference trace (if not given) and the short-window substacks. default is 'linear'.
@@ -57,8 +56,11 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         Othersie, it returns the dvvdata object. Default is False.
     outdir: this is the directory to save the dvvdata.
     outfile: specify the file name to save the dvvdata. the file format can be indicated with the
-            extension or "format"
+            extension or "format". If none, the file name will be generated with the station pair and window info.
+            if multiple windows are given, the window info will be added to the file name. Default is None.
     format: data file format: "asdf" or "pickle". Default is None, which will be determined by file extension.
+            if format is None and outfile is also None, default to "asdf".
+    nproc: number of processors to use for parallel processing. Default is None, which means no parallel processing.
     v: verbose. Default False.
     """
     method_all=helpers.dvv_methods() #list of all available methods.
@@ -68,7 +70,52 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
         raise ValueError(method+" is not available yet. Please change to one of: "+str(method_all))
     if corrdata.side.lower() != "a":
         raise ValueError("only works for now on corrdata with both sides. here: corrdata.side="+corrdata.side)
+    # check format for saving dvvdata. if format is None, determine from outfile extension. if outfile is also None, default to asdf.
+    if save:
+        if format is None:
+            if outfile is not None:
+                fext=outfile[-3:]
+                
+                if fext.lower() == ".h5":
+                    format="asdf"
+                    base_name = outfile[:-3]
+                elif fext.lower() == ".pk":
+                    format="pickle"
+                    base_name = outfile[:-3]
+                else:
+                    print("file extension ["+fext+"] is not found. Specify the format if you know it. Use default: asdf.")
+                    format = "asdf"
+                    fext = ".h5"
+                    base_name = outfile
+            else: # if outfile is None and not format is given, default to asdf.
+                format="asdf"
+                base_name = None
+        else:
+            if outfile is not None:
+                print("format is given as "+format+", but outfile is also given. The program will determine the format"+\
+                " from the file extension of outfile, which may cause inconsistency with the given format. Please check your input.")
+                fext=outfile[-3:]
+                if fext.lower() == ".h5":
+                    base_name = outfile[:-3]
+                elif fext.lower() == ".pk":
+                    base_name = outfile[:-3]
+                else:
+                    print("file extension ["+fext+"] is not found. Decide based on the given format.")
+                    if format.lower() == "asdf":
+                        fext = ".h5"
+                    elif format.lower() == "pickle":
+                        fext = ".pk"
+                    else:
+                        print("format ["+format+"] is not supported. Use default: asdf.")
+                        format = "asdf"
+                        fext = ".h5"
+                    #
+                    base_name = outfile
+            else: # if outfile is None and not format is given, default to asdf.
+                base_name = None
+
     # load stacked and sub-stacked waveforms
+    cc_comp = corrdata.cc_comp
     cdata=corrdata.copy()
     #demean and detrend
     datatemp=cdata.data.copy()
@@ -76,212 +123,235 @@ def get_dvv(corrdata,freq,win,ref=None,stack_method='linear',offset=1.0,resoluti
     if resolution is not None: cdata.stack(win_len=resolution,method=stack_method,overwrite=True)
     if ref is None: ref=cdata.stack(method=stack_method,overwrite=False)
 
-    nwin=cdata.data.shape[0]
+    nsubstack=cdata.data.shape[0]
 
-    # make conda window based on vmin
-    if cdata.sta[0]!=cdata.sta[1]: #xcorr
-        tmin = offset+cdata.dist/vmin
-    else:
-        tmin=offset
+    # Normalize win_len and offset to lists of scalar floats so downstream
+    # code can iterate over them. Accepts scalars, python lists, or numpy arrays.
+    win_len = np.atleast_1d(win_len).astype(float).tolist()
+    offset = np.atleast_1d(offset).astype(float).tolist()
+    if len(win_len)!=len(offset):
+        raise ValueError("win_len and offset should have the same length if they are lists."+str(len(win_len))+" vs "+str(len(offset)))
+    #loop through each window setting
+    dvvdata_all=dict() #to store dvvdata for each window setting, with key as the window length and offset.
+    for iwin in range(len(win_len)):
+        if v: print('working on window %d: win_len=%.2f s, offset=%.2f s'%(iwin+1,win_len[iwin],offset[iwin]))
 
-    twin = [tmin,tmin+win]
-    if twin[1] > cdata.lag:
-        raise ValueError('proposed window exceeds limit! reduce %d'%win)
+        # make conda window based on vmin for xcorrs and based on offset for autocorrs
+        if cdata.sta[0]!=cdata.sta[1]: #xcorr
+            tmin = offset[iwin]+cdata.dist/vmin
+        else:
+            tmin=offset[iwin]
 
-    # ref and tvec
-    tvec_all = np.arange(-cdata.lag,cdata.lag+0.5*cdata.dt,cdata.dt)
-    zero_indx0 = np.where((tvec_all> -0.5*cdata.dt)&(tvec_all<0.5*cdata.dt))[0]
-    zero_indx = zero_indx0[np.argmin(np.abs(tvec_all[zero_indx0]))]
-    tvec_half=tvec_all[zero_indx:]
-    # casual and acasual coda window
-    pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<=np.max(twin)))[0]
-    nwin_indx = np.where((tvec_all<=-np.min(twin))&(tvec_all>=-np.max(twin)))[0]
-    pcor_cc = np.zeros(shape=(nwin),dtype=np.float32)
-    ncor_cc = np.zeros(shape=(nwin),dtype=np.float32)
-    pcur=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
-    ncur=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
-    pref=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
-    nref=np.zeros(shape=(nwin,zero_indx+1),dtype=np.float32)
-    # allocate matrix for cur and ref waveforms and corr coefficient
-    cur  = cdata.data #cdata.data
-    # load all current waveforms and get corr-coeff
-    if normalize:
-        ref /= np.max(np.abs(ref))
-        # loop through each cur waveforms
-        for ii in range(nwin):
-            cur[ii] /= np.max(np.abs(cur[ii]))
-    #do whitening if specified.
-    if whiten != 'no':
-        ref = utils.whiten(ref,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
-        cur = utils.whiten(cur,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
-    for ii in range(nwin):
-        # get cc coeffient
-        pcor_cc[ii] = np.corrcoef(ref[pwin_indx],cur[ii,pwin_indx])[0,1]
-        ncor_cc[ii] = np.corrcoef(ref[nwin_indx],cur[ii,nwin_indx])[0,1]
+        twin = [tmin,tmin+win_len[iwin]]
+        if twin[1] > cdata.lag:
+            raise ValueError('proposed window exceeds limit! reduce %d'%twin[1])
 
-        pcur[ii] = cur[ii,zero_indx:]
-        ncur[ii] = np.flip(cur[ii,:zero_indx+1])
-        pref[ii] = ref[zero_indx:]
-        nref[ii] = np.flip(ref[:zero_indx+1])
-    #######################
-    ##### MONITORING #####
-    dvv_pos,dvv_neg,freqall,maxcc_p,maxcc_n,error_p,error_n=[],[],[],[],[],[],[]
-    if nproc is None or nproc<2: #regular loop
-        # loop through each win again
-        for ii in range(nwin):
-            # casual and acasual lags for both ref and cur waveforms
-            if v: print('working on window: '+str(UTCDateTime(cdata.time[ii]))+" ... "+str(ii+1)+"/"+str(nwin))
+        # ref and tvec
+        tvec_all = np.arange(-cdata.lag,cdata.lag+0.5*cdata.dt,cdata.dt)
+        zero_indx0 = np.where((tvec_all> -0.5*cdata.dt)&(tvec_all<0.5*cdata.dt))[0]
+        zero_indx = zero_indx0[np.argmin(np.abs(tvec_all[zero_indx0]))]
+        tvec_half=tvec_all[zero_indx:]
+        # casual and acasual coda window
+        pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<=np.max(twin)))[0]
+        nwin_indx = np.where((tvec_all<=-np.min(twin))&(tvec_all>=-np.max(twin)))[0]
+        pcor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
+        ncor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
+        pcur=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+        ncur=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+        pref=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+        nref=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+        # allocate matrix for cur and ref waveforms and corr coefficient
+        cur  = cdata.data #cdata.data
+        # load all current waveforms and get corr-coeff
+        if normalize:
+            ref /= np.max(np.abs(ref))
+            # loop through each cur waveforms
+            for ii in range(nsubstack):
+                cur[ii] /= np.max(np.abs(cur[ii]))
+        #do whitening if specified.
+        if whiten != 'no':
+            ref = utils.whiten(ref,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
+            cur = utils.whiten(cur,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
+        for ii in range(nsubstack):
+            # get cc coeffient
+            pcor_cc[ii] = np.corrcoef(ref[pwin_indx],cur[ii,pwin_indx])[0,1]
+            ncor_cc[ii] = np.corrcoef(ref[nwin_indx],cur[ii,nwin_indx])[0,1]
+
+            pcur[ii] = cur[ii,zero_indx:]
+            ncur[ii] = np.flip(cur[ii,:zero_indx+1])
+            pref[ii] = ref[zero_indx:]
+            nref[ii] = np.flip(ref[:zero_indx+1])
+        #######################
+        ##### MONITORING #####
+        dvv_pos,dvv_neg,freqall,maxcc_p,maxcc_n,error_p,error_n=[],[],[],[],[],[],[]
+        if nproc is None or nproc<2: #regular loop
+            # loop through each win again
+            for ii in range(nsubstack):
+                # casual and acasual lags for both ref and cur waveforms
+                if v: print('working on window: '+str(UTCDateTime(cdata.time[ii]))+" ... "+str(ii+1)+"/"+str(nsubstack))
+                if method.lower()=="wts":
+                    freq_p,dvv_p,dvv_error_p,cc_p,_ = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                                                                            subfreq=subfreq,dvmax=dvmax)
+                    _,dvv_n,dvv_error_n,cc_n,_ = wts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
+                                                                                subfreq=subfreq,dvmax=dvmax)
+                elif method.lower()=="ts":
+                    dvv_p,dvv_error_p,cc_p,_ = ts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
+                                                                            dvmax=dvmax)
+                    dvv_n,dvv_error_n,cc_n,_ = ts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
+                                                                                dvmax=dvmax)
+                    #
+                    freq_p = freq
+                else:
+                    raise ValueError(method+" is not available yet. Please change to one of: "+str(method_all))
+                if ii==0: freqall=freq_p
+                dvv_pos.append(dvv_p)
+                dvv_neg.append(dvv_n)
+                maxcc_p.append(cc_p)
+                maxcc_n.append(cc_n)
+                error_p.append(dvv_error_p)
+                error_n.append(dvv_error_n)
+        else: #use multiple processor for parallel preprocessing
+            #parallel
+            print('working on %d windows with %d workers.'%(nsubstack,nproc))
+            p=Pool(int(nproc))
             if method.lower()=="wts":
-                freq_p,dvv_p,dvv_error_p,cc_p,_ = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
-                                                                         subfreq=subfreq,dvmax=dvmax)
-                _,dvv_n,dvv_error_n,cc_n,_ = wts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
-                                                                             subfreq=subfreq,dvmax=dvmax)
+                presults=p.starmap(wts_dvv,[(pref[ii],pcur[ii],tvec_half,\
+                                            twin,freq,subfreq,dvmax) for ii in range(nsubstack)])
+                nresults=p.starmap(wts_dvv,[(nref[ii],ncur[ii],tvec_half,\
+                                            twin,freq,subfreq,dvmax) for ii in range(nsubstack)])
+                for ii in range(nsubstack):
+                    if ii==0: freqall=presults[ii][0]
+                    dvv_pos.append(presults[ii][1])
+                    dvv_neg.append(nresults[ii][1])
+                    error_p.append(presults[ii][2])
+                    error_n.append(nresults[ii][2])
+                    maxcc_p.append(presults[ii][3])
+                    maxcc_n.append(nresults[ii][3])
             elif method.lower()=="ts":
-                dvv_p,dvv_error_p,cc_p,_ = ts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
-                                                                         dvmax=dvmax)
-                dvv_n,dvv_error_n,cc_n,_ = ts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
-                                                                             dvmax=dvmax)
-                #
-                freq_p = freq
+                #set filter to True when using as a standalone
+                presults=p.starmap(ts_dvv,[(pref[ii],pcur[ii],tvec_half,\
+                                            twin,freq,dvmax) for ii in range(nsubstack)])
+                nresults=p.starmap(ts_dvv,[(nref[ii],ncur[ii],tvec_half,\
+                                            twin,freq,dvmax) for ii in range(nsubstack)])
+                for ii in range(nsubstack):
+                    if ii==0: freqall=freq
+                    dvv_pos.append(presults[ii][0])
+                    dvv_neg.append(nresults[ii][0])
+                    error_p.append(presults[ii][1])
+                    error_n.append(nresults[ii][1])
+                    maxcc_p.append(presults[ii][2])
+                    maxcc_n.append(nresults[ii][2])
             else:
                 raise ValueError(method+" is not available yet. Please change to one of: "+str(method_all))
-            if ii==0: freqall=freq_p
-            dvv_pos.append(dvv_p)
-            dvv_neg.append(dvv_n)
-            maxcc_p.append(cc_p)
-            maxcc_n.append(cc_n)
-            error_p.append(dvv_error_p)
-            error_n.append(dvv_error_n)
-    else: #use multiple processor for parallel preprocessing
-        #parallel
-        print('working on %d windows with %d workers.'%(nwin,nproc))
-        p=Pool(int(nproc))
-        if method.lower()=="wts":
-            presults=p.starmap(wts_dvv,[(pref[ii],pcur[ii],tvec_half,\
-                                        twin,freq,subfreq,dvmax) for ii in range(nwin)])
-            nresults=p.starmap(wts_dvv,[(nref[ii],ncur[ii],tvec_half,\
-                                        twin,freq,subfreq,dvmax) for ii in range(nwin)])
-            for ii in range(nwin):
-                if ii==0: freqall=presults[ii][0]
-                dvv_pos.append(presults[ii][1])
-                dvv_neg.append(nresults[ii][1])
-                error_p.append(presults[ii][2])
-                error_n.append(nresults[ii][2])
-                maxcc_p.append(presults[ii][3])
-                maxcc_n.append(nresults[ii][3])
-        elif method.lower()=="ts":
-            #set filter to True when using as a standalone
-            presults=p.starmap(ts_dvv,[(pref[ii],pcur[ii],tvec_half,\
-                                        twin,freq,dvmax) for ii in range(nwin)])
-            nresults=p.starmap(ts_dvv,[(nref[ii],ncur[ii],tvec_half,\
-                                        twin,freq,dvmax) for ii in range(nwin)])
-            for ii in range(nwin):
-                if ii==0: freqall=freq
-                dvv_pos.append(presults[ii][0])
-                dvv_neg.append(nresults[ii][0])
-                error_p.append(presults[ii][1])
-                error_n.append(nresults[ii][1])
-                maxcc_p.append(presults[ii][2])
-                maxcc_n.append(nresults[ii][2])
-        else:
-            raise ValueError(method+" is not available yet. Please change to one of: "+str(method_all))
-        p.close()
+            p.close()
 
-    #
-    del pcur,ncur,pref,nref
-    maxcc_p=np.array(maxcc_p)
-    maxcc_n=np.array(maxcc_n)
-    error_p=np.array(error_p)
-    error_n=np.array(error_n)
-    #for now, if errors are negative, assign np.nan to dvv data.
-    dvv_neg=np.array(dvv_neg)
-    dvv_pos=np.array(dvv_pos)
-    idx1=np.where((error_n<0))
-    idx2=np.where((error_p<0))
-    error_n[idx1]=np.nan
-    error_p[idx2]=np.nan
-    maxcc_n[idx1]=np.nan
-    maxcc_p[idx2]=np.nan
-    dvv_neg[idx1]=np.nan
-    dvv_pos[idx2]=np.nan
-    dvvdata=DvvData(cdata,subfreq=subfreq,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
-                        method=method,stack_method=stack_method,error1=error_n,error2=error_p,
-                        window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
-    if save:
-        dvvdata.save(outdir=outdir,file=outfile,format=format)
-
-    ######plotting
-    if plot:
-        disp_indx = np.where(np.abs(tvec_all)<=np.max(twin)+0.2*win)[0]
-        tvec_disp=tvec_all[disp_indx]
-        # tick inc for plotting
-        if nwin>100:
-            tick_inc = int(nwin/10)
-        elif nwin>10:
-            tick_inc = int(nwin/5)
-        else:
-            tick_inc = 2
-        #filter corrdata:
-        for i in range(nwin):
-            if freq[1]==0.5/cdata.dt:
-                cur[i,:]=bandpass(cur[i,:],freq[0],0.995*freq[1],df=1/cdata.dt,corners=4,zerophase=True)
+        #
+        del pcur,ncur,pref,nref
+        maxcc_p=np.array(maxcc_p)
+        maxcc_n=np.array(maxcc_n)
+        error_p=np.array(error_p)
+        error_n=np.array(error_n)
+        #for now, if errors are negative, assign np.nan to dvv data.
+        dvv_neg=np.array(dvv_neg)
+        dvv_pos=np.array(dvv_pos)
+        idx1=np.where((error_n<0))
+        idx2=np.where((error_p<0))
+        error_n[idx1]=np.nan
+        error_p[idx2]=np.nan
+        maxcc_n[idx1]=np.nan
+        maxcc_p[idx2]=np.nan
+        dvv_neg[idx1]=np.nan
+        dvv_pos[idx2]=np.nan
+        dvvdata=DvvData(cdata,subfreq=subfreq,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
+                            method=method,stack_method=stack_method,error1=error_n,error2=error_p,
+                            window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
+        if save:
+            # check outfile. if none, generate one with the station pair and window info, similar to figure name.
+            if base_name is None:
+                outfile = 'dvv_'+cdata.id+'_'+cc_comp+'_'+str(twin[0])+'_'+str(twin[1])
             else:
-                cur[i,:]=bandpass(cur[i,:],freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
-        ref = bandpass(ref,freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
+                outfile = base_name + '_' + str(twin[0])+'_'+str(twin[1])+fext
+            dvvdata.save(outdir=outdir,file=outfile,format=format)
+        # label dvvdata by the start and end of each window.
+        dvvdata_label = "%s_%s" % (twin[0], twin[1])
+        dvvdata_all[dvvdata_label] = dvvdata
 
-        fig=plt.figure(figsize=figsize, facecolor = 'white')
-        ax0= fig.add_subplot(8,1,(1,4))
-        # 2D waveform matrix
-        ax0.matshow(cur[:,disp_indx],cmap='seismic',extent=[tvec_disp[0],tvec_disp[-1],nwin,0],
-                    aspect='auto')
-        ax0.plot([0,0],[0,nwin],'k--',linewidth=2)
-        ax0.set_title('%s, dist:%5.2fkm, %4.2f-%4.2f Hz' % (cdata.id,cdata.dist,freq[0],freq[1]))
-        ax0.set_xlabel('time [s]')
-        ax0.set_ylabel('waveforms')
-        ax0.set_yticks(np.arange(0,nwin,step=tick_inc))
-        # shade the coda part
-        ax0.fill(np.concatenate((tvec_all[nwin_indx],np.flip(tvec_all[nwin_indx],axis=0)),axis=0), \
-            np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nwin),axis=0),'c', alpha=0.3,linewidth=1)
-        ax0.fill(np.concatenate((tvec_all[pwin_indx],np.flip(tvec_all[pwin_indx],axis=0)),axis=0), \
-            np.concatenate((np.ones(len(pwin_indx))*0,np.ones(len(pwin_indx))*nwin),axis=0),'y', alpha=0.3)
-        ax0.xaxis.set_ticks_position('bottom')
-        # reference waveform
-        ax1 = fig.add_subplot(8,1,(5,6))
-        ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
-        ax1.autoscale(enable=True, axis='x', tight=True)
-        ax1.grid(True)
-        ax1.legend(['reference'],loc='upper right')
+        ############
+        ### PLOTTING ###
+        ######plotting
+        if plot:
+            disp_indx = np.where(np.abs(tvec_all)<=np.max(twin)+0.2*twin[1])[0]
+            tvec_disp=tvec_all[disp_indx]
+            # tick inc for plotting
+            if nsubstack>100:
+                tick_inc = int(nsubstack/10)
+            elif nsubstack>10:
+                tick_inc = int(nsubstack/5)
+            else:
+                tick_inc = 2
+            #filter corrdata:
+            for i in range(nsubstack):
+                if freq[1]==0.5/cdata.dt:
+                    cur[i,:]=bandpass(cur[i,:],freq[0],0.995*freq[1],df=1/cdata.dt,corners=4,zerophase=True)
+                else:
+                    cur[i,:]=bandpass(cur[i,:],freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
+            ref = bandpass(ref,freq[0],freq[1],df=1/cdata.dt,corners=4,zerophase=True)
 
-        # the cross-correlation coefficient
-        xticks=np.int16(np.linspace(0,nwin-1,6))
-        xticklabel=[]
-        for x in xticks:
-            xticklabel.append(str(UTCDateTime(cdata.time[x]))[:10])
-        ax2 = fig.add_subplot(8,1,(7,8))
-        ax2.plot(cdata.time,ncor_cc,'yo-',markersize=2,linewidth=1)
-        ax2.plot(cdata.time,pcor_cc,'co-',markersize=2,linewidth=1)
-        ax2.set_xticks(cdata.time[xticks])
-        ax2.set_xticklabels(xticklabel,fontsize=12)
-        ax2.set_title('substacked with '+stack_method,fontsize=12)
-        # ax2.set_xticks(timestamp[0:nwin:tick_inc])
-        ax2.set_xlim([min(cdata.time),max(cdata.time)])
-        ax2.set_ylabel('cc coeff')
-        ax2.legend(['negative','positive'],loc='upper right')
+            fig=plt.figure(figsize=figsize, facecolor = 'white')
+            ax0= fig.add_subplot(8,1,(1,4))
+            # 2D waveform matrix
+            ax0.matshow(cur[:,disp_indx],cmap='seismic',extent=[tvec_disp[0],tvec_disp[-1],nsubstack,0],
+                        aspect='auto')
+            ax0.plot([0,0],[0,nsubstack],'k--',linewidth=2)
+            ax0.set_title('%s, dist:%5.2fkm, %4.2f-%4.2f Hz' % (cdata.id,cdata.dist,freq[0],freq[1]))
+            ax0.set_xlabel('time [s]')
+            ax0.set_ylabel('waveforms')
+            ax0.set_yticks(np.arange(0,nsubstack,step=tick_inc))
+            # shade the coda part
+            ax0.fill(np.concatenate((tvec_all[nwin_indx],np.flip(tvec_all[nwin_indx],axis=0)),axis=0), \
+                np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nsubstack),axis=0),'c', alpha=0.3,linewidth=1)
+            ax0.fill(np.concatenate((tvec_all[pwin_indx],np.flip(tvec_all[pwin_indx],axis=0)),axis=0), \
+                np.concatenate((np.ones(len(pwin_indx))*0,np.ones(len(pwin_indx))*nsubstack),axis=0),'y', alpha=0.3)
+            ax0.xaxis.set_ticks_position('bottom')
+            # reference waveform
+            ax1 = fig.add_subplot(8,1,(5,6))
+            ax1.plot(tvec_disp,ref[disp_indx],'k-',linewidth=1)
+            ax1.autoscale(enable=True, axis='x', tight=True)
+            ax1.grid(True)
+            ax1.legend(['reference'],loc='upper right')
 
-        plt.tight_layout()
+            # the cross-correlation coefficient
+            xticks=np.int16(np.linspace(0,nsubstack-1,6))
+            xticklabel=[]
+            for x in xticks:
+                xticklabel.append(str(UTCDateTime(cdata.time[x]))[:10])
+            ax2 = fig.add_subplot(8,1,(7,8))
+            ax2.plot(cdata.time,ncor_cc,'yo-',markersize=2,linewidth=1)
+            ax2.plot(cdata.time,pcor_cc,'co-',markersize=2,linewidth=1)
+            ax2.set_xticks(cdata.time[xticks])
+            ax2.set_xticklabels(xticklabel,fontsize=12)
+            ax2.set_title('substacked with '+stack_method,fontsize=12)
+            # ax2.set_xticks(timestamp[0:nwin:tick_inc])
+            ax2.set_xlim([min(cdata.time),max(cdata.time)])
+            ax2.set_ylabel('cc coeff')
+            ax2.legend(['negative','positive'],loc='upper right')
 
-        ###################
-        ##### SAVING ######
-        if savefig:
-            if not os.path.isdir(figdir):os.mkdir(figdir)
-            if figname is None:
-                figname = 'xcc_'+cdata.id+'_'+cc_comp+'.'+figformat
-            plt.savefig(figdir+'/'+figname, format=figformat, dpi=300, facecolor = 'white')
-            plt.close()
-        else:
-            plt.show()
+            plt.tight_layout()
 
-    if not save: return dvvdata
+            ###################
+            ##### SAVING ######
+            if savefig:
+                if not os.path.isdir(figdir):os.mkdir(figdir)
+                if figname is None:
+                    # change prefix to dvv and add window info to the figure name (start and end of the window)
+                    figname = 'dvv_'+cdata.id+'_'+cc_comp+'_'+str(twin[0])+'_'+str(twin[1])+'.'+figformat
+                plt.savefig(figdir+'/'+figname, format=figformat, dpi=300, facecolor = 'white')
+                plt.close()
+            else:
+                plt.show()
+    #always return the dvvdata_all dictionary, even if save is True, in case users want to use 
+    #the dvvdata for other purposes without reading from file again. 
+    return dvvdata_all
 #
 def extract_dvvdata(sfile,pair=None,comp=['all'],format=None):
     """

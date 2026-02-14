@@ -1,3 +1,11 @@
+Updates in v1.1.0
+MONITORING:
+1. get_dvvdata():
+    * Rename some variables internally to make them more meanful and consistent
+    * Changed window length and offset to handle list (optionally) in case of running with multiple windows.
+    * Changed to always return the dvvdata. The returned value would be a dictionary if multiple windows are given, 
+      labeled by start and end of each window. 
+================================================
 Updates in v1.0.0
 ANISOTROPY:
 1. This is a new module for anisotropy analysis. Currently, only implemented BANX (beamforming anisotropy analysis from noise cross-correlations)
