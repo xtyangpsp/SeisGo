@@ -1,10 +1,18 @@
 Updates in v1.1.0
+SETUP:
+1. Added pysurf96 for surface wave dispersion analysis.
 MONITORING:
 1. get_dvvdata():
     * Rename some variables internally to make them more meanful and consistent
     * Changed window length and offset to handle list (optionally) in case of running with multiple windows.
     * Changed to always return the dvvdata. The returned value would be a dictionary if multiple windows are given, 
       labeled by start and end of each window. 
+
+DISPERSION:
+1. get_dispersion_image():
+    * Minor typo in print energy_type error.
+    * Added capibility of picking best group velocity for each period.
+2. added forward_solder() and inversion() for dispersion inversion of Vs, based on surf96.
 ================================================
 Updates in v1.0.0
 ANISOTROPY:

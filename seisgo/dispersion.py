@@ -10,6 +10,7 @@ from obspy.core.inventory import Inventory, Network, Station, Channel, Site
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.filter import bandpass,lowpass
 import matplotlib.pyplot as plt
+from pysurf96 import surf96
 """
 This is a planned module, to be developed.
 """
@@ -86,7 +87,7 @@ def narrowband_waveforms(d, dt,pmin,pmax,dp=1,pscale='ln',extend=10):
     return dout, pout
 ##
 def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
-                        verbose=False,min_trace=5,min_wavelength=1.5,energy_type='power_sum',
+                        verbose=False,min_trace=5,min_wavelength=1.5,energy_type='power_sum',get_best_v=False,
                         plot=False,figsize=None,cmap='jet',clim=[0,1]):
     """
     Uses phase-shift method. Park et al. (1998): http://www.masw.com/files/DispersionImaingScheme-1.pdf
@@ -110,6 +111,7 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     min_trace: minimum trace to consider. default 5.
     min_wavelength: minimum wavelength to satisfy far-field. default 1.5.
     energy_type: method to compute maximum energy, 'envelope' or 'power_sum'. Default is 'power_sum'
+    get_best_v: pick best velocity for each period. Default False.
     plot: plot dispersion image or not. Default is False.
     figsize: specify figsize. Decides automatically if not specified.
     cmap: colormap. Default is 'jet'
@@ -119,11 +121,12 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     dout: dispersion information showing the normalized energy for each velocity value for each frequency.
     vout: velocity vector used in searching.
     pout: period vector.
+    best_v: best velocity (group velocity). Only return if get_best_v is True.
     """
     #validate options.
     energy_type_list=['power_sum','envelope']
     if energy_type.lower() not in energy_type_list:
-        raise ValueError(energy_type+" is not a recoganized energy type. Use one of "+energy_type_list)
+        raise ValueError(energy_type+" is not a recoganized energy type. Use one of "+str(energy_type_list))
     if len(np.array(window).shape) < 1:
         window=[window,window]
 
@@ -156,6 +159,8 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
     dout_n_all=[]
     dout_p_all=[]
     window_vector=np.linspace(window[1],window[0],len(pout))
+    best_v_n = []
+    best_v_p = []
     for k in range(len(pout)):
         win_length=window_vector[k]*pout[k]
         win_len_samples=int(win_length/dt)+1
@@ -202,19 +207,25 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
 
                 if side=='a' or side=='p':
                     dout_p.append(np.nan)
-
+        
         if side=='a' or side=='n':
             dout_n /= np.nanmax(dout_n)
             dout_n_all.append(dout_n)
+            best_v_n.append(vout[np.nanargmax(dout_n)])
         if side=='a' or side=='p':
             dout_p /= np.nanmax(dout_p)
             dout_p_all.append(dout_p)
+            best_v_p.append(vout[np.nanargmax(dout_p)])
+        # find the best velocity with maximum energy
+        
     # plot or not
     if plot:
         plt.figure(figsize=figsize)
         if side == 'a':
             plt.subplot(1,2,1)
             plt.imshow(np.flip(np.array(dout_n_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            if get_best_v:
+                plt.plot(pout,best_v_n,'k*')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
             plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
@@ -226,6 +237,8 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
 
             plt.subplot(1,2,2)
             plt.imshow(np.flip(np.array(dout_p_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            if get_best_v:
+                plt.plot(pout,best_v_p,'k*')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
             plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
@@ -238,6 +251,8 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
             plt.tight_layout()
         elif side == 'n':
             plt.imshow(np.flip(np.array(dout_n_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            if get_best_v:
+                plt.plot(pout,best_v_n,'k*')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
             plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
@@ -248,6 +263,8 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
             plt.title('negative lag: '+energy_type.replace('_',' '),fontsize=13)
         elif side == 'p':
             plt.imshow(np.flip(np.array(dout_p_all).T),cmap=cmap,extent=[pout[-1],pout[0],vout[0],vout[-1]],aspect='auto')
+            if get_best_v:
+                plt.plot(pout,best_v_p,'k*')
             plt.ylabel('velocity (km/s)',fontsize=12)
             plt.xlabel('period (s)',fontsize=12)
             plt.xticks(np.linspace(pmin,pmax,5),fontsize=12)
@@ -261,34 +278,90 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
 
     if side=='a':
         dout=np.squeeze(np.array([dout_n_all,dout_p_all],dtype=np.float64))
+        best_v = np.squeeze(np.array([best_v_n,best_v_p],dtype=np.float64))
     elif side == 'p':
         dout=np.squeeze(np.array(dout_p_all,dtype=np.float64))
+        best_v = np.squeeze(np.array(best_v_p,dtype=np.float64))
     elif side == 'n':
         dout=np.squeeze(np.array(dout_n_all,dtype=np.float64))
-    return dout,vout,pout
-# function to extract the dispersion from the image
-# modified from NoisePy.
-def extract_dispersion_curve(amp,vel):
-    '''
-    this function takes the dispersion image as input, tracks the global maxinum on
-    the spectrum amplitude
+        best_v = np.squeeze(np.array(best_v_n,dtype=np.float64))
+    if get_best_v:
+        return dout,vout,pout,best_v
+    else:
+        return dout,vout,pout
 
-    PARAMETERS:
-    ----------------
-    amp: 2D amplitude matrix of the wavelet spectrum
-    vel:  vel vector of the 2D matrix
-    RETURNS:
-    ----------------
-    gv:   group velocity vector at each frequency
-    '''
-    nper = amp.shape[0]
-    gv   = np.zeros(nper,dtype=np.float32)
-    dv = vel[1]-vel[0]
+def forward_solver(vs, periods, thickness, wave_type='rayleigh', mode=1, velocity_type='group'):
+    """
+    Wrapper for surf96 to compute synthetic group velocity dispersion curve. 
+    Maps Vs to Vp and Density using standard geophysical relations.
 
-    # find global maximum
-    for ii in range(nper):
-        maxvalue = np.max(amp[ii],axis=0)
-        indx = list(amp[ii]).index(maxvalue)
-        gv[ii] = vel[indx]
+    ==PARAMETERS==
+    vs: Vs for each layer in km/s.
+    periods: periods in s.
+    thickness: layer thickness in 1-d array in km.
+    wave_type: rayleigh or love.
+    mode: wave mode. default 1 (fundamental mode).
+    velocity_type: group or phase. default group.
 
-    return gv
+    ==RETURN==
+    output of surf96 program. see manual of surf96 for details.
+    """
+    # Assumptions for poorly constrained parameters:
+    vp = vs * 1.75             # Vp/Vs ratio
+    rho = 0.77 + 0.32 * vp          # Nafe-Drake density relation
+        
+    return surf96(thickness, vp, vs, rho, periods, 
+                  wave=wave_type, mode=mode, velocity=velocity_type)
+
+def inversion(periods, velocity, thickness, initial_vs, 
+                  iterations=8, damp=0.1, smooth=0.5,
+                  wave_type='rayleigh', mode=1, velocity_type='group',
+                  maxdv=0.02):
+    """
+    Performs 1-D damped least-squares inversion with smoothness.
+
+    ==PARAMETER==
+    periods: wave periods in 1-d array
+    velocity: observed velocity from disperson analysis in km/s.
+    thickness: layer thickness in 1-d array in km.
+    initial_vs: stating Vs for each layer.
+    iterations: maximum number of iterations. default 8.
+    damp: Damping (stability). default 0.1.
+    smooth: Smoothness (geological plausibility). default 0.5.
+    maxdv: maximum velocity perturbation in km/s.
+
+    ==RETURN==
+    vs_curr: inverted velocity for each layer.
+    """
+    vs_curr = np.copy(initial_vs)
+    n = len(vs_curr)
+    m = len(periods)
+    
+    # Second-difference matrix for smoothness (L)
+    L = np.zeros((n-2, n))
+    for i in range(n-2):
+        L[i, i] = 1; L[i, i+1] = -2; L[i, i+2] = 1
+        
+    for i in range(iterations):
+        # Current prediction
+        pred_u = forward_solver(vs_curr, periods, thickness,
+                                wave_type=wave_type, mode=mode, velocity_type=velocity_type)
+        residual = velocity - pred_u
+        
+        # Build Numerical Jacobian (Sensitivity Matrix)
+        J = np.zeros((m, n))
+        for j in range(n):
+            v_tmp = np.copy(vs_curr)
+            v_tmp[j] += maxdv
+            up_u = forward_solver(v_tmp, periods, thickness)
+            J[:, j] = (up_u - pred_u) / maxdv
+            
+        # Solve: (J.T@J + damping + smoothness) * dm = J.T @ residual
+        lhs = J.T @ J + damp * np.eye(n) + smooth * (L.T @ L)
+        rhs = J.T @ residual
+        delta_m = np.linalg.solve(lhs, rhs)
+        
+        vs_curr += delta_m
+        print(f"Iteration {i+1}: RMSE = {np.sqrt(np.mean(residual**2)):.5f}")
+        
+    return vs_curr

@@ -1,5 +1,5 @@
 # from numpy.distutils.core import setup
-from setuptools import setup, find_packages
+from setuptools import setup
 import pathlib
 
 here = pathlib.Path(__file__).parent.resolve()
@@ -94,7 +94,7 @@ setup(
     # 'Programming Language' classifiers above, 'pip install' will check this
     # and refuse to install the project if the version does not match. See
     # https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
-    python_requires='>=3.6',
+    python_requires='>=3.9',
 
     # This field lists other packages that your project depends on to run.
     # Any package you put here will be installed by pip when your project is
@@ -117,6 +117,7 @@ setup(
                         'minisom',
                         'stockwell',
                         'kneed',
-                        'utm'
+                        'utm',
+                        'pysurf96'
         ]
 )
