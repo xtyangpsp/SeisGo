@@ -13,6 +13,10 @@ DISPERSION:
     * Minor typo in print energy_type error.
     * Added capibility of picking best group velocity for each period.
 2. added forward_solder() and inversion() for dispersion inversion of Vs, based on surf96.
+
+TYPES:
+1. CorrData:
+    * added stack_sides() to stack positive and negative sides.
 ================================================
 Updates in v1.0.0
 ANISOTROPY:

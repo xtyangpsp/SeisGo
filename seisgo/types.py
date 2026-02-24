@@ -814,7 +814,61 @@ class CorrData(object):
                 if overwrite: pass
                 else:
                     return [],[]
+    # stack positive and negative sides after splitting.
+    def stack_sides(self,taper=True, taper_frac=0.01, taper_maxlen=10, overwrite=True,verbose=False,
+                    demean=True,weighted=False):
+        """
+        This method stacks the positive and negative sides after splitting. It will overwrite the
+        [data] attribute with the stacked trace, if overwrite is True. Substack will
+        be set to False after stacking.
 
+        PARAMETERS:
+        taper: if True, applies taper to the data before stacking. Default True.
+        taper_frac=0.01,taper_maxlen=10: taper parameters.
+        overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
+                    it returns the stacked data as a vector. Default: True.
+        demean: demean before stacking. Default is True.
+        weighted: if True, stack with weights determined by the maximum amplitude of each trace. 
+                Default False. Need to add SNR-based weights in the future.
+
+        RETURNS:
+        Only returns when overwrite is False.
+        ds: stacked data.
+        """
+        if verbose: print("Stacking the positive and negative sides after splitting.")
+        #check if side is 'a'. Only stack when side is 'a'. Otherwise, return the original data.
+        try: #older version didn't have "side" attribute.
+            side=self.side
+        except Exception as e:           
+            side="A"
+        if side.lower()=="a":
+            #call split method to split the positive and negative sides.
+            cout=self.split(taper=taper,taper_frac=taper_frac,taper_maxlen=taper_maxlen,verbose=verbose)
+            if len(cout) != 2:
+                print("The split method did not return two sides. No stacking applied.")
+                return self.data
+            else:
+                c_n=cout[0]
+                c_p=cout[1]
+                if demean:
+                    c_n.data=utils.demean(c_n.data)
+                    c_p.data=utils.demean(c_p.data)
+                if weighted:
+                    w_n=np.max(np.abs(c_n.data))
+                    w_p=np.max(np.abs(c_p.data))
+                    ds=(c_n.data*w_n+c_p.data*w_p)/(w_n+w_p)
+                else:
+                    ds=(c_n.data+c_p.data)/2
+
+                if overwrite:
+                    self.data=ds
+                    self.side="o"  #o for one-sided CorrData.
+                else:
+                    cout_oneside=self.copy()
+                    cout_oneside.data=ds
+                    cout_oneside.side="o"
+                    return cout_oneside
+        
     #split the negative and positive sides
     def split(self,taper=False,taper_frac=0.01,taper_maxlen=10,verbose=False):
         """
