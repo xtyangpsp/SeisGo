@@ -521,7 +521,7 @@ class CorrData(object):
         print("az       :   "+str(self.az))
         print("baz      :   "+str(self.baz))
         print("side     :   "+str(self.side))
-        if self.time is not None:
+        if self.time is not None and len(self.time)>0:
             if self.substack:
                 print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
             else:
