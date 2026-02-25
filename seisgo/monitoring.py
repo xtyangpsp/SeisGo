@@ -68,8 +68,11 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
         subfreq=False
     if method.lower() not in method_all:
         raise ValueError(method+" is not available yet. Please change to one of: "+str(method_all))
-    if corrdata.side.lower() != "a":
-        raise ValueError("only works for now on corrdata with both sides. here: corrdata.side="+corrdata.side)
+    #
+    side = corrdata.side.lower() #
+    # update to work on all cases: both sides, only negative, or only positive. 
+    #Change it now.
+    
     # check format for saving dvvdata. if format is None, determine from outfile extension. if outfile is also None, default to asdf.
     if save:
         if format is None:
@@ -147,40 +150,72 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
             raise ValueError('proposed window exceeds limit! reduce %d'%twin[1])
 
         # ref and tvec
-        tvec_all = np.arange(-cdata.lag,cdata.lag+0.5*cdata.dt,cdata.dt)
-        zero_indx0 = np.where((tvec_all> -0.5*cdata.dt)&(tvec_all<0.5*cdata.dt))[0]
-        zero_indx = zero_indx0[np.argmin(np.abs(tvec_all[zero_indx0]))]
-        tvec_half=tvec_all[zero_indx:]
-        # casual and acasual coda window
-        pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<=np.max(twin)))[0]
-        nwin_indx = np.where((tvec_all<=-np.min(twin))&(tvec_all>=-np.max(twin)))[0]
-        pcor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
-        ncor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
-        pcur=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
-        ncur=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
-        pref=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
-        nref=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
-        # allocate matrix for cur and ref waveforms and corr coefficient
-        cur  = cdata.data #cdata.data
-        # load all current waveforms and get corr-coeff
-        if normalize:
-            ref /= np.max(np.abs(ref))
-            # loop through each cur waveforms
+        if side == 'a':
+            tvec_all = np.arange(-cdata.lag,cdata.lag+0.5*cdata.dt,cdata.dt)
+            zero_indx0 = np.where((tvec_all> -0.5*cdata.dt)&(tvec_all<0.5*cdata.dt))[0]
+            zero_indx = zero_indx0[np.argmin(np.abs(tvec_all[zero_indx0]))]
+            tvec_half=tvec_all[zero_indx:]
+            # casual and acasual coda window
+            pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<=np.max(twin)))[0]
+            nwin_indx = np.where((tvec_all<=-np.min(twin))&(tvec_all>=-np.max(twin)))[0]
+            pcor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
+            ncor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
+            pcur=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+            ncur=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+            pref=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+            nref=np.zeros(shape=(nsubstack,zero_indx+1),dtype=np.float32)
+            # allocate matrix for cur and ref waveforms and corr coefficient
+            cur  = cdata.data #cdata.data
+            # load all current waveforms and get corr-coeff
+            if normalize:
+                ref /= np.max(np.abs(ref))
+                # loop through each cur waveforms
+                for ii in range(nsubstack):
+                    cur[ii] /= np.max(np.abs(cur[ii]))
+            #do whitening if specified.
+            if whiten != 'no':
+                ref = utils.whiten(ref,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
+                cur = utils.whiten(cur,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
             for ii in range(nsubstack):
-                cur[ii] /= np.max(np.abs(cur[ii]))
-        #do whitening if specified.
-        if whiten != 'no':
-            ref = utils.whiten(ref,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
-            cur = utils.whiten(cur,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
-        for ii in range(nsubstack):
-            # get cc coeffient
-            pcor_cc[ii] = np.corrcoef(ref[pwin_indx],cur[ii,pwin_indx])[0,1]
-            ncor_cc[ii] = np.corrcoef(ref[nwin_indx],cur[ii,nwin_indx])[0,1]
+                # get cc coeffient
+                pcor_cc[ii] = np.corrcoef(ref[pwin_indx],cur[ii,pwin_indx])[0,1]
+                ncor_cc[ii] = np.corrcoef(ref[nwin_indx],cur[ii,nwin_indx])[0,1]
 
-            pcur[ii] = cur[ii,zero_indx:]
-            ncur[ii] = np.flip(cur[ii,:zero_indx+1])
-            pref[ii] = ref[zero_indx:]
-            nref[ii] = np.flip(ref[:zero_indx+1])
+                pcur[ii] = cur[ii,zero_indx:]
+                ncur[ii] = np.flip(cur[ii,:zero_indx+1])
+                pref[ii] = ref[zero_indx:]
+                nref[ii] = np.flip(ref[:zero_indx+1])
+        else: #only one side available, either positive or negative. It doesn't matter.
+            # We will assign the available side to the positive side or first data in dvvdata for the downstream dvv measuring and plotting, 
+            # but users should be aware of this when interpreting the results. Print a warning message here.
+            print('Warning! Only one side of the correlation is available for this station pair. \n'+\
+                  'The program will assign the available side to the positive side for the downstream dvv \n'+\
+                  'measuring and plotting, but users should be aware of this when interpreting the results.\n')
+            tvec_all = np.arange(0,cdata.lag+0.5*cdata.dt,cdata.dt)
+            tvec_half=tvec_all
+            # coda window
+            pwin_indx = np.where((tvec_all>=np.min(twin))&(tvec_all<=np.max(twin)))[0]
+            ncor_cc, ncur, nref = None, None, None
+            pcor_cc = np.zeros(shape=(nsubstack),dtype=np.float32)
+            pcur=np.zeros(shape=(nsubstack,len(tvec_half)),dtype=np.float32)
+            pref=np.zeros(shape=(nsubstack,len(tvec_half)),dtype=np.float32)
+            # allocate matrix for cur and ref waveforms and corr coefficient
+            cur  = cdata.data #cdata.data
+            # load all current waveforms and get corr-coeff
+            if normalize:
+                ref /= np.max(np.abs(ref))
+                # loop through each cur waveforms
+                for ii in range(nsubstack):
+                    cur[ii] /= np.max(np.abs(cur[ii]))
+            #do whitening if specified.
+            if whiten != 'no':
+                ref = utils.whiten(ref,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
+                cur = utils.whiten(cur,cdata.dt,freq[0],freq[1],method=whiten,smooth=whiten_smooth,pad=whiten_pad)
+            for ii in range(nsubstack):
+                # get cc coeffient
+                pcur[ii] = cur[ii]
+                pcor_cc[ii] = np.corrcoef(ref[pwin_indx],pcur[ii,pwin_indx])[0,1]
+                pref[ii] = ref[:]
         #######################
         ##### MONITORING #####
         dvv_pos,dvv_neg,freqall,maxcc_p,maxcc_n,error_p,error_n=[],[],[],[],[],[],[]
@@ -192,13 +227,19 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
                 if method.lower()=="wts":
                     freq_p,dvv_p,dvv_error_p,cc_p,_ = wts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
                                                                             subfreq=subfreq,dvmax=dvmax)
-                    _,dvv_n,dvv_error_n,cc_n,_ = wts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
-                                                                                subfreq=subfreq,dvmax=dvmax)
+                    if ncur is not None: #both sides available
+                        _,dvv_n,dvv_error_n,cc_n,_ = wts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
+                                                                                    subfreq=subfreq,dvmax=dvmax)
+                    else: #only one side available, assign np.nan to the other side.
+                        dvv_n, dvv_error_n, cc_n = np.nan, np.nan, np.nan
                 elif method.lower()=="ts":
                     dvv_p,dvv_error_p,cc_p,_ = ts_dvv(pref[ii],pcur[ii],tvec_half,twin,freq,\
                                                                             dvmax=dvmax)
-                    dvv_n,dvv_error_n,cc_n,_ = ts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
-                                                                                dvmax=dvmax)
+                    if ncur is not None: #both sides available
+                        dvv_n,dvv_error_n,cc_n,_ = ts_dvv(nref[ii],ncur[ii],tvec_half,twin,freq,\
+                                                                                    dvmax=dvmax)
+                    else: #only one side available, assign np.nan to the other side.
+                        dvv_n, dvv_error_n, cc_n = np.nan, np.nan, np.nan
                     #
                     freq_p = freq
                 else:
@@ -217,8 +258,11 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
             if method.lower()=="wts":
                 presults=p.starmap(wts_dvv,[(pref[ii],pcur[ii],tvec_half,\
                                             twin,freq,subfreq,dvmax) for ii in range(nsubstack)])
-                nresults=p.starmap(wts_dvv,[(nref[ii],ncur[ii],tvec_half,\
-                                            twin,freq,subfreq,dvmax) for ii in range(nsubstack)])
+                if ncur is not None: #both sides available
+                    nresults=p.starmap(wts_dvv,[(nref[ii],ncur[ii],tvec_half,\
+                                                twin,freq,subfreq,dvmax) for ii in range(nsubstack)])
+                else: #only one side available, assign np.nan to the other side.
+                    nresults = [(np.nan,np.nan,np.nan,np.nan) for i2 in range(nsubstack)]
                 for ii in range(nsubstack):
                     if ii==0: freqall=presults[ii][0]
                     dvv_pos.append(presults[ii][1])
@@ -231,8 +275,11 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
                 #set filter to True when using as a standalone
                 presults=p.starmap(ts_dvv,[(pref[ii],pcur[ii],tvec_half,\
                                             twin,freq,dvmax) for ii in range(nsubstack)])
-                nresults=p.starmap(ts_dvv,[(nref[ii],ncur[ii],tvec_half,\
-                                            twin,freq,dvmax) for ii in range(nsubstack)])
+                if ncur is not None: #both sides available
+                    nresults=p.starmap(ts_dvv,[(nref[ii],ncur[ii],tvec_half,\
+                                                twin,freq,dvmax) for ii in range(nsubstack)])
+                else: #only one side available, assign np.nan to the other side.
+                    nresults = [(np.nan,np.nan,np.nan,np.nan) for i2 in range(nsubstack)]
                 for ii in range(nsubstack):
                     if ii==0: freqall=freq
                     dvv_pos.append(presults[ii][0])
@@ -254,16 +301,18 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
         #for now, if errors are negative, assign np.nan to dvv data.
         dvv_neg=np.array(dvv_neg)
         dvv_pos=np.array(dvv_pos)
-        idx1=np.where((error_n<0))
         idx2=np.where((error_p<0))
-        error_n[idx1]=np.nan
         error_p[idx2]=np.nan
-        maxcc_n[idx1]=np.nan
         maxcc_p[idx2]=np.nan
-        dvv_neg[idx1]=np.nan
         dvv_pos[idx2]=np.nan
+        if side == 'a': #if both sides are available, also check the negative side.
+            idx1=np.where((error_n<0))
+            error_n[idx1]=np.nan
+            maxcc_n[idx1]=np.nan
+            dvv_neg[idx1]=np.nan
+        #
         dvvdata=DvvData(cdata,subfreq=subfreq,freq=freqall,cc1=ncor_cc,cc2=pcor_cc,maxcc1=maxcc_n,maxcc2=maxcc_p,
-                            method=method,stack_method=stack_method,error1=error_n,error2=error_p,
+                            method=method,stack_method=stack_method,error1=error_n,error2=error_p,side=side,
                             window=twin,normalize=normalize,data1=np.array(dvv_neg),data2=np.array(dvv_pos))
         if save:
             # check outfile. if none, generate one with the station pair and window info, similar to figure name.
@@ -308,8 +357,10 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
             ax0.set_ylabel('waveforms')
             ax0.set_yticks(np.arange(0,nsubstack,step=tick_inc))
             # shade the coda part
-            ax0.fill(np.concatenate((tvec_all[nwin_indx],np.flip(tvec_all[nwin_indx],axis=0)),axis=0), \
-                np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nsubstack),axis=0),'c', alpha=0.3,linewidth=1)
+            if side == 'a': #if both sides are available, shade both positive and negative windows.
+                ax0.fill(np.concatenate((tvec_all[nwin_indx],np.flip(tvec_all[nwin_indx],axis=0)),axis=0), \
+                    np.concatenate((np.ones(len(nwin_indx))*0,np.ones(len(nwin_indx))*nsubstack),axis=0),'c', alpha=0.3,linewidth=1)
+            # shade the positive window in any case, since it's always there.
             ax0.fill(np.concatenate((tvec_all[pwin_indx],np.flip(tvec_all[pwin_indx],axis=0)),axis=0), \
                 np.concatenate((np.ones(len(pwin_indx))*0,np.ones(len(pwin_indx))*nsubstack),axis=0),'y', alpha=0.3)
             ax0.xaxis.set_ticks_position('bottom')
@@ -326,7 +377,9 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
             for x in xticks:
                 xticklabel.append(str(UTCDateTime(cdata.time[x]))[:10])
             ax2 = fig.add_subplot(8,1,(7,8))
-            ax2.plot(cdata.time,ncor_cc,'yo-',markersize=2,linewidth=1)
+            if side == 'a': #if both sides are available, plot both positive and negative cc coeff.
+                ax2.plot(cdata.time,ncor_cc,'yo-',markersize=2,linewidth=1)
+            # plot positive cc coeff in any case, since it's always there.
             ax2.plot(cdata.time,pcor_cc,'co-',markersize=2,linewidth=1)
             ax2.set_xticks(cdata.time[xticks])
             ax2.set_xticklabels(xticklabel,fontsize=12)
@@ -334,7 +387,10 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
             # ax2.set_xticks(timestamp[0:nwin:tick_inc])
             ax2.set_xlim([min(cdata.time),max(cdata.time)])
             ax2.set_ylabel('cc coeff')
-            ax2.legend(['negative','positive'],loc='upper right')
+            if side == 'a': #if both sides are available, also add legend for negative cc coeff.
+                ax2.legend(['negative','positive'],loc='upper right')
+            else:
+                ax2.legend(['one-sided'],loc='upper right')
 
             plt.tight_layout()
 
@@ -344,7 +400,10 @@ def get_dvv(corrdata,freq,win_len,ref=None,stack_method='linear',offset=1.0,reso
                 if not os.path.isdir(figdir):os.mkdir(figdir)
                 if figname is None:
                     # change prefix to dvv and add window info to the figure name (start and end of the window)
-                    figname = 'dvv_'+cdata.id+'_'+cc_comp+'_'+str(twin[0])+'_'+str(twin[1])+'.'+figformat
+                    if side == 'a':
+                        figname = 'dvv_'+cdata.id+'_'+cc_comp+'_'+str(twin[0])+'_'+str(twin[1])+'.'+figformat
+                    else:
+                        figname = 'dvv_'+cdata.id+'_'+cc_comp+'_one-sided_'+str(twin[0])+'_'+str(twin[1])+'.'+figformat
                 plt.savefig(figdir+'/'+figname, format=figformat, dpi=300, facecolor = 'white')
                 plt.close()
             else:

@@ -815,7 +815,7 @@ class CorrData(object):
                 else:
                     return [],[]
     # stack positive and negative sides after splitting.
-    def stack_sides(self,taper=True, taper_frac=0.01, taper_maxlen=10, overwrite=True,verbose=False,
+    def stack_sides(self,taper=True, taper_frac=0.01, taper_maxlen=10, overwrite=False,verbose=False,
                     demean=True,weighted=False):
         """
         This method stacks the positive and negative sides after splitting. It will overwrite the
@@ -826,7 +826,7 @@ class CorrData(object):
         taper: if True, applies taper to the data before stacking. Default True.
         taper_frac=0.01,taper_maxlen=10: taper parameters.
         overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
-                    it returns the stacked data as a vector. Default: True.
+                    it returns the stacked data as a vector. Default: False.
         demean: demean before stacking. Default is True.
         weighted: if True, stack with weights determined by the maximum amplitude of each trace. 
                 Default False. Need to add SNR-based weights in the future.
@@ -836,6 +836,8 @@ class CorrData(object):
         ds: stacked data.
         """
         if verbose: print("Stacking the positive and negative sides after splitting.")
+        if verbose and overwrite:
+            print("overwrite is set to True. Stacked data will replace the data in the input CorrData object.")
         #check if side is 'a'. Only stack when side is 'a'. Otherwise, return the original data.
         try: #older version didn't have "side" attribute.
             side=self.side
@@ -1567,7 +1569,7 @@ class DvvData(object):
     def __init__(self,corrdata=None,net=['',''],sta=['',''],loc=['',''],chan=['',''],\
                     lon=[0.0,0.0],lat=[0.0,0.0],ele=[0.0,0.0],cc_comp='',dist=0.0,dist_unit='',\
                     method=None,stack_method=None,window=None,dt=None,az=0.0,baz=0.0,time=None,freq=None,\
-                    subfreq=True,normalize=False,cc1=None,cc2=None,maxcc1=None,maxcc2=None,\
+                    subfreq=True,side=None,normalize=False,cc1=None,cc2=None,maxcc1=None,maxcc2=None,\
                     error1=None,error2=None,data1=None,data2=None,misc=dict()):
         self.type='dv/v Data'
         if corrdata is None: #
@@ -1589,6 +1591,7 @@ class DvvData(object):
             self.baz=baz
             self.time=time
             self.stack_method=stack_method
+            self.side = side
         else: ### use CorrData metadata when possible. only extract needed attributes.
             self.net=corrdata.net
             self.sta=corrdata.sta
@@ -1610,6 +1613,10 @@ class DvvData(object):
             self.az=corrdata.az
             self.baz=corrdata.baz
             self.time=corrdata.time
+            if side is None:
+                self.side=corrdata.side
+            else:
+                self.side=side
 
         ##
         self.id=self.net[0]+'.'+self.sta[0]+'.'+self.loc[0]+'.'+self.chan[0]+'_'+\
@@ -1656,13 +1663,14 @@ class DvvData(object):
         print("misc     :   "+str(self.misc))
         print("freq     :   "+str(self.freq))
         print("subfreq  :   "+str(self.subfreq))
+        print("side     :   "+str(self.side))
 
         try:
             print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         except Exception as e:
             print("time     :   None")
         if self.cc1 is not None:
-            print("cc1 [N]  :  "+str(self.cc2.shape))
+            print("cc1 [N]  :  "+str(self.cc1.shape))
         else:
             print("cc1 [N]:   none")
         if self.cc2 is not None:
@@ -1718,15 +1726,22 @@ class DvvData(object):
         lonS,lonR = self.lon
         latS,latR = self.lat
         eleS,eleR = self.ele
-        if self.data1 is not None and self.data2 is not None:
-            side='A'
-            odata=np.array([self.data1,self.data2])
-        elif self.data1 is None:
-            side='P'
-            odata=self.data2
+        if self.side is not None:
+            side=self.side
         else:
-            side='N'
+            if self.data1 is not None and self.data2 is not None:
+                side='A'
+            elif self.data1 is not None:
+                side='N'
+            else:
+                side='P'
+        #
+        if side.lower() == 'a':
+            odata=np.array([self.data1,self.data2])
+        elif side.lower() == 'n':
             odata=self.data1
+        elif side.lower() == 'p' or side.lower() == 'o':
+            odata=self.data2
 
         parameters = {'dt':self.dt,
             'dist':np.float32(self.dist),
@@ -1928,7 +1943,7 @@ class DvvData(object):
             for x in xticks:
                 xticklabel.append(str(UTCDateTime(self.time[x]))[:10])
             period=1/self.freq
-            if side.lower()=="a" or side.lower()=="n":
+            if (side.lower()=="a" or side.lower()=="n") and self.side.lower()!="o":
                 dvv_array = nvdata.T
                 yrange=[np.log2(period.min()),np.log2(period.max())]
                 extent=(0,nwin,yrange[1],yrange[0])
@@ -1954,7 +1969,9 @@ class DvvData(object):
                 ax1.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:negative:'+str(cc_min),fontsize=14)
                 ax1.invert_yaxis()
 
-            if side.lower()=="a" or side.lower()=="p":
+            if side.lower()=="a" or side.lower()=="p" or side.lower()=="o" or self.side.lower()=="o":
+                if side.lower() == 'o' or self.side.lower() == 'o':side_label="one-sided"
+                else:side_label="positive"
                 dvv_array = pvdata.T
                 if side.lower()=="a":ax2 = plt.subplot(212)
                 else:ax2 = plt.subplot(111)
@@ -1971,7 +1988,7 @@ class DvvData(object):
                 plt.yticks(fontsize=12)
                 if crange is not None:plt.clim(crange)
                 plt.colorbar(label='dv/v (%)')
-                ax2.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:positive:'+str(cc_min),fontsize=14)
+                ax2.set_title('dv/v:'+self.id+':'+str(self.dist)+' km:'+side_label+':'+str(cc_min),fontsize=14)
                 ax2.invert_yaxis()
             plt.tight_layout()
         else: #only one measurement from one frequency
@@ -1981,18 +1998,20 @@ class DvvData(object):
                 xticklabel.append(str(UTCDateTime(x))[:10])
             xext=0.02*(np.max(self.time)-np.min(self.time))
             plt.hlines(0,np.min(self.time)-xext,np.max(self.time)+xext,colors='k')
-            if side.lower()=="a" or side.lower()=="n":
+            if (side.lower()=="a" or side.lower()=="n") and self.side.lower()!="o":
                 if errorbar:
                     plt.errorbar(self.time,nvdata,yerr=nerror,fmt="o",markersize=markersize,
                                 capsize=3,label="negative")
                 else:
                     plt.plot(self.time,nvdata,".-",markersize=markersize,label="negative")
-            if side.lower()=="a" or side.lower()=="p":
+            if side.lower()=="a" or side.lower()=="p" or side.lower()=="o" or self.side.lower()=="o":
+                if side.lower() == 'o' or self.side.lower() == 'o':side_label="one-sided"
+                else:side_label="positive"
                 if errorbar:
                     plt.errorbar(self.time,pvdata,yerr=perror,fmt="^",markersize=markersize,
-                                capsize=3,label="positive")
+                                capsize=3,label=side_label)
                 else:
-                    plt.plot(self.time,pvdata,".-",markersize=markersize,label="positive")
+                    plt.plot(self.time,pvdata,".-",markersize=markersize,label=side_label)
 
             plt.ylabel('dv/v (%)',fontsize=12)
             plt.xlim([np.min(self.time)-xext,np.max(self.time)+xext])
@@ -2001,7 +2020,7 @@ class DvvData(object):
             plt.legend(fontsize=12)
             if ylim is not None:
                 plt.ylim(ylim)
-            plt.title('dv/v:'+self.id+':'+str(self.dist)+' km:'+side+':'+\
+            plt.title('dv/v:'+self.id+':'+str(self.dist)+' km:'+side_label+':'+\
                         str(cc_min)+':'+str(np.min(self.freq))+"-"+str(np.max(self.freq))+" Hz",
                         fontsize=14)
 

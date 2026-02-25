@@ -7,6 +7,7 @@ MONITORING:
     * Changed window length and offset to handle list (optionally) in case of running with multiple windows.
     * Changed to always return the dvvdata. The returned value would be a dictionary if multiple windows are given, 
       labeled by start and end of each window. 
+    * Add capibility to handle one-side data.
 
 DISPERSION:
 1. get_dispersion_image():
@@ -17,6 +18,9 @@ DISPERSION:
 TYPES:
 1. CorrData:
     * added stack_sides() to stack positive and negative sides.
+2. DvvData:
+    * added side attribute.
+    * added minor edits to handle one-sided dvvdata when printing and plotting.
 ================================================
 Updates in v1.0.0
 ANISOTROPY:
