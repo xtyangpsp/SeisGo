@@ -95,13 +95,13 @@ This step will install the **SeisGo** modules under `seisgo` environment. The mo
 $ pip install .
 ```
 
-If you are planning to frequently make changes to the scripts
+If you are planning to frequently make changes to the scripts, add `-e` in the install command:
 
 ```
 $ pip install -e .
 ```
 
-is recommended. The '-e' option will automatically update executable scripts in the python env without doing 'pip install .' every time.
+The '-e' option will automatically update executable scripts in the python env without doing 'pip install .' every time.
 
 3. Test the installation
 
@@ -137,6 +137,12 @@ $ conda install -c conda-forge stockwell numpy==1.22.4
 ```
 $ pip uninstall netcdf4
 $ pip install netcdf4
+```
+
+* If you get errors in the installation due to pysurf96, try to install the fortran compiler from conda and rerun the install:
+
+```
+$ conda install -c conda-forge fortran-compiler clang
 ```
 
 ## Update SeisGo
