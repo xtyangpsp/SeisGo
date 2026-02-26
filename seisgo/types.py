@@ -828,8 +828,8 @@ class CorrData(object):
         overwrite: if True, it replaces the data attribute in CorrData. Otherwise,
                     it returns the stacked data as a vector. Default: False.
         demean: demean before stacking. Default is True.
-        weighted: if True, stack with weights determined by the maximum amplitude of each trace. 
-                Default False. Need to add SNR-based weights in the future.
+        weighted: if True, stack with weights determined by the SNR (maximum_abs_amplitude/median_abs_amplitude) of each trace. 
+                Default False. 
 
         RETURNS:
         Only returns when overwrite is False.
@@ -856,8 +856,8 @@ class CorrData(object):
                     c_n.data=utils.demean(c_n.data)
                     c_p.data=utils.demean(c_p.data)
                 if weighted:
-                    w_n=np.max(np.abs(c_n.data))
-                    w_p=np.max(np.abs(c_p.data))
+                    w_n=np.max(np.abs(c_n.data))/np.median(np.abs(c_n.data))
+                    w_p=np.max(np.abs(c_p.data))/np.median(np.abs(c_p.data))
                     ds=(c_n.data*w_n+c_p.data*w_p)/(w_n+w_p)
                 else:
                     ds=(c_n.data+c_p.data)/2
@@ -870,6 +870,9 @@ class CorrData(object):
                     cout_oneside.data=ds
                     cout_oneside.side="o"
                     return cout_oneside
+        else:
+            print("side attribute is %s. Only stacks when side is A."%(self.side))
+            return self.data
         
     #split the negative and positive sides
     def split(self,taper=False,taper_frac=0.01,taper_maxlen=10,verbose=False):
