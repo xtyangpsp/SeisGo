@@ -21,6 +21,9 @@ TYPES:
 2. DvvData:
     * added side attribute.
     * added minor edits to handle one-sided dvvdata when printing and plotting.
+
+UTILS:
+1. generate_points_in_polygon(): added option to specify spacing as as list of two elements for x and y increments.
 ================================================
 Updates in v1.0.0
 ANISOTROPY:

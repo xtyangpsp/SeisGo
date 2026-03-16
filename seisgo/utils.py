@@ -4,7 +4,7 @@
 ##Utility functions used in processing seismic data.
 ############################################
 #import needed packages.
-import sys,time,scipy,obspy,pyasdf
+import sys,scipy,obspy,pyasdf
 import datetime,os, glob, utm
 import numpy as np
 import pandas as pd
@@ -13,8 +13,7 @@ import matplotlib.pyplot  as plt
 from collections import OrderedDict
 from scipy.signal import hilbert
 from scipy.signal.windows import tukey,hann
-from obspy.clients.fdsn import Client
-from obspy.core import Stream, Trace, read
+from obspy.core import Stream, Trace
 # from obspy.core.util.base import _get_function_from_entry_point
 from obspy.signal.util import _npts2nfft
 from obspy.signal.filter import bandpass
@@ -26,7 +25,6 @@ from shapely.geometry import MultiPoint, MultiLineString,Polygon, Point
 from shapely.ops import unary_union, polygonize
 import netCDF4 as nc
 from scipy.spatial import Delaunay
-from math import sqrt
 import math
 from seisgo import helpers
 #########################################
@@ -453,12 +451,18 @@ def generate_points_in_polygon(outline,spacing):
     Generate points in polygon, defined as a shapely.polygon object.
 
     outline: list of (x,y) points that define the polygon.
-    spacing: spacing of the points to be generated.
+    spacing: spacing of the points to be generated. Could be a single number or a list of two numbers for x and y directions.
     """
     poly=Polygon(outline)
     minx, miny, maxx, maxy = poly.bounds
-    x0=np.arange(minx-spacing,maxx+spacing,spacing)
-    y0=np.arange(miny-spacing,maxy+spacing,spacing)
+    #convert to numpy array if spacing is a list
+    if isinstance(spacing,list):
+        spacing=np.array(spacing)
+    spacing_x=spacing[0] if isinstance(spacing,list) or isinstance(spacing,np.ndarray) else spacing
+    spacing_y=spacing[1] if isinstance(spacing,list) or isinstance(spacing,np.ndarray) else spacing
+
+    x0=np.arange(minx-spacing_x,maxx+spacing_x,spacing_x)
+    y0=np.arange(miny-spacing_y,maxy+spacing_y,spacing_y)
     pointsx=[]
     pointsy=[]
     for i in range(len(x0)):
@@ -468,7 +472,6 @@ def generate_points_in_polygon(outline,spacing):
                 pointsx.append(x0[i])
                 pointsy.append(y0[j])
     return pointsx,pointsy
-#
 #
 def points_in_polygon(outline,qx,qy):
     """
@@ -1035,7 +1038,6 @@ def sta_info_from_inv(inv,mode='single'):
                     location.append('00')
     # print(sta,net,lon,lat,elv,location)
     return sta,net,lon,lat,elv,location
-
 def get_tt(event_lat, event_long, sta_lat, sta_long, depth_km,model="iasp91",type='first'):
     """
     Get the seismic phase arrival time of the specified earthquake at the station.
