@@ -2447,20 +2447,30 @@ def resp_spectrum(source,resp_file,downsamp_freq,pre_filt=None):
     return source
 
 #extract waveform (raw) from ASDF file.
-def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False):
+def extract_waveform(sfile,net=None,sta=None,comp=None,get_stainv=False,mpi=None):
     '''
     extract the downloaded waveform for station A
     PARAMETERS:
     -----------------------
     sfile: containing all wavefrom data for a time-chunck in ASDF format
     net,sta,comp: network, station name and component
+    get_stainv: whether to return station inventory together with the waveform. Default False.
+    mpi: whether to use mpi when reading the ASDF file. Default None (no mpi). Set to True to use mpi.
+
+    RETURNS:
+    -----------------------
+    tr: obspy trace or stream object of the waveform data.
+    inv: obspy station inventory object of the station (only return when get_stainv is True).
+
     USAGE:
     -----------------------
-    extract_waveform('temp.h5','CI','BLC')
+    tr = extract_waveform('temp.h5','CI','BLC')
+    tr, inv = extract_waveform('temp.h5','CI','BLC',get_stainv=True)
+
     '''
     # open pyasdf file to read
     try:
-        ds = pyasdf.ASDFDataSet(sfile,mode='r')
+        ds = pyasdf.ASDFDataSet(sfile,mode='r',mpi=mpi)
         sta_list = ds.waveforms.list()
     except Exception:
         print("exit! cannot open %s to read"%sfile);sys.exit()
