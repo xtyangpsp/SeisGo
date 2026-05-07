@@ -673,11 +673,11 @@ def wts_dvv(ref,cur,t,twin,freq,subfreq=True,dvmax=0.05,normalize=True,ndv=100,d
     """
     # common variables
     dt   = t[1]-t[0]
-    tmin = np.min(twin)
-    tmax = np.max(twin)
+    # tmin = np.min(twin)
+    # tmax = np.max(twin)
     fmin = np.min(freq)
     fmax = np.max(freq)
-    itvec = np.arange(np.int((tmin-t.min())/dt)+1, np.int((tmax-t.min())/dt)+1)
+    # itvec = np.arange(int((tmin-t.min())/dt)+1, int((tmax-t.min())/dt)+1)
 
     # apply cwt on two traces
     cwt1, sj, f, coi, _, _ = pycwt.cwt(cur, dt, dj, s0, J, wvn)
