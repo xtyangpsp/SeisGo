@@ -765,9 +765,23 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
 
 def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,maxmag=10,
                     magstep=1.0,mindepth=-100,maxdepth=1000,lat=None,lon=None,
-                    minradius=None,maxradius=None,maxradiuskm=None,source="USGS",v=False):
+                    minradius=None,maxradius=None,maxradiuskm=None,source="USGS",v=False,catalog=""):
     """
     Download event catalog within a box from USGS or ISC catalogs.
+    ====PARAMETERS====
+    start, end: start and end time for the catalog search. could be string or obspy UTCDateTime object.
+    minlon, maxlon, minlat, maxlat: bounding box for the search. default is global.
+    minmag, maxmag, magstep: magnitude range and step for the search. default is 0-10 with step of 1.0.
+    mindepth, maxdepth: depth range for the search. default is -100 to 1000 km.
+    lat, lon: center of the search circle. if not specified, the search will be done in a box defined by minlon, maxlon, minlat, maxlat.
+    minradius, maxradius: minimum and maximum radius for the search circle in degrees. only used when lat and lon are specified. default is None, which means no radius limit.
+    maxradiuskm: maximum radius for the search circle in kilometers. only used when lat and lon are specified. default is None, which means no radius limit. Note that maxradius and maxradiuskm cannot be specified at the same time.
+    source: "USGS" or "ISC". default is "USGS".
+    v: verbose flag. print some intermediate steps/info if True. Default False.
+    catalog: specify the catalog for USGS search. default is "", which means all catalogs. See https://earthquake.usgs.gov/fdsnws/event/1 for details on catalog options.
+
+    =====RETURNS=====
+    catalog: ObsPy Catalog object containing the search results.
     """
     #elist is a list of panda dataframes
     t0=time.time()
@@ -805,7 +819,7 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
                 quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
                 start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&minlatitude="+\
                 str(minlat)+"&maxlatitude="+str(maxlat)+"&minlongitude="+str(minlon)+"&maxlongitude="+str(maxlon)+\
-                "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+                "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+"&catalog="+catalog+""
         else:
             if source=="ISC":
                 quake_url="http://isc-mirror.iris.washington.edu/fdsnws/event/1/query?starttime="+\
@@ -817,12 +831,12 @@ def get_events(start,end,minlon=-180,maxlon=180,minlat=-90,maxlat=90,minmag=0,ma
                     quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
                     start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&latitude="+\
                     str(lat)+"&longitude="+str(lon)+"&maxradius="+str(maxradius)+\
-                    "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+                    "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+"&catalog="+catalog+""
                 else:
                     quake_url="https://earthquake.usgs.gov/fdsnws/event/1/query?format=xml&starttime="+\
                     start+"&endtime="+end+"&minmagnitude="+minM+"&maxmagnitude="+maxM+"&latitude="+\
                     str(lat)+"&longitude="+str(lon)+"&maxradiuskm="+str(maxradiuskm)+\
-                    "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+""
+                    "&mindepth="+str(mindepth)+"&maxdepth="+str(maxdepth)+"&catalog="+catalog+""
 
         try:
             event = read_events(quake_url)
