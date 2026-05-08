@@ -2038,6 +2038,219 @@ class DvvData(object):
         else:
             plt.show()
 
+class HVSRData(object):
+    """
+    Object to store HVSR (Horizontal-to-Vertical Spectral Ratio) data.
+
+    Similar to DvvData, this class stores HVSR results for a single station.
+
+    Attributes
+    ----------
+    Station info: net, sta, loc, chan, lon, lat, ele
+    HVSR parameters: method, freqmin, freqmax, win_len_s, step_s
+    Data: freqs, data (dict of methods with hvsr, hvsr_std, peaks), n_windows
+    """
+
+    def __init__(self, hvsr_result=None, net=None, sta=None, loc=None, chan=None,
+                 lon=None, lat=None, ele=None, method=None, freqmin=None, freqmax=None,
+                 win_len_s=None, step_s=None, freqs=None, data=None, n_windows=None, misc=dict()):
+        self.type = 'HVSR Data'
+        if hvsr_result is not None:
+            # Populate from compute_hvsr result dict
+            stream_id = hvsr_result.get('stream_id', '')
+            parts = stream_id.split('.')
+            self.net = parts[0] if len(parts) > 0 else ''
+            self.sta = parts[1] if len(parts) > 1 else ''
+            self.loc = ''
+            self.chan = ''
+            self.lon = None
+            self.lat = None
+            self.ele = None
+            self.method = list(hvsr_result['methods'].keys())[0] if hvsr_result['methods'] else None
+            self.freqmin = hvsr_result['freqs'][0] if len(hvsr_result['freqs']) > 0 else None
+            self.freqmax = hvsr_result['freqs'][-1] if len(hvsr_result['freqs']) > 0 else None
+            self.win_len_s = None  # Not in result
+            self.step_s = None
+            self.freqs = hvsr_result['freqs']
+            self.data = hvsr_result['methods']
+            self.n_windows = hvsr_result['n_windows']
+        else:
+            self.net = net
+            self.sta = sta
+            self.loc = loc
+            self.chan = chan
+            self.lon = lon
+            self.lat = lat
+            self.ele = ele
+            self.method = method
+            self.freqmin = freqmin
+            self.freqmax = freqmax
+            self.win_len_s = win_len_s
+            self.step_s = step_s
+            self.freqs = freqs
+            self.data = data  # dict of methods
+            self.n_windows = n_windows
+        self.id = f"{self.net}.{self.sta}.{self.loc}.{self.chan}"
+        self.misc = misc
+
+    def __str__(self):
+        """
+        Display key content of the object.
+        """
+        print("type     :   " + str(self.type))
+        print("id       :   " + str(self.id))
+        print("net      :   " + str(self.net))
+        print("sta      :   " + str(self.sta))
+        print("loc      :   " + str(self.loc))
+        print("chan     :   " + str(self.chan))
+        print("lon      :   " + str(self.lon))
+        print("lat      :   " + str(self.lat))
+        print("ele      :   " + str(self.ele))
+        print("method   :   " + str(self.method))
+        print("freqmin  :   " + str(self.freqmin))
+        print("freqmax  :   " + str(self.freqmax))
+        print("win_len_s:   " + str(self.win_len_s))
+        print("step_s   :   " + str(self.step_s))
+        if self.freqs is not None:
+            print("freqs    :   " + f"shape {self.freqs.shape}, range {self.freqs[0]:.3f} - {self.freqs[-1]:.3f} Hz")
+        else:
+            print("freqs    :   None")
+        if self.data is not None:
+            print("data     :   " + f"{len(self.data)} methods")
+            for m, sub in self.data.items():
+                hvsr = sub.get('hvsr')
+                if hvsr is not None:
+                    print(f"  M{m} hvsr: shape {hvsr.shape}, range {np.nanmin(hvsr):.3f} - {np.nanmax(hvsr):.3f}")
+                peaks = sub.get('peaks')
+                if peaks is not None:
+                    print(f"  M{m} peaks: {len(peaks)} peaks")
+        else:
+            print("data     :   None")
+        print("n_windows:   " + str(self.n_windows))
+        print("misc     :   " + str(self.misc))
+        print("")
+        return "<HVSRData object>"
+
+    def get_info(self):
+        """
+        Get a dictionary of key attributes for saving.
+        """
+        info = {
+            'id': self.id,
+            'net': self.net,
+            'sta': self.sta,
+            'loc': self.loc,
+            'chan': self.chan,
+            'lon': self.lon,
+            'lat': self.lat,
+            'ele': self.ele,
+            'method': self.method,
+            'freqmin': self.freqmin,
+            'freqmax': self.freqmax,
+            'win_len_s': self.win_len_s,
+            'step_s': self.step_s,
+            'n_windows': self.n_windows,
+            'misc': self.misc,
+        }
+        return info
+
+    def plot(self, methods=None, show_std=True, show_peaks=True, figsize=(9, 5), ymax=None, xtype='frequency', title=None, save=False, figname=None, fmt='png'):
+        """
+        Plot the HVSR data.
+
+        Parameters similar to hvsr.plot_hvsr.
+        """
+        if self.freqs is None or self.data is None:
+            raise ValueError("No HVSR data to plot.")
+        x = self.freqs if xtype == 'frequency' else 1.0 / np.where(self.freqs > 0, self.freqs, np.nan)
+        if methods is None:
+            methods = sorted(self.data.keys())
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        linestyles = ['-', '--', '-.', ':', (0,(3,1,1,1)), (0,(5,1))]
+        fig, ax = plt.subplots(figsize=figsize)
+        for i, m in enumerate(methods):
+            if m not in self.data:
+                continue
+            sub = self.data[m]
+            hvsr = sub['hvsr']
+            hvsr_std = sub['hvsr_std']
+            color = colors[i % len(colors)]
+            ls = linestyles[i % len(linestyles)]
+            label = f"M{m}: {hvsr.METHODS.get(m, '')}"
+            ax.plot(x, hvsr, color=color, linestyle=ls, linewidth=1.5, label=label)
+            if show_std and hvsr_std is not None:
+                ax.fill_between(x, np.maximum(hvsr - hvsr_std, 0), hvsr + hvsr_std, color=color, alpha=0.15)
+            if show_peaks and 'peaks' in sub and sub['peaks']:
+                best = sub['peaks'][0]
+                pf = best['f0'] if xtype == 'frequency' else 1.0 / best['f0']
+                ax.axvline(pf, color=color, linestyle=':', linewidth=0.8, alpha=0.7)
+                ax.annotate(f"f₀={best['f0']:.3f} Hz\nA₀={best['A0']:.2f}\nscore={best['score']}/6",
+                            xy=(pf, best['A0']), xytext=(5, 5), textcoords='offset points',
+                            fontsize=7, color=color)
+        ax.axhline(1.0, color='k', linewidth=0.8, linestyle='--', alpha=0.5)
+        ax.set_xscale('log')
+        ax.set_xlabel('Frequency (Hz)' if xtype == 'frequency' else 'Period (s)')
+        ax.set_ylabel('HVSR')
+        if ymax is not None:
+            ax.set_ylim(0, ymax)
+        else:
+            ax.set_ylim(bottom=0)
+        ttl = title if title else f"HVSR – {self.id}"
+        ttl += f"\n(n_windows={self.n_windows})"
+        ax.set_title(ttl, fontsize=10)
+        ax.legend(fontsize=7, loc='upper right')
+        ax.grid(True, which='both', alpha=0.3)
+        fig.tight_layout()
+        if save:
+            if figname is None:
+                sid = self.id.replace('.', '_')
+                figname = f"{sid}_HVSR.{fmt}"
+            fig.savefig(figname, dpi=150, bbox_inches='tight')
+            print(f"Figure saved: {figname}")
+        return fig, ax
+
+    def to_asdf(self, outdir='.', file=None, v=True):
+        """
+        Save HVSR data to ASDF format.
+        """
+        if file is None:
+            file = self.id + '_hvsr.h5'
+        ds = pyasdf.ASDFDataSet(outdir + '/' + file, compression="gzip-3")
+        # Add freqs
+        ds.add_auxiliary_data(data=self.freqs, data_type="HVSRData", path="freqs", parameters={})
+        # Add data for each method
+        for m, sub in self.data.items():
+            path_hvsr = f"hvsr/M{m}"
+            ds.add_auxiliary_data(data=sub['hvsr'], data_type="HVSRData", path=path_hvsr, parameters=self.get_info())
+            if sub['hvsr_std'] is not None:
+                path_std = f"hvsr_std/M{m}"
+                ds.add_auxiliary_data(data=sub['hvsr_std'], data_type="HVSRData", path=path_std, parameters={})
+            # Peaks are not arrays, skip for now
+        if v:
+            print(f"Saved HVSR data to {outdir}/{file}")
+
+    def to_pickle(self, outdir='.', file=None, v=True):
+        """
+        Save HVSR data to pickle format.
+        """
+        if file is None:
+            file = self.id + '_hvsr.pkl'
+        with open(outdir + '/' + file, 'wb') as f:
+            pickle.dump(self, f)
+        if v:
+            print(f"Saved HVSR data to {outdir}/{file}")
+
+    def save(self, outdir='.', file=None, v=True, format='asdf'):
+        """
+        Save HVSR data. Wrapper for to_asdf or to_pickle.
+        """
+        if format.lower() == 'asdf':
+            self.to_asdf(outdir, file, v)
+        elif format.lower() == 'pickle':
+            self.to_pickle(outdir, file, v)
+        else:
+            raise ValueError("Format must be 'asdf' or 'pickle'")
+
 class Power(object):
     """
     Container for power spectra for each component, with any shape

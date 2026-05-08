@@ -1,6 +1,10 @@
 Updates in v1.1.0
 SETUP:
 1. Added pysurf96 for surface wave dispersion analysis.
+
+HVSR:
+1. New module for HVSR analysis.
+
 MONITORING:
 1. get_dvvdata():
     * Rename some variables internally to make them more meanful and consistent
@@ -8,6 +12,7 @@ MONITORING:
     * Changed to always return the dvvdata. The returned value would be a dictionary if multiple windows are given, 
       labeled by start and end of each window. 
     * Add capibility to handle one-side data.
+2. wts_dvv(): fixed numpy.int issue.
 
 DISPERSION:
 1. get_dispersion_image():
@@ -21,6 +26,8 @@ TYPES:
 2. DvvData:
     * added side attribute.
     * added minor edits to handle one-sided dvvdata when printing and plotting.
+3. HVSRData:
+    * added this new class to handle HVSR data.
 
 UTILS:
 1. generate_points_in_polygon(): added option to specify spacing as as list of two elements for x and y increments.

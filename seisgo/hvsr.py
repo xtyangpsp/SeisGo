@@ -20,14 +20,27 @@ are helpers that can also be used independently.
 
 References
 ----------
-Bahavar et al. (2020) Horizontal-to-Vertical Spectral Ratio (HVSR) IRIS
-    Station Toolbox, SRL 91, 3539–3549. doi:10.1785/0220200047
-Sánchez-Sesma et al. (2011) A theory for microtremor H/V spectral ratio:
-    Application for a layered medium, GJI 186, 221–225.
-McNamara et al. (2015) Site response in the eastern United States …
-    GSA Special Paper 509, 67–79.
-Bard & SESAME team (2004) Guidelines for the implementation of the H/V
-    spectral ratio technique, SESAME deliverable D23.12.
+Bahavar, M., Spica, Z. J., Sánchez-Sesma, F. J., Trabant, C., Zandieh, A., 
+    & Toro, G. (2020). Horizontal-to-Vertical Spectral Ratio (HVSR) IRIS Station 
+    Toolbox. Seismological Research Letters, 91(6), 3539–3549. 
+    https://doi.org/10.1785/0220200047
+Bonnefoy-Claudet, S., Köhler, A., Cornou, C., Wathelet, M., & Bard, P. Y. (2024). 
+    Guidelines for implementation of the H/V spectral ratio technique on ambient 
+    vibrations measurements, processing and interpretation. SESAME European research 
+    project WP12 - Deliverable D23.12. European Commission - Research General Directorate. 
+    Project No. EVG1-CT-2000-00026 SESAME. Bulletin of the Seismological Society of America, 
+    98(1), 288–300. https://doi.org/10.1785/0120070063
+McNamara, D.E., Stephenson, W.J., Odum, J.K., Williams, R.A., and Gee, L., 2015, 
+    Site response in the eastern United States: A comparison of Vs30 measurements with 
+    estimates from horizontal:vertical spectral ratios, in Horton, J.W., Jr., Chapman, M.C., 
+    and Green, R.A., eds., The 2011 Mineral, Virginia, Earthquake,and Its Signifi cance 
+    for Seismic Hazards in Eastern North America: Geological Society of America Special 
+    Paper 509, p. 67–79, doi:10.1130/2015.2509(04)
+Sánchez-Sesma, F. J., Rodríguez, M., Iturrarán-Viveros, U., Luzón, F., Campillo, M., 
+    Margerin, L., García-Jerez, A., Suarez, M., Santoyo, M. A., & Rodríguez-Castellanos, 
+    A. (2011). A theory for microtremor H/V spectral ratio: application for a layered 
+    medium. Geophysical Journal International, 186(1), 221–225. 
+    https://doi.org/10.1111/j.1365-246X.2011.05064.x
 
 Author
 ------
@@ -39,15 +52,11 @@ FUTURE ENHANCEMENTS
 -------------------
 
 """
-
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.fftpack import next_fast_len
 from scipy.signal import find_peaks
-from obspy import Stream, Trace
-from obspy.signal.invsim import cosine_taper
-
+import pyasdf
 # SeisGo internal helpers – reuse to stay consistent with the rest of the package
 from seisgo.utils import (
     psd as seisgo_psd,
@@ -1163,3 +1172,61 @@ def print_peak_report(result, methods=None):
               f"(f0 = {best_f0:.4f} Hz)")
 
     print(f"\n{'='*72}\n")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Data extraction from saved files
+# ──────────────────────────────────────────────────────────────────────────────
+def extract_hvsrdata(filename, verbose=True, format='asdf'):
+    """
+    Extract HVSR data from a saved ASDF file.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the ASDF file saved by HVSRData.to_asdf().
+    verbose : bool
+        Print progress messages. Default True.
+
+    Returns
+    -------
+    result : dict
+        Dictionary with keys 'freqs', 'methods', 'n_windows', 'stream_id',
+        matching the output of :func:`compute_hvsr`.
+    """
+    if format != 'asdf':
+        raise ValueError(f"Unsupported format: {format}. Only 'asdf' is supported currently.")
+    
+    ds = pyasdf.ASDFDataSet(filename, mode='r')
+    freqs = ds.auxiliary_data['freqs'].data
+    methods = {}
+    aux_paths = ds.auxiliary_data.list()
+    params = None
+    for path in aux_paths:
+        if path.startswith('hvsr/M'):
+            m_str = path.split('/M')[1]
+            m = int(m_str)
+            hvsr_data = ds.auxiliary_data[path].data
+            params = ds.auxiliary_data[path].parameters
+            std_path = f"hvsr_std/M{m}"
+            if std_path in aux_paths:
+                hvsr_std = ds.auxiliary_data[std_path].data
+            else:
+                hvsr_std = None
+            methods[m] = {
+                'hvsr': hvsr_data,
+                'hvsr_std': hvsr_std,
+                'peaks': None,  # Peaks not saved in ASDF
+                'label': METHODS.get(m, '')
+            }
+    n_windows = params.get('n_windows') if params else None
+    stream_id = params.get('id') if params else ''
+    result = {
+        'freqs': freqs,
+        'methods': methods,
+        'n_windows': n_windows,
+        'stream_id': stream_id
+    }
+    if verbose:
+        print(f"Extracted HVSR data from {filename}")
+    return result
