@@ -2050,47 +2050,30 @@ class HVSRData(object):
     HVSR parameters: method, freqmin, freqmax, win_len_s, step_s
     Data: freqs, data (dict of methods with hvsr, hvsr_std, peaks), n_windows
     """
-
-    def __init__(self, hvsr_result=None, net=None, sta=None, loc=None, chan=None,
-                 lon=None, lat=None, ele=None, method=None, freqmin=None, freqmax=None,
-                 win_len_s=None, step_s=None, freqs=None, data=None, n_windows=None, misc=dict()):
+    def __init__(self, net=None, sta=None, loc=None, lon=None, lat=None, ele=None, 
+                 method=None, freqmin=None, freqmax=None,
+                 win_len_s=None, step_s=None, freqs=None, stds = None, data=None, n_windows=None, 
+                 label = None, misc=dict()):
         self.type = 'HVSR Data'
-        if hvsr_result is not None:
-            # Populate from compute_hvsr result dict
-            stream_id = hvsr_result.get('stream_id', '')
-            parts = stream_id.split('.')
-            self.net = parts[0] if len(parts) > 0 else ''
-            self.sta = parts[1] if len(parts) > 1 else ''
-            self.loc = ''
-            self.chan = ''
-            self.lon = None
-            self.lat = None
-            self.ele = None
-            self.method = list(hvsr_result['methods'].keys())[0] if hvsr_result['methods'] else None
-            self.freqmin = hvsr_result['freqs'][0] if len(hvsr_result['freqs']) > 0 else None
-            self.freqmax = hvsr_result['freqs'][-1] if len(hvsr_result['freqs']) > 0 else None
-            self.win_len_s = None  # Not in result
-            self.step_s = None
-            self.freqs = hvsr_result['freqs']
-            self.data = hvsr_result['methods']
-            self.n_windows = hvsr_result['n_windows']
-        else:
-            self.net = net
-            self.sta = sta
-            self.loc = loc
-            self.chan = chan
-            self.lon = lon
-            self.lat = lat
-            self.ele = ele
-            self.method = method
-            self.freqmin = freqmin
-            self.freqmax = freqmax
-            self.win_len_s = win_len_s
-            self.step_s = step_s
-            self.freqs = freqs
-            self.data = data  # dict of methods
-            self.n_windows = n_windows
-        self.id = f"{self.net}.{self.sta}.{self.loc}.{self.chan}"
+        self.label = label
+        
+        self.net = net
+        self.sta = sta
+        self.loc = loc
+        self.lon = lon
+        self.lat = lat
+        self.ele = ele
+        self.method = method
+        self.freqmin = freqmin
+        self.freqmax = freqmax
+        self.win_len_s = win_len_s
+        self.step_s = step_s
+        self.freqs = freqs
+        self.stds = stds #stds of hvsr for each method, same shape as data.
+        self.data = data  # matrix of shape (len(freqs),len(method)).
+        
+        self.n_windows = n_windows
+        self.id = f"{self.net}.{self.sta}.{self.loc}"
         self.misc = misc
 
     def __str__(self):
@@ -2102,7 +2085,6 @@ class HVSRData(object):
         print("net      :   " + str(self.net))
         print("sta      :   " + str(self.sta))
         print("loc      :   " + str(self.loc))
-        print("chan     :   " + str(self.chan))
         print("lon      :   " + str(self.lon))
         print("lat      :   " + str(self.lat))
         print("ele      :   " + str(self.ele))
@@ -2116,14 +2098,7 @@ class HVSRData(object):
         else:
             print("freqs    :   None")
         if self.data is not None:
-            print("data     :   " + f"{len(self.data)} methods")
-            for m, sub in self.data.items():
-                hvsr = sub.get('hvsr')
-                if hvsr is not None:
-                    print(f"  M{m} hvsr: shape {hvsr.shape}, range {np.nanmin(hvsr):.3f} - {np.nanmax(hvsr):.3f}")
-                peaks = sub.get('peaks')
-                if peaks is not None:
-                    print(f"  M{m} peaks: {len(peaks)} peaks")
+            print("data     :   " + f"{self.data.shape}")
         else:
             print("data     :   None")
         print("n_windows:   " + str(self.n_windows))
@@ -2140,7 +2115,6 @@ class HVSRData(object):
             'net': self.net,
             'sta': self.sta,
             'loc': self.loc,
-            'chan': self.chan,
             'lon': self.lon,
             'lat': self.lat,
             'ele': self.ele,
@@ -2154,38 +2128,60 @@ class HVSRData(object):
         }
         return info
 
-    def plot(self, methods=None, show_std=True, show_peaks=True, figsize=(9, 5), ymax=None, xtype='frequency', title=None, save=False, figname=None, fmt='png'):
+    def plot(self, method=None, show_std=True, figsize=(9, 5), ymax=None, xtype='frequency', 
+             title=None, save=False, figname=None, fmt='png',peaks=None):
         """
         Plot the HVSR data.
 
-        Parameters similar to hvsr.plot_hvsr.
+        ======Parameters=====
+        method: list of methods to plot. Default is all methods in self.method.
+        show_std: whether to show standard deviation as shaded area. Default is True.
+        figsize: figure size tuple. Default is (9, 5).
+        ymax: maximum y value for the plot. Default is None (auto).
+        xtype: x-axis type, either 'frequency' or 'period'. Default is 'frequency
+        title: figure title. Default is None (auto).
+        save: whether to save the figure. Default is False.
+        figname: figure name when save is True. Default is None (auto).
+        fmt: figure format when save is True. Default is 'png'.
+        peaks: list of peak frequencies to highlight. Default is None (skip annotating peaks).
         """
         if self.freqs is None or self.data is None:
             raise ValueError("No HVSR data to plot.")
         x = self.freqs if xtype == 'frequency' else 1.0 / np.where(self.freqs > 0, self.freqs, np.nan)
-        if methods is None:
-            methods = sorted(self.data.keys())
+        if method is None:
+            method = self.method
+        elif isinstance(method, int):
+            method = [method]
         colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
         linestyles = ['-', '--', '-.', ':', (0,(3,1,1,1)), (0,(5,1))]
+
+        #find the correct method indices since the data matrix does not necessarily have the same order as self.method list.
+        method_indices = []
+        for m in method:
+            if m in self.method:
+                method_indices.append(self.method.index(m))
+            else:
+                raise ValueError(f"Method {m} not found in self.method list.")
+        method_indices = np.array(method_indices)
         fig, ax = plt.subplots(figsize=figsize)
-        for i, m in enumerate(methods):
-            if m not in self.data:
-                continue
-            sub = self.data[m]
-            hvsr = sub['hvsr']
-            hvsr_std = sub['hvsr_std']
+        for i, m in enumerate(method):
+            m_index = method_indices[i]
+            hvsr = self.data[m_index, :]
+            hvsr_std = self.stds[m_index,:] if self.stds is not None else None
+
             color = colors[i % len(colors)]
             ls = linestyles[i % len(linestyles)]
-            label = f"M{m}: {hvsr.METHODS.get(m, '')}"
-            ax.plot(x, hvsr, color=color, linestyle=ls, linewidth=1.5, label=label)
+            m_label = f"M{m}"
+            ax.plot(x, hvsr, color=color, linestyle=ls, linewidth=1.5, label=m_label)
             if show_std and hvsr_std is not None:
                 ax.fill_between(x, np.maximum(hvsr - hvsr_std, 0), hvsr + hvsr_std, color=color, alpha=0.15)
-            if show_peaks and 'peaks' in sub and sub['peaks']:
-                best = sub['peaks'][0]
+            if peaks is not None:
+                best = peaks[m_label][0]
                 pf = best['f0'] if xtype == 'frequency' else 1.0 / best['f0']
                 ax.axvline(pf, color=color, linestyle=':', linewidth=0.8, alpha=0.7)
                 ax.annotate(f"f₀={best['f0']:.3f} Hz\nA₀={best['A0']:.2f}\nscore={best['score']}/6",
-                            xy=(pf, best['A0']), xytext=(5, 5), textcoords='offset points',
+                            xy=(pf, best['A0']),
+                            xytext=(5, 5), textcoords='offset points',
                             fontsize=7, color=color)
         ax.axhline(1.0, color='k', linewidth=0.8, linestyle='--', alpha=0.5)
         ax.set_xscale('log')

@@ -52,11 +52,12 @@ FUTURE ENHANCEMENTS
 -------------------
 
 """
-import warnings
+import warnings,os
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 import pyasdf
+from obspy import Stream
 # SeisGo internal helpers – reuse to stay consistent with the rest of the package
 from seisgo.utils import (
     psd as seisgo_psd,
@@ -65,7 +66,10 @@ from seisgo.utils import (
     demean,
     taper,
     sliding_window,
+    extract_waveform,
+    sta_info_from_inv
 )
+from seisgo.types import HVSRData
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Public constants
@@ -472,8 +476,7 @@ def compute_peak_metrics(freqs, hvsr, idx, baseline=1.0):
     """
     return _peak_metrics(freqs, hvsr, idx, baseline)
 
-
-def rank_peaks(freqs, hvsr, hvsr_std, min_prominence=0.5, min_amplitude=2.0):
+def rank_peaks(hvsrdata, min_prominence=0.5, min_amplitude=2.0):
     """
     Detect and rank HVSR peaks following the SESAME guidelines.
 
@@ -483,12 +486,7 @@ def rank_peaks(freqs, hvsr, hvsr_std, min_prominence=0.5, min_amplitude=2.0):
 
     Parameters
     ----------
-    freqs : ndarray, shape (Nf,)
-        Frequency axis.
-    hvsr : ndarray, shape (Nf,)
-        Mean HVSR curve.
-    hvsr_std : ndarray, shape (Nf,)
-        Standard deviation of HVSR.
+    hvsrdata : HVSRData object.
     min_prominence : float
         Minimum peak prominence passed to :func:`scipy.signal.find_peaks`.
         Default 0.5.
@@ -506,80 +504,93 @@ def rank_peaks(freqs, hvsr, hvsr_std, min_prominence=0.5, min_amplitude=2.0):
         ``score`` – Integer 0–6
         ``details`` – Dict with boolean results for each of the 6 criteria
     """
-    if hvsr_std is None:
-        hvsr_std = np.zeros_like(hvsr)
+    freqs = hvsrdata.freqs
+    hvsr_all = hvsrdata.data
+    hvsr_std_all = hvsrdata.stds
 
-    df = freqs[1] - freqs[0]
-    peak_indices, props = find_peaks(
-        hvsr,
-        prominence=min_prominence,
-        height=min_amplitude,
-    )
+    if hvsr_std_all is None:
+        hvsr_std_all = np.zeros_like(hvsr_all)
 
-    peaks = []
-    for idx in peak_indices:
-        f0 = freqs[idx]
-        A0 = hvsr[idx]
-        details = {}
+    peaks_all = dict()
+    for i in range(len(hvsrdata.method)):
+        hvsr = hvsr_all[i]
+        hvsr_std = hvsr_std_all[i]
 
-        # ── Amplitude clarity ────────────────────────────────────────────────
-        # C1: ∃ f⁻ ∈ [f0/4, f0] such that A0 / A(f⁻) > 2
-        lo_mask = (freqs >= f0 / 4.0) & (freqs < f0)
-        if lo_mask.any():
-            details['c1'] = bool(np.any(A0 / hvsr[lo_mask] > 2.0))
-        else:
-            details['c1'] = False
+        method_label = f"M{i+1}"
 
-        # C2: ∃ f⁺ ∈ [f0, 4*f0] such that A0 / A(f⁺) > 2
-        hi_mask = (freqs > f0) & (freqs <= 4.0 * f0)
-        if hi_mask.any():
-            details['c2'] = bool(np.any(A0 / hvsr[hi_mask] > 2.0))
-        else:
-            details['c2'] = False
+        peak_indices, _ = find_peaks(
+            hvsr,
+            prominence=min_prominence,
+            height=min_amplitude,
+        )
 
-        # C3: A0 > 2
-        details['c3'] = bool(A0 > 2.0)
+        peaks = []
+        for idx in peak_indices:
+            f0 = freqs[idx]
+            A0 = hvsr[idx]
+            details = {}
 
-        # ── Amplitude & frequency stability ──────────────────────────────────
-        eps_f, log_theta = _sesame_thresholds(f0)
-
-        # C4: peak appears within 5 % on HVSR ± σ curves
-        #     i.e. f0±σ curves also peak near f0
-        for sign in (+1, -1):
-            curve = hvsr + sign * hvsr_std
-            local_peaks, _ = find_peaks(curve, prominence=0)
-            if len(local_peaks) > 0:
-                nearest_idx = local_peaks[np.argmin(np.abs(freqs[local_peaks] - f0))]
-                f_near = freqs[nearest_idx]
-                details['c4'] = bool(abs(f_near - f0) / f0 <= 0.05)
+            # ── Amplitude clarity ────────────────────────────────────────────────
+            # C1: ∃ f⁻ ∈ [f0/4, f0] such that A0 / A(f⁻) > 2
+            lo_mask = (freqs >= f0 / 4.0) & (freqs < f0)
+            if lo_mask.any():
+                details['c1'] = bool(np.any(A0 / hvsr[lo_mask] > 2.0))
             else:
-                details['c4'] = False
-            if not details.get('c4', True):
-                break   # fail if either σ-curve fails
+                details['c1'] = False
 
-        # C5: σf < ε(f0) × f0
-        sigma_f = hvsr_std[idx]   # approximate σ at peak; proper σf needs
-                                   # per-window peak tracking (simplified here)
-        details['c5'] = bool(sigma_f < eps_f * f0)
+            # C2: ∃ f⁺ ∈ [f0, 4*f0] such that A0 / A(f⁺) > 2
+            hi_mask = (freqs > f0) & (freqs <= 4.0 * f0)
+            if hi_mask.any():
+                details['c2'] = bool(np.any(A0 / hvsr[hi_mask] > 2.0))
+            else:
+                details['c2'] = False
 
-        # C6: σ_log(A(f0)) < log θ(f0)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            log_sigma = np.log10(A0 + hvsr_std[idx]) - np.log10(A0)
-        details['c6'] = bool(log_sigma < log_theta)
+            # C3: A0 > 2
+            details['c3'] = bool(A0 > 2.0)
 
-        score = sum(details.values())
-        metrics = _peak_metrics(freqs, hvsr, idx)
-        peaks.append(dict(
-            f0=f0,
-            A0=A0,
-            score=score,
-            details=details,
-            **metrics,
-        ))
+            # ── Amplitude & frequency stability ──────────────────────────────────
+            eps_f, log_theta = _sesame_thresholds(f0)
 
-    # Sort by score descending, then amplitude descending
-    peaks.sort(key=lambda p: (p['score'], p['A0']), reverse=True)
-    return peaks
+            # C4: peak appears within 5 % on HVSR ± σ curves
+            #     i.e. f0±σ curves also peak near f0
+            for sign in (+1, -1):
+                curve = hvsr + sign * hvsr_std
+                local_peaks, _ = find_peaks(curve, prominence=0)
+                if len(local_peaks) > 0:
+                    nearest_idx = local_peaks[np.argmin(np.abs(freqs[local_peaks] - f0))]
+                    f_near = freqs[nearest_idx]
+                    details['c4'] = bool(abs(f_near - f0) / f0 <= 0.05)
+                else:
+                    details['c4'] = False
+                if not details.get('c4', True):
+                    break   # fail if either σ-curve fails
+
+            # C5: σf < ε(f0) × f0
+            sigma_f = hvsr_std[idx]   # approximate σ at peak; proper σf needs
+                                    # per-window peak tracking (simplified here)
+            details['c5'] = bool(sigma_f < eps_f * f0)
+
+            # C6: σ_log(A(f0)) < log θ(f0)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                log_sigma = np.log10(A0 + hvsr_std[idx]) - np.log10(A0)
+            details['c6'] = bool(log_sigma < log_theta)
+
+            score = sum(details.values())
+            metrics = _peak_metrics(freqs, hvsr, idx)
+            peaks.append(dict(
+                f0=f0,
+                A0=A0,
+                score=score,
+                details=details,
+                **metrics,
+            ))
+
+        # Sort by score descending, then amplitude descending
+        peaks.sort(key=lambda p: (p['score'], p['A0']), reverse=True)
+
+        peaks_all[method_label] = peaks
+        #
+    return peaks_all
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -614,9 +625,9 @@ def compute_hvsr(stream, win_len_s=100.0, step_s=None,
                  method=4,
                  freqmin=0.1, freqmax=None,
                  taper_frac=0.05, smooth_n=None,
-                 remove_outliers=False, outlier_std_factor=3.0,
-                 rank=True, min_peak_amplitude=2.0, min_peak_prominence=0.5,
-                 verbose=True):
+                 remove_outliers=True, outlier_std_factor=3.0,
+                 verbose=True, save = False, outdir='.', outfile = None, save_format = 'asdf',
+                 sta_inv=None,force_return=False):
     """
     Compute the Horizontal-to-Vertical Spectral Ratio (HVSR) from an
     :class:`obspy.Stream` containing three-component ambient-noise waveforms.
@@ -663,13 +674,9 @@ def compute_hvsr(stream, win_len_s=100.0, step_s=None,
         If ``True``, windows whose maximum PSD (on any component) exceeds
         ``outlier_std_factor`` standard deviations above the median are
         discarded before the HVSR average is formed.  Useful for short data
-        segments that may contain earthquake signals. Default ``False``.
+        segments that may contain earthquake signals. Default ``True``.
     outlier_std_factor : float
         Multiplier used when ``remove_outliers=True``. Default 3.0.
-    rank : bool
-        If ``True``, run SESAME-style peak ranking on every output HVSR.
-        Results are stored under ``'peaks'`` in the per-method sub-dict.
-        Default ``True``.
     min_peak_amplitude : float
         Minimum HVSR amplitude to qualify as a peak (SESAME criterion C3).
         Default 2.0.
@@ -678,7 +685,25 @@ def compute_hvsr(stream, win_len_s=100.0, step_s=None,
         Default 0.5.
     verbose : bool
         Print progress messages. Default ``True``.
-
+    save : bool
+        If ``True``, save the results to disk in the specified format. Default
+        ``False``.
+    outdir : str, optional
+        Output directory for saving results.  Ignored if ``save=False``.  If
+        ``save=True`` and ``outfile=None``, results are saved to the current
+        directory or ``outdir`` if provided.
+    outfile : str, optional
+        Output file path.  If ``save=True`` and ``outfile=None``, a default
+        name is generated based on the station ID.  Ignored if ``save=False``.
+    save_format : str
+        Format to save results. Currently only 'asdf' is supported. Default 'asdf'.
+    station_inv : dict, optional
+        Optional station inventory used to extract station information.
+    force_return : bool
+        If ``True``, return the results dict even if saving to disk.  Default ``False`` 
+        (results are not returned when ``save=True`` to encourage users to
+        load from disk and avoid keeping large results dicts in memory).
+    
     Returns
     -------
     result : dict
@@ -732,6 +757,15 @@ def compute_hvsr(stream, win_len_s=100.0, step_s=None,
         if m not in range(1, 7):
             raise ValueError(f"Method must be an integer 1–6, got {m}.")
 
+    # save or not. build file name if save is True and outfile is None
+    if save and outfile is None:
+        station_id = f"{stream[0].stats.network}.{stream[0].stats.station}"
+        if save_format == 'asdf':
+            outfile = os.path.join(outdir, f"hvsr_{station_id}.h5") 
+        else:
+            raise ValueError(f"Unsupported save_format: {save_format}.  "
+                             "Currently only 'asdf' is supported.")
+        print(f"Results will be saved to {outfile}")
     # ── Extract components ───────────────────────────────────────────────────
     tr_z, tr_n, tr_e = _get_components(stream)
     fs = tr_z.stats.sampling_rate
@@ -795,13 +829,21 @@ def compute_hvsr(stream, win_len_s=100.0, step_s=None,
     _, mean_psd_n = mean_psd(freqs, psds_n)
     _, mean_psd_e = mean_psd(freqs, psds_e)
 
-    result = {
-        'freqs': freqs_out,
-        'methods': {},
-        'n_windows': n_windows,
-        'stream_id': station_id,
-    }
+    #extract station information from inventory if provided, otherwise use sac headers if available, else set to nan.
+    if sta_inv is not None:
+        sta,net,lon,lat,ele,loc = sta_info_from_inv(sta_inv)
+    elif hasattr(tr_z.stats, 'sac'):
+        sta = tr_z.stats.sac.stnm
+        net = tr_z.stats.sac.net
+        lon = tr_z.stats.sac.stlo
+        lat = tr_z.stats.sac.stla
+        ele = tr_z.stats.sac.stel
+        loc = tr_z.stats.sac.loc
+    else:
+        sta,net,lon,lat,ele,loc = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
+    hvsr_out_all = []
+    hvsr_std_out_all = []
     for m in methods:
         label = METHODS[m]
 
@@ -823,28 +865,24 @@ def compute_hvsr(stream, win_len_s=100.0, step_s=None,
         hvsr_out = np.nan_to_num(hvsr_out, nan=0.0, posinf=0.0, neginf=0.0)
         hvsr_std_out = np.nan_to_num(hvsr_std_out, nan=0.0, posinf=0.0, neginf=0.0)
 
-        sub = {
-            'hvsr':     hvsr_out,
-            'hvsr_std': hvsr_std_out,
-            'label':    label,
-        }
+        # Store results for this method
+        hvsr_out_all.append(hvsr_out)
+        hvsr_std_out_all.append(hvsr_std_out)
+    #
+    hvsr_out_all = np.array(hvsr_out_all)
+    hvsr_std_out_all = np.array(hvsr_std_out_all)
 
-        if rank:
-            sub['peaks'] = rank_peaks(
-                freqs_out, hvsr_out, hvsr_std_out,
-                min_prominence=min_peak_prominence,
-                min_amplitude=min_peak_amplitude,
-            )
-            if verbose and sub['peaks']:
-                best = sub['peaks'][0]
-                print(f"  M{m} best peak: f0={best['f0']:.3f} Hz  "
-                      f"A0={best['A0']:.2f}  Q={best['Q']:.2f}  "
-                      f"energy={best['peak_energy']:.3f}  score={best['score']}/6")
-
-        result['methods'][m] = sub
-
-    return result
-
+    #build HVSRData object (in types.py) from result dict, and then save it to file using HVSRData.save() method.
+    hvsr_data = HVSRData(net=net, sta=sta, loc=loc, lon=lon, lat=lat, ele=ele, freqmin=freqmin, freqmax=freqmax,
+                            freqs=freqs_out, method=methods, stds=hvsr_std_out_all, data=hvsr_out_all, n_windows=n_windows, 
+                            win_len_s=win_len_s, step_s=step_s, label = label)
+    # save to file or not.
+    if save:
+        hvsr_data.save(outfile)
+        if force_return:
+            return hvsr_data
+    else:
+        return hvsr_data
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Outlier removal helper
@@ -881,11 +919,13 @@ def _remove_outlier_windows(psds_z, psds_n, psds_e, std_factor=3.0):
 # Seasonal / time-series analysis
 # ──────────────────────────────────────────────────────────────────────────────
 
-def compute_hvsr_timeseries(stream_list, labels=None, **kwargs):
+def compute_hvsr_batch(stream_list, labels=None, force_return=False, save=False, **kwargs):
     """
     Compute HVSR for a sequence of streams (e.g. one per month) and return
     results as a list.  This is the wrapper for seasonal-variation analyses
-    similar to Fig. 3 in Bahavar et al. (2020).
+    similar to Fig. 3 in Bahavar et al. (2020). This function process all data
+    in the stream_list, which can be a list of obspy.Stream or a list of h5 files.
+    If it is a list of h5 files, we will read each file one by one to avoid memory issues.
 
     Parameters
     ----------
@@ -894,108 +934,135 @@ def compute_hvsr_timeseries(stream_list, labels=None, **kwargs):
     labels : list of str, optional
         Human-readable label for each stream (e.g. month names).
         If ``None``, integer indices are used.
+    force_return : bool
+        If ``True``, return the results dict even if saving to disk.  Default ``False``.
+    save : bool
+        If ``True``, save the results to disk in the specified format. Default ``False``.
     **kwargs
         All keyword arguments are passed directly to :func:`compute_hvsr`.
 
     Returns
     -------
-    results : list of dict
-        Each element is the result dict returned by :func:`compute_hvsr`.
+    results : dict of dict
+         Keys are network.station identifiers.  Values are dicts keyed by label,
+         each containing the result dict returned by :func:`compute_hvsr` for that stream.
+         For example, results['NET.STA']['Jan 2020'] is the result dict for the stream labeled 'Jan 2020' at station NET.STA.
     labels : list of str
         Corresponding labels.
+    netsta_list : list of str
+        List of unique network.station identifiers found in the input streams.
     """
     if labels is None:
         labels = [str(i) for i in range(len(stream_list))]
 
-    results = []
+    # check the type of stream_list. if it is a list of h5 files, then loop through each file. 
+    # if it is a list of obspy stream, then loop through each stream. Do not read all data into memory at once if it is a list of h5 files, to void memory issues.
+    
+    results_all = dict() # organize results by stations.
+    netsta_list = set() # keep track of all netsta in the stream list.
     for i, st in enumerate(stream_list):
-        print(f"\n[compute_hvsr_timeseries] Processing segment {i+1}/{len(stream_list)}: {labels[i]}")
-        try:
-            res = compute_hvsr(st, **kwargs)
-            results.append(res)
-        except Exception as exc:
-            warnings.warn(f"Segment {labels[i]} failed: {exc}")
-            results.append(None)
+        if isinstance(st, str):
+            if st.endswith('.h5'): 
+                traces = extract_waveform(st,mpi=False)
+                st = Stream(traces)
+            else:
+                raise ValueError(f"Unsupported file type: {st}. Only .h5 files are supported currently.")
+        elif isinstance(st, Stream):
+            pass
+        else:
+            raise ValueError(f"Unsupported type: {type(st)}. Only strings (file paths) and obspy.Stream objects are supported.")
+        # extract network and station from the stream for labeling
+        # stream may contain multiple network and stations. we will group stream by station (3 channels) and loop through each station.
 
-    return results, labels
+        netsta = set()
+        for tr in st:
+            netsta.add((tr.stats.network, tr.stats.station))
+        
+        # loop through each station in the stream and compute hvsr for each station separately.
+        for net, sta in netsta:
+            st_netsta = st.select(network=net, station=sta)
+            if len(st_netsta) < 3:
+                warnings.warn(f"Stream for {net}.{sta} has less than 3 traces. Skipping.")
+                continue
+            netsta= f"{net}.{sta}"
+            netsta_list.add(netsta)
+            print(f"\n[compute_hvsr_timeseries] Processing {netsta} ({i+1}/{len(stream_list)}): {labels[i]}")
 
+            try:
+                res = compute_hvsr(st_netsta, force_return=force_return, **kwargs)
 
+                if netsta not in results_all:
+                    results_all[netsta] = dict()
+                results_all[netsta][labels[i]] = res
+            except Exception as exc:
+                warnings.warn(f"Segment {labels[i]} for {netsta} failed: {exc}")
+                results_all[netsta][labels[i]] = None
+    if save:
+        if force_return:
+            return results_all, labels, list(netsta_list)
+        else:
+            return None, labels, list(netsta_list)
+    else:
+        return results_all, labels, list(netsta_list)
 # ──────────────────────────────────────────────────────────────────────────────
 # Plotting
 # ──────────────────────────────────────────────────────────────────────────────
-
-def plot_hvsr(result, methods=None, show_std=True, show_peaks=True,
-              figsize=(9, 5), ymax=None, xtype='frequency',
-              title=None, save=False, figname=None, fmt='png'):
+def plot_hvsr(hvsrdata, method=None, show_std=True, figsize=(9, 5), ymax=None, xtype='frequency', 
+             title=None, save=False, figname=None, fmt='png',peaks=None):
     """
-    Plot HVSR curves from the result dict returned by :func:`compute_hvsr`.
+    Plot the HVSR data.
 
-    Parameters
-    ----------
-    result : dict
-        Output of :func:`compute_hvsr`.
-    methods : list of int, optional
-        Which method(s) to plot.  Defaults to all methods in ``result``.
-    show_std : bool
-        Shade mean ± 1σ bands. Default ``True``.
-    show_peaks : bool
-        Mark the highest-ranked peak for each method. Default ``True``.
-    figsize : tuple
-        Figure size. Default (9, 5).
-    ymax : float, optional
-        Maximum y-axis value. ``None`` = auto-scale.
-    xtype : str
-        ``'frequency'`` (Hz, default) or ``'period'`` (s).
-    title : str, optional
-        Figure title. Defaults to the station ID.
-    save : bool
-        Save the figure to disk. Default ``False``.
-    figname : str, optional
-        Output file path (used when ``save=True``).  If ``None``, defaults to
-        ``<station_id>_HVSR.<fmt>``.
-    fmt : str
-        Image format, e.g. ``'png'``, ``'pdf'``. Default ``'png'``.
-
-    Returns
-    -------
-    fig, ax : matplotlib Figure and Axes
+    ======Parameters=====
+    hvsrdata: HVSRData object containing the data to plot.
+    method: list of methods to plot. Default is all methods in self.method.
+    show_std: whether to show standard deviation as shaded area. Default is True.
+    figsize: figure size tuple. Default is (9, 5).
+    ymax: maximum y value for the plot. Default is None (auto).
+    xtype: x-axis type, either 'frequency' or 'period'. Default is 'frequency
+    title: figure title. Default is None (auto).
+    save: whether to save the figure. Default is False.
+    figname: figure name when save is True. Default is None (auto).
+    fmt: figure format when save is True. Default is 'png'.
+    peaks: list of peak frequencies to highlight. Default is None (skip annotating peaks).
     """
-    freqs = result['freqs']
-    x = freqs if xtype == 'frequency' else 1.0 / np.where(freqs > 0, freqs, np.nan)
-
-    if methods is None:
-        methods = sorted(result['methods'].keys())
-
+    if hvsrdata.freqs is None or hvsrdata.data is None:
+        raise ValueError("No HVSR data to plot.")
+    x = hvsrdata.freqs if xtype == 'frequency' else 1.0 / np.where(hvsrdata.freqs > 0, hvsrdata.freqs, np.nan)
+    if method is None:
+        method = hvsrdata.method
+    elif isinstance(method, int):
+        method = [method]
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     linestyles = ['-', '--', '-.', ':', (0,(3,1,1,1)), (0,(5,1))]
 
+    #find the correct method indices since the data matrix does not necessarily have the same order as self.method list.
+    method_indices = []
+    for m in method:
+        if m in hvsrdata.method:
+            method_indices.append(hvsrdata.method.index(m))
+        else:
+            raise ValueError(f"Method {m} not found in hvsrdata.method list.")
+    method_indices = np.array(method_indices)
     fig, ax = plt.subplots(figsize=figsize)
+    for i, m in enumerate(method):
+        m_index = method_indices[i]
+        hvsr = hvsrdata.data[m_index, :]
+        hvsr_std = hvsrdata.stds[m_index,:] if hvsrdata.stds is not None else None
 
-    for i, m in enumerate(methods):
-        sub = result['methods'][m]
-        hvsr = sub['hvsr']
-        hvsr_std = sub['hvsr_std']
         color = colors[i % len(colors)]
         ls = linestyles[i % len(linestyles)]
-        label = f"M{m}: {sub['label']}"
-
-        ax.plot(x, hvsr, color=color, linestyle=ls, linewidth=1.5, label=label)
-
-        if show_std:
-            ax.fill_between(x,
-                            np.maximum(hvsr - hvsr_std, 0),
-                            hvsr + hvsr_std,
-                            color=color, alpha=0.15)
-
-        if show_peaks and 'peaks' in sub and sub['peaks']:
-            best = sub['peaks'][0]
+        m_label = f"M{m}"
+        ax.plot(x, hvsr, color=color, linestyle=ls, linewidth=1.5, label=m_label)
+        if show_std and hvsr_std is not None:
+            ax.fill_between(x, np.maximum(hvsr - hvsr_std, 0), hvsr + hvsr_std, color=color, alpha=0.15)
+        if peaks is not None:
+            best = peaks[m_label][0]
             pf = best['f0'] if xtype == 'frequency' else 1.0 / best['f0']
             ax.axvline(pf, color=color, linestyle=':', linewidth=0.8, alpha=0.7)
             ax.annotate(f"f₀={best['f0']:.3f} Hz\nA₀={best['A0']:.2f}\nscore={best['score']}/6",
                         xy=(pf, best['A0']),
                         xytext=(5, 5), textcoords='offset points',
                         fontsize=7, color=color)
-
     ax.axhline(1.0, color='k', linewidth=0.8, linestyle='--', alpha=0.5)
     ax.set_xscale('log')
     ax.set_xlabel('Frequency (Hz)' if xtype == 'frequency' else 'Period (s)')
@@ -1004,21 +1071,18 @@ def plot_hvsr(result, methods=None, show_std=True, show_peaks=True,
         ax.set_ylim(0, ymax)
     else:
         ax.set_ylim(bottom=0)
-
-    ttl = title if title else f"HVSR – {result.get('stream_id','')}"
-    ttl += f"\n(n_windows={result['n_windows']})"
+    ttl = title if title else f"HVSR – {hvsrdata.id}"
+    ttl += f"\n(n_windows={hvsrdata.n_windows})"
     ax.set_title(ttl, fontsize=10)
     ax.legend(fontsize=7, loc='upper right')
     ax.grid(True, which='both', alpha=0.3)
     fig.tight_layout()
-
     if save:
         if figname is None:
-            sid = result.get('stream_id', 'station').replace('.', '_')
+            sid = hvsrdata.id.replace('.', '_')
             figname = f"{sid}_HVSR.{fmt}"
         fig.savefig(figname, dpi=150, bbox_inches='tight')
         print(f"Figure saved: {figname}")
-
     return fig, ax
 
 
@@ -1113,30 +1177,34 @@ def plot_hvsr_timeseries(results, labels=None, method=4, figsize=None,
 # Convenience: print a ranking report (mirrors Table 3 in the paper)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def print_peak_report(result, methods=None):
+def print_peak_report(peaks, method=None):
     """
     Print a formatted ranking report for HVSR peaks.
 
     Parameters
     ----------
-    result : dict
-        Output of :func:`compute_hvsr`.
-    methods : list of int, optional
+    peaks : list of dict
+        List of peak dictionaries.
+    method : list of int, optional
         Which methods to include. Defaults to all methods in ``result``.
     """
-    if methods is None:
-        methods = sorted(result['methods'].keys())
+    peaks_keys = list(peaks.keys())
+    peaks_method_int = [int(k[-1]) for k in peaks_keys if k.startswith('M')]
+    if method is None:
+        method = peaks_method_int
+    elif isinstance(method, int):
+        method = [method]
 
     print(f"\n{'='*72}")
-    print(f"HVSR Peak Ranking Report – {result.get('stream_id','')}")
-    print(f"Windows: {result['n_windows']}")
+    print(f"HVSR Peak Ranking Report")
     print(f"{'='*72}")
 
-    for m in methods:
-        sub = result['methods'][m]
-        peaks = sub.get('peaks', [])
-        print(f"\nMethod M{m}: {sub['label']}")
-        if not peaks:
+    for m in method:
+        m_label = f"M{m}"
+
+        m_peaks = peaks[m_label]
+        print(f"\nMethod {m_label}: {METHODS[m]}")
+        if not m_peaks:
             print("  No peaks detected.")
             continue
 
@@ -1146,7 +1214,7 @@ def print_peak_report(result, methods=None):
         print("  " + header)
         print("  " + "-" * (len(header)))
 
-        for p in peaks:
+        for p in m_peaks:
             d = p['details']
             row = (f"{p['f0']:>10.4f}  {p['A0']:>6.2f}  "
                    f"{'✓' if d.get('c1') else '✗':>3} "
@@ -1158,7 +1226,7 @@ def print_peak_report(result, methods=None):
                    f"{p['score']:>4}/6")
             print("  " + row)
 
-        best = peaks[0]
+        best = m_peaks[0]
         print(f"\n  Best peak metrics: Q={best['Q']:.2f}, "
               f"half_width={best['half_power_width']:.3f} Hz, "
               f"energy={best['peak_energy']:.3f}, "
