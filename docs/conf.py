@@ -2,10 +2,9 @@ import os
 import sys
 
 # -- Path setup --------------------------------------------------------------
-# Point Sphinx at the repo root so it can find the seisgo package.
-# On ReadTheDocs the repo is cloned to /home/docs/checkouts/readthedocs.org/...
-# sys.path manipulation is only needed when seisgo is NOT pip-installed.
-sys.path.insert(0, os.path.abspath('../..'))
+# docs/conf.py is at <repo_root>/docs/conf.py
+# One level up is the repo root, where the seisgo package directory lives.
+sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 project = 'SeisGo'
@@ -14,8 +13,6 @@ author = 'Xiaotao Yang'
 release = '0.9'
 
 # -- Mock heavy C/Fortran/optional dependencies ------------------------------
-# These are mocked so that autodoc can import seisgo modules without needing
-# the full scientific stack installed in the RTD build environment.
 autodoc_mock_imports = [
     'obspy',
     'pyasdf',
@@ -52,7 +49,7 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-# -- Options for HTML output -------------------------------------------------
+# -- HTML output -------------------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
 
 # -- autodoc -----------------------------------------------------------------
@@ -63,7 +60,7 @@ autodoc_default_options = {
     'show-inheritance': True,
 }
 
-# -- Napoleon (NumPy-style docstrings) ---------------------------------------
+# -- Napoleon ----------------------------------------------------------------
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
 napoleon_use_param = True
@@ -75,7 +72,7 @@ intersphinx_mapping = {
     'numpy': ('https://numpy.org/doc/stable', None),
 }
 
-# -- MyST (Markdown support) -------------------------------------------------
+# -- MyST --------------------------------------------------------------------
 source_suffix = {
     '.rst': 'restructuredtext',
     '.md': 'markdown',
