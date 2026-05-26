@@ -3,6 +3,8 @@
 
 ![plot1](/figs/seisgo_logo.png)
 
+[![Documentation Status](https://readthedocs.org/projects/seisgo/badge/?version=latest)](https://seisgo.readthedocs.io/en/latest/index.html)
+
 ## Introduction
 This package is currently heavily dependent on **obspy** (www.obspy.org) to handle seismic data (download, read, and write, etc). Users are referred to **obspy** toolbox for related functions.
 
