@@ -1,0 +1,4 @@
+python:
+  install:
+    - method: pip
+      path: .          # ← pip install . at repo root before building
