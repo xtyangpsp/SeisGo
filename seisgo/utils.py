@@ -23,6 +23,8 @@ from obspy.geodetics.base import locations2degrees
 from obspy.taup import TauPyModel
 from shapely.geometry import MultiPoint, MultiLineString,Polygon, Point
 from shapely.ops import unary_union, polygonize
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, WhiteKernel
 import netCDF4 as nc
 from scipy.spatial import Delaunay
 import math
@@ -1892,6 +1894,77 @@ def smooth3(data, size=[3,3,3],verbose=False):
         return filt
     else:
         return None
+#
+def gpr_smooth(y, smooth_scale=10.0, x=None):
+    """
+    Generalized 1D time series smoothing and gap-filling using 
+    Gaussian Process Regression (GPR).
+    
+    Parameters:
+    -----------
+    y : array-like
+        1D array or list of the dependent variable values to smooth (can contain NaNs).
+    x : array-like, optional
+        1D array or list of the independent coordinates (e.g., time, days, distance).
+        If None, data is assumed to be regularly sampled, and an index array [0, 1, 2, ...]
+        will be automatically generated. Default is None.
+    smooth_scale : float
+        The characteristic smoothing length scale expressed in the units of x.
+        (e.g., if x is in days, a value of 14.0 represents a two-week feature scale).
+        
+    Returns:
+    --------
+    y_smooth : np.ndarray
+        1D array of the smoothed values evaluated across the entire range of x.
+    uncertainty : np.ndarray
+        1D array containing the 1-sigma standard deviation for every prediction point.
+    """
+    # 1. Ensure inputs are clean 1D numpy arrays of floats
+    y_arr = np.asarray(y, dtype=float).flatten()
+    
+    if x is None:
+        # Generate uniform coordinate space if x is not provided
+        x_arr = np.arange(len(y_arr), dtype=float)[:, np.newaxis]
+    else:
+        x_arr = np.asarray(x, dtype=float)[:, np.newaxis]
+        
+    if len(y_arr) != len(x_arr):
+        raise ValueError("The lengths of the data series (y) and coordinates (x) must match.")
+    
+    # 2. Extract masks for valid training data (ignore NaNs)
+    valid_mask = ~np.isnan(y_arr)
+    
+    # Safety check: return NaNs if no valid data exists
+    if not np.any(valid_mask):
+        return np.full_like(y_arr, np.nan), np.full_like(y_arr, np.nan)
+        
+    X_train = x_arr[valid_mask]
+    y_train = y_arr[valid_mask]
+    
+    # 3. Formulate the Kernel using the generalized smooth_scale
+    # We dynamically bound the length scale search space relative to your target scale
+    min_scale = max(1e-3, smooth_scale / 5.0)
+    max_scale = smooth_scale * 5.0
+    
+    # Estimate a reasonable initial noise guess based on data variance
+    initial_noise = np.var(y_train) * 0.1 if len(y_train) > 1 else 0.01
+    initial_noise = np.clip(initial_noise, 1e-4, 1e-1)
+    
+    kernel = Matern(length_scale=smooth_scale, 
+                    length_scale_bounds=(min_scale, max_scale), 
+                    nu=1.5) + \
+             WhiteKernel(noise_level=initial_noise, 
+                         noise_level_bounds=(1e-5, 1.0))
+             
+    # 4. Instantiate and fit the Machine Learning model
+    gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=5, random_state=42)
+    gp.fit(X_train, y_train)
+    
+    # 5. Predict values across the entire unified timeline x
+    y_smooth, uncertainty = gp.predict(x_arr, return_std=True)
+    
+    return y_smooth, uncertainty
+
 def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()
 

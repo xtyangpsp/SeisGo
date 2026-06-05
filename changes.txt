@@ -31,6 +31,7 @@ TYPES:
 
 UTILS:
 1. generate_points_in_polygon(): added option to specify spacing as as list of two elements for x and y increments.
+2. added gpr_smooth() for smoothing of 1d data with gaussian process regressor.
 ================================================
 Updates in v1.0.0
 ANISOTROPY:

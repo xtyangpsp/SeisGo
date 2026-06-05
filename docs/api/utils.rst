@@ -27,6 +27,7 @@ Signal processing
    seisgo.utils.demean
    seisgo.utils.detrend
    seisgo.utils.box_smooth
+   seisgo.utils.gpr_smooth
    seisgo.utils.ricker
    seisgo.utils.gaussian
    seisgo.utils.taper
