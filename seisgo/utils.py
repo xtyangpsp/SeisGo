@@ -1898,7 +1898,8 @@ def smooth3(data, size=[3,3,3],verbose=False):
 def gpr_smooth(y, smooth_scale=10.0, x=None):
     """
     Generalized 1D time series smoothing and gap-filling using 
-    Gaussian Process Regression (GPR).
+    Gaussian Process Regression (GPR). This function was written with assistance
+    from Gemini AI, validated by Xiaotao Yang.
     
     Parameters:
     -----------
@@ -1946,15 +1947,21 @@ def gpr_smooth(y, smooth_scale=10.0, x=None):
     min_scale = max(1e-3, smooth_scale / 5.0)
     max_scale = smooth_scale * 5.0
     
-    # Estimate a reasonable initial noise guess based on data variance
-    initial_noise = np.var(y_train) * 0.1 if len(y_train) > 1 else 0.01
-    initial_noise = np.clip(initial_noise, 1e-4, 1e-1)
+    # Calculate actual variance to scale the noise boundaries dynamically
+    data_variance = np.var(y_train) if len(y_train) > 1 else 1.0
+    
+    # Ensure initial noise guess isn't exactly 0
+    initial_noise = np.clip(data_variance * 0.1, 1e-4, 1.0)
+    
+    # DYNAMIC BOUNDS: Allow the noise level to scale up to 10 times the data variance 
+    # or a minimum cap of 10.0 to prevent hitting the ceiling on noisy data.
+    max_noise_bound = max(10.0, data_variance * 10.0)
     
     kernel = Matern(length_scale=smooth_scale, 
                     length_scale_bounds=(min_scale, max_scale), 
                     nu=1.5) + \
              WhiteKernel(noise_level=initial_noise, 
-                         noise_level_bounds=(1e-5, 1.0))
+                         noise_level_bounds=(1e-5, max_noise_bound))
              
     # 4. Instantiate and fit the Machine Learning model
     gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=5, random_state=42)
