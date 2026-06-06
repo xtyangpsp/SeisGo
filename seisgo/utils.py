@@ -1895,7 +1895,7 @@ def smooth3(data, size=[3,3,3],verbose=False):
     else:
         return None
 #
-def gpr_smooth(y, smooth_scale=10.0, x=None, scale_tolerance=0.20):
+def gpr_smooth(y, smooth_scale, scale_tolerance=0.20, x=None):
     """
     Generalized 1D time series smoothing and gap-filling using 
     Gaussian Process Regression (GPR). This function was written with assistance
@@ -1905,16 +1905,16 @@ def gpr_smooth(y, smooth_scale=10.0, x=None, scale_tolerance=0.20):
     -----------
     y : array-like
         1D array or list of the dependent variable values to smooth (can contain NaNs).
-    x : array-like, optional
-        1D array or list of the independent coordinates (e.g., time, days, distance).
-        If None, data is assumed to be regularly sampled, and an index array [0, 1, 2, ...]
-        will be automatically generated. Default is None.
     smooth_scale : float
         The characteristic smoothing length scale expressed in the units of x.
         (e.g., if x is in days, a value of 14.0 represents a two-week feature scale).
     scale_tolerance : float
         The allowable fractional variation around the target smooth_scale (0.0 to 1.0).
         e.g., 0.20 means the optimizer can vary the length scale by +/- 20%.
+    x : array-like, optional
+        1D array or list of the independent coordinates (e.g., time, days, distance).
+        If None, data is assumed to be regularly sampled, and an index array [0, 1, 2, ...]
+        will be automatically generated. Default is None.
         
     Returns:
     --------
