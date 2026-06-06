@@ -1895,7 +1895,7 @@ def smooth3(data, size=[3,3,3],verbose=False):
     else:
         return None
 #
-def gpr_smooth(y, smooth_scale=10.0, x=None):
+def gpr_smooth(y, smooth_scale=10.0, x=None, scale_tolerance=0.20):
     """
     Generalized 1D time series smoothing and gap-filling using 
     Gaussian Process Regression (GPR). This function was written with assistance
@@ -1912,6 +1912,9 @@ def gpr_smooth(y, smooth_scale=10.0, x=None):
     smooth_scale : float
         The characteristic smoothing length scale expressed in the units of x.
         (e.g., if x is in days, a value of 14.0 represents a two-week feature scale).
+    scale_tolerance : float
+        The allowable fractional variation around the target smooth_scale (0.0 to 1.0).
+        e.g., 0.20 means the optimizer can vary the length scale by +/- 20%.
         
     Returns:
     --------
@@ -1942,10 +1945,10 @@ def gpr_smooth(y, smooth_scale=10.0, x=None):
     X_train = x_arr[valid_mask]
     y_train = y_arr[valid_mask]
     
-    # 3. Formulate the Kernel using the generalized smooth_scale
-    # We dynamically bound the length scale search space relative to your target scale
-    min_scale = max(1e-3, smooth_scale / 5.0)
-    max_scale = smooth_scale * 5.0
+    # 3. Mathematically enforce the percentage-based boundary variations
+    # Bounds must strictly follow: (lower_bound, upper_bound)
+    min_scale = max(1e-3, smooth_scale * (1.0 - scale_tolerance))
+    max_scale = smooth_scale * (1.0 + scale_tolerance)
     
     # Calculate actual variance to scale the noise boundaries dynamically
     data_variance = np.var(y_train) if len(y_train) > 1 else 1.0
