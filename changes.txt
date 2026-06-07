@@ -24,8 +24,10 @@ TYPES:
 1. CorrData:
     * added stack_sides() to stack positive and negative sides.
 2. DvvData:
+    * improved attribute description.
     * added side attribute.
     * added minor edits to handle one-sided dvvdata when printing and plotting.
+    * added DvvData.dq() to compute attenuation changes from the dvv data via residual decorrelations.
 3. HVSRData:
     * added this new class to handle HVSR data.
 
