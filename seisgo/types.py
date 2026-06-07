@@ -1553,17 +1553,27 @@ class DvvData(object):
     dist=0.0,az=0.0,baz=0.0: parameters specifying the stations.
 
     DVV PARAMETERS:
-    method=None,window=None,dt=None,time=None,freq=None,misc=dict()
-
-    misc is a dictionary that stores additional parameters.
+    method: dvv measurement method, e.g., stretching or moving window cross-spectral analysis.
+    stack_method: stacking method for dvv measurement, e.g., linear, phase-weighted, etc.
+    side: A [Default]- both negative and positive sides, N - negative sides only, P - positive side only.
+    normalize: whether normalize the cross-correlation functions before measuring dv/v. Default is False.
+    window: two element list to specify the window for dv/v measurement. The unit is second. The window will be applied to the cross-correlation functions before measuring dv/v
+    dt: sampling interval of the cross-correlation functions. This is needed for dv/v measurement. If initiated by giving a CorrData object, it will be cloned from the CorrData object. 
+            Otherwise, it needs to be assigned when initiating the DvvData object
+    time: time array of the cross-correlation functions. This is needed for dv/v measurement, especially when there are multiple windows. If initiated by giving a CorrData object, 
+            it will be cloned from the CorrData object. Otherwise, it needs to be assigned when initiating the DvvData object.
+    freq: frequency array of the cross-correlation functions. This is needed for dv/v measurement using moving window cross-spectral analysis. It needs to be assigned when initiating 
+            the DvvData object.
+    misc: a dictionary to store additional parameters. This is for flexibility, as there might be various parameters for different dv/v measurement methods. For example, for stretching 
+            method, it can store the stretching factors used for measuring dv/v; for moving window cross-spectral analysis, it can store the window length and step used for measuring dv/v, etc.
 
     DVV DATA:
     cc1=None,cc2=None: cc1 and cc2 are the correlation coefficients arrays for negative measureemts
-            and positive measurements, respectively. These are for the entire traces.
-    maxcc1=None, maxcc2=None: maximum correlation coefficients when stretching for measuring dv/v.
+            and positive measurements, respectively. These are for the entire traces before stretching or any operations during dv/v measurement. 
+    maxcc1=None, maxcc2=None: maximum correlation coefficients after stretching for measuring dv/v.
     error1=None, error2=None: errors when measuring the dv/v.
     data1=None,data2=None: data1 is for dvv measurement using negative side correlation data.
-            data2 is for the positive side.
+            data2 is for the positive side. If dvv is one-sided, only data1 will be used. data2 will stay as None.
 
     ======= Methods ======
     to_asdf(): save to asdf file.
@@ -2037,6 +2047,77 @@ class DvvData(object):
             plt.close()
         else:
             plt.show()
+
+    #
+    def dq(self, cc_min=0.75):
+        """
+        Dynamically computes the attenuation change (dq) from the residual 
+        decorrelation using the object's internal window and frequency parameters.
+        Function wrote with assistance from Gemini AI, approved and modified by Xiaotao Yang.
+
+        Following Snieder (2006) and Larose et al. (2010), the absolute change 
+        in the inverse quality factor (dq) is isolated from the post-stretching 
+        residual decorrelation of the coda windows using the linear time-lapse 
+        sensitivity relation: dq = (1 - CC_max) / (pi * f * t_mean).
+        
+        Parameters:
+        -----------
+        cc_min : float, optional
+            Minimum maximum-CC required to trust the measurement. 
+            Values below this threshold will map to NaN. Default is 0.75.
+            
+        Returns:
+        --------
+        dq1 : numpy.ndarray or None
+            Attenuation change for negative lag (same dimension as data1).
+            Returns None if data1 is not present.
+        dq2 : numpy.ndarray or None
+            Attenuation change for positive lag (same dimension as data2).
+            Returns None if data2 is not present.
+
+        References:
+        -----------
+        Larose, E., Planes, T., Rossetto, V., & Margerin, L. (2010). Locating a small change in a multiple scattering environment. 
+                Applied Physics Letters, 96(20), 204101. https://doi.org/10.1063/1.3431269/119906
+        Obermann, A., Froment, B., Campillo, M., Larose, E., Planès, T., Valette, B., Chen, J. H., & Liu, Q. Y. (2014). Seismic 
+                noise correlations to image structural and mechanical changes associated with the Mw 7.9 2008 Wenchuan earthquake. 
+                Journal of Geophysical Research: Solid Earth, 119(4), 3155–3168. https://doi.org/10.1002/2013JB010932
+        Snieder, R. (2006). The theory of coda wave interferometry. Pure and Applied Geophysics, 163(2–3), 455–473. 
+                https://doi.org/10.1007/S00024-005-0026-6/METRICS
+        """
+        # 1. Extract frequency parameters and calculate central frequency
+        if self.freq is None or len(self.freq) < 2:
+            raise ValueError("self.freq must be a two-element list/array containing [f_min, f_max].")
+        central_freq = np.mean(self.freq)
+        
+        # 2. Extract window parameters and calculate mean absolute lapse time
+        if self.window is None or len(self.window) < 2:
+            raise ValueError("self.window must be a two-element list/array containing [t_start, t_end].")
+        t_mean = 0.5 * (abs(self.window[0]) + abs(self.window[1]))
+        
+        # 3. Calculate the time-lapse sensitivity kernel (beta = pi * f * t_mean)
+        beta = np.pi * central_freq * t_mean
+        
+        dq1 = None
+        dq2 = None
+        
+        # Process Negative Lag (data1 / maxcc1)
+        if self.data1 is not None and len(self.data1) > 0:
+            maxcc1_arr = np.array(self.maxcc1)
+            # Calculate raw dq: (1 - max_cc) / beta
+            dq1 = (1.0 - maxcc1_arr) / beta
+            # Apply Quality Control threshold
+            dq1[maxcc1_arr < cc_min] = np.nan
+            
+        # Process Positive Lag (data2 / maxcc2)
+        if self.data2 is not None and len(self.data2) > 0:
+            maxcc2_arr = np.array(self.maxcc2)
+            # Calculate raw dq: (1 - max_cc) / beta
+            dq2 = (1.0 - maxcc2_arr) / beta
+            # Apply Quality Control threshold
+            dq2[maxcc2_arr < cc_min] = np.nan
+            
+        return dq1, dq2
 
 class HVSRData(object):
     """
