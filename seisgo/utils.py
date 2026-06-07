@@ -1922,6 +1922,11 @@ def gpr_smooth(y, smooth_scale, scale_tolerance=0.20, x=None):
         1D array of the smoothed values evaluated across the entire range of x.
     uncertainty : np.ndarray
         1D array containing the 1-sigma standard deviation for every prediction point.
+    quality_metrics : dict
+        A dictionary containing overarching model-level quality indicators:
+        - 'lml_score': Log-Marginal-Likelihood of the optimal fit (higher is better).
+        - 'optimized_scale': The actual length scale chosen by the optimizer.
+        - 'optimized_noise': The variance value assigned to the WhiteKernel noise floor.
     """
     # 1. Ensure inputs are clean 1D numpy arrays of floats
     y_arr = np.asarray(y, dtype=float).flatten()
@@ -1972,8 +1977,18 @@ def gpr_smooth(y, smooth_scale, scale_tolerance=0.20, x=None):
     
     # 5. Predict values across the entire unified timeline x
     y_smooth, uncertainty = gp.predict(x_arr, return_std=True)
+
+    # 6. Extract the model-level quality metrics
+    # Extract optimized parameters directly out of the trained kernel dictionary
+    kernel_params = gp.kernel_.get_params()
     
-    return y_smooth, uncertainty
+    quality_metrics = {
+        'lml_score': float(gp.log_marginal_likelihood(gp.kernel_.theta)),
+        'optimized_scale': float(kernel_params['k1__length_scale']),
+        'optimized_noise': float(kernel_params['k2__noise_level'])
+    }
+    
+    return y_smooth, uncertainty, quality_metrics
 
 def _npow2(x):
     return 1 if x == 0 else 2**(x-1).bit_length()
