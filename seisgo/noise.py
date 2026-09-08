@@ -1231,22 +1231,68 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
             #save components.
             #convert corrdata to empirical Green's functions by
             #taking the negative time derivative. See types.CorrData.to_egf() for details.
+            cdata = corrdict_all[ic]
+
+            if (
+                cdata.data is None
+                or np.size(cdata.data) == 0
+                or cdata.time is None
+                or np.size(cdata.time) == 0
+            ):
+                if verbose:
+                    print(
+                        pair,
+                        ic,
+                        "CorrData is empty. Skipping stack/split/save."
+                    )
+                continue
+
+            # print(
+            #     "BEFORE STACK:",
+            #     pair,
+            #     ic,
+            #     "data shape =", cdata.data.shape,
+            #     "n_times =", len(cdata.time),
+            #     "time span days =",
+            #     (cdata.time[-1] - cdata.time[0]) / 86400
+            #     if len(cdata.time) > 0 else 0,
+            #     "stack_win_days =",
+            #     stack_win_len / 86400
+            #     if stack_win_len is not None else None,
+            #     flush=True
+            # )
             if stack:
-                corrdict_all[ic].stack(method=stack_method,win_len=stack_win_len,overwrite=True)
+                cdata.stack(method=stack_method,win_len=stack_win_len,overwrite=True)
+
+            # print(
+            #     "AFTER STACK:",
+            #     pair,
+            #     ic,
+            #     "shape =", cdata.data.shape,
+            #     "substack =", cdata.substack,
+            #    flush=True
+            #)
+
             if to_egf:
                 try:
-                    corrdict_all[ic].to_egf()
+                    cdata.to_egf()
                 except Exception as e:
                     print(e)
             if split:
-                n,p=corrdict_all[ic].split(taper=taper,taper_frac=taper_frac,
+                print(
+                    pair,
+                    ic,
+                    "shape =", cdata.data.shape,
+                    "substack =", cdata.substack
+                )
+                n,p=cdata.split(taper=taper,taper_frac=taper_frac,
                                 taper_maxlen=taper_maxlen,verbose=verbose)
                 if verbose:print('save to %s and %s'%(file_n,file_p))
                 n.to_asdf(file=file_n)
                 p.to_asdf(file=file_p)
             else:
                 if verbose:print('save to %s and %s'%(merged_h5,merged_h5))
-                corrdict_all[ic].to_asdf(file=merged_h5)
+                cdata.to_asdf(file=merged_h5)
         del corrdict_all
 ###
 def split_sides(cfile,outdir='./PAIRS_SPLIT',taper=True,taper_frac=0.01,taper_maxlen=10,verbose=False):

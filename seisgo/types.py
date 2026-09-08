@@ -771,7 +771,11 @@ class CorrData(object):
                 ds=np.ndarray((len(win),self.data.shape[1]),dtype=self.data.dtype)
                 ds.fill(np.nan)
                 ngood=[]
-                for i in range(len(win)-1):
+                if len(win) == 1:
+                    nwin = 1
+                else:
+                    nwin = len(win) - 1
+                for i in range(nwin):
                     widx=np.where((self.time>=win[i]) & (self.time<win[i]+win_len))[0]
                     if len(widx) >0:
                         if demean:
@@ -789,7 +793,7 @@ class CorrData(object):
                             cc_array = cc0[tindx,:]
 
                             # do stacking
-                            if nstacks==1: dstack=cc_array
+                            if nstacks==1: dstack=cc_array[0, :]
                             else:
                                 dstack = stacking.seisstack(cc_array,method=method,par=stack_par)
 
@@ -802,13 +806,18 @@ class CorrData(object):
                 ds=ds[ngood,:]
 
                 if overwrite:
-                    self.data=ds
-                    self.time=ts
-                    if len(ngood) ==1: self.substack = False
-                    else: self.substack=True
+                    if len(ngood) == 1:
+                        self.data = ds[0, :]
+                        self.time = ts[0]
+                        self.substack = False
+                    else:
+                        self.data = ds
+                        self.time = ts
+                        self.substack = True
                     self.stack_method=method
                 else:
                     return ts,ds
+                
             else:
                 self.substack = False
                 if overwrite: pass
