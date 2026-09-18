@@ -1,8 +1,9 @@
 #define key classes
-import os,sys,pickle,obspy,scipy,pyasdf
-from obspy.core import Trace,Stream
+import os,sys,pickle,obspy,scipy,pyasdf,h5py, json
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from obspy.core import Trace,Stream
 from obspy.io.sac.sactrace import SACTrace
 from obspy.signal.filter import bandpass,highpass,lowpass
 from scipy.fftpack import fft,ifft,fftfreq,next_fast_len
@@ -49,21 +50,24 @@ class Station(object):
         self.lat = lat
         self.ele = ele
 
-    def __str__(self):
+    def __repr__(self):
         """
         Display key content of the object.
         """
-        print("network      :   "+str(self.net))
-        print("station      :   "+str(self.sta))
-        print("location     :   "+str(self.loc))
-        print("channel      :   "+str(self.chan))
-        print("longitude   :   "+str(self.lon))
-        print("latitude    :   "+str(self.lat))
-        print("elevation   :   "+str(self.ele))
+        lines = []
+        lines.append("network      :   "+str(self.net))
+        lines.append("station      :   "+str(self.sta))
+        lines.append("location     :   "+str(self.loc))
+        lines.append("channel      :   "+str(self.chan))
+        lines.append("longitude   :   "+str(self.lon))
+        lines.append("latitude    :   "+str(self.lat))
+        lines.append("elevation   :   "+str(self.ele))
 
-        print("")
+        lines.append("")
 
-        return "<Station object>"
+        return "<Station object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
 
 class RawData(object):
     """
@@ -321,42 +325,45 @@ class FFTData(object):
         ##re-assign back to self.data.
         self.data=FFTRawSign
 
-    def __str__(self):
+    def __repr__(self):
         """
         Display key content of the object.
         """
-        print("id           :   "+str(self.id))
-        print("net          :   "+str(self.net))
-        print("sta          :   "+str(self.sta))
-        print("loc          :   "+str(self.loc))
-        print("chan         :   "+str(self.chan))
-        print("lon          :   "+str(self.lon))
-        print("lat          :   "+str(self.lat))
-        print("ele          :   "+str(self.ele))
-        print("dt           :   "+str(self.dt))
-        print("freqmin      :   "+str(self.freqmin))
-        print("freqmax      :   "+str(self.freqmax))
-        print("time_norm    :   "+self.time_norm)
-        print("freq_norm    :   "+self.freq_norm)
-        print("smooth       :   "+str(self.smooth))
-        print("win_len      :   "+str(self.win_len))
-        print("step         :   "+str(self.step))
+        lines = []
+        lines.append("id           :   "+str(self.id))
+        lines.append("net          :   "+str(self.net))
+        lines.append("sta          :   "+str(self.sta))
+        lines.append("loc          :   "+str(self.loc))
+        lines.append("chan         :   "+str(self.chan))
+        lines.append("lon          :   "+str(self.lon))
+        lines.append("lat          :   "+str(self.lat))
+        lines.append("ele          :   "+str(self.ele))
+        lines.append("dt           :   "+str(self.dt))
+        lines.append("freqmin      :   "+str(self.freqmin))
+        lines.append("freqmax      :   "+str(self.freqmax))
+        lines.append("time_norm    :   "+self.time_norm)
+        lines.append("freq_norm    :   "+self.freq_norm)
+        lines.append("smooth       :   "+str(self.smooth))
+        lines.append("win_len      :   "+str(self.win_len))
+        lines.append("step         :   "+str(self.step))
         if self.std is not None:
-            print("std          :   "+str(len(self.std)))
+            lines.append("std          :   "+str(len(self.std)))
         else:
-            print("std          :   none")
+            lines.append("std          :   none")
         if self.time is not None and len(self.time)>0:
-            print("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+            lines.append("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         else:
-            print("time         :   none")
-        print("Nfft         :   "+str(self.Nfft))
-        print("misc         :   "+str(self.misc))
+            lines.append("time         :   none")
+        lines.append("Nfft         :   "+str(self.Nfft))
+        lines.append("misc         :   "+str(self.misc))
         if self.data is not None and len(self.data)>0:
-            print("data         :   "+str(self.data.shape))
+            lines.append("data         :   "+str(self.data.shape))
         else:
-            print("data         :   none")
-        print("")
-        return "<FFTData object>"
+            lines.append("data         :   none")
+        lines.append("")
+        return "<FFTData object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
 
     def __add__(f1,f2):
         """
@@ -499,46 +506,49 @@ class CorrData(object):
                 self.substack=True
         self.misc=misc
 
-    def __str__(self):
+    def __repr__(self):
         """
         Display key content of the object.
         """
-        print("type     :   "+str(self.type))
-        print("id       :   "+str(self.id))
-        print("net      :   "+str(self.net))
-        print("sta      :   "+str(self.sta))
-        print("loc      :   "+str(self.loc))
-        print("chan     :   "+str(self.chan))
-        print("lon      :   "+str(self.lon))
-        print("lat      :   "+str(self.lat))
-        print("ele      :   "+str(self.ele))
-        print("cc_comp  :   "+str(self.cc_comp))
-        print("lag      :   "+str(self.lag))
-        print("dt       :   "+str(self.dt))
-        print("cc_len   :   "+str(self.cc_len))
-        print("cc_step  :   "+str(self.cc_step))
-        print("dist     :   "+str(self.dist))
-        print("az       :   "+str(self.az))
-        print("baz      :   "+str(self.baz))
-        print("side     :   "+str(self.side))
+        lines = []
+        lines.append("type     :   "+str(self.type))
+        lines.append("id       :   "+str(self.id))
+        lines.append("net      :   "+str(self.net))
+        lines.append("sta      :   "+str(self.sta))
+        lines.append("loc      :   "+str(self.loc))
+        lines.append("chan     :   "+str(self.chan))
+        lines.append("lon      :   "+str(self.lon))
+        lines.append("lat      :   "+str(self.lat))
+        lines.append("ele      :   "+str(self.ele))
+        lines.append("cc_comp  :   "+str(self.cc_comp))
+        lines.append("lag      :   "+str(self.lag))
+        lines.append("dt       :   "+str(self.dt))
+        lines.append("cc_len   :   "+str(self.cc_len))
+        lines.append("cc_step  :   "+str(self.cc_step))
+        lines.append("dist     :   "+str(self.dist))
+        lines.append("az       :   "+str(self.az))
+        lines.append("baz      :   "+str(self.baz))
+        lines.append("side     :   "+str(self.side))
         if self.time is not None and len(self.time)>0:
             if self.substack:
-                print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+                lines.append("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
             else:
-                print("time     :   "+str(obspy.UTCDateTime(self.time)))
+                lines.append("time     :   "+str(obspy.UTCDateTime(self.time)))
         else:
-            print("time     :   none")
-        print("substack :   "+str(self.substack))
+            lines.append("time     :   none")
+        lines.append("substack :   "+str(self.substack))
         if self.stack_method is not None:
-            print("stack_method:"+str(self.stack_method))
+            lines.append("stack_method:"+str(self.stack_method))
         if self.data is not None:
-            print("data     :   "+str(self.data.shape))
-            print(str(self.data))
+            lines.append("data     :   "+str(self.data.shape))
+            lines.append(str(self.data))
         else:
-            print("data     :   none")
-        print("")
+            lines.append("data     :   none")
+        lines.append("")
 
-        return "<CorrData object>"
+        return "<CorrData object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
 
     def __add__(c1,c2):
         """
@@ -1660,72 +1670,75 @@ class DvvData(object):
         self.data2=data2
         self.misc=misc
 
-    def __str__(self):
+    def __repr__(self):
         """
         Display key content of the object.
         """
-        print("type     :   "+str(self.type))
-        print("id       :   "+str(self.id))
-        print("net      :   "+str(self.net))
-        print("sta      :   "+str(self.sta))
-        print("loc      :   "+str(self.loc))
-        print("chan     :   "+str(self.chan))
-        print("lon      :   "+str(self.lon))
-        print("lat      :   "+str(self.lat))
-        print("ele      :   "+str(self.ele))
-        print("cc_comp  :   "+str(self.cc_comp))
-        print("dt       :   "+str(self.dt))
-        print("dist     :   "+str(self.dist))
-        print("az       :   "+str(self.az))
-        print("baz      :   "+str(self.baz))
-        print("window   :   "+str(self.window))
-        print("normalize:   "+str(self.normalize))
-        print("method   :  "+str(self.method))
-        print("stack    :  "+str(self.stack_method))
-        print("misc     :   "+str(self.misc))
-        print("freq     :   "+str(self.freq))
-        print("subfreq  :   "+str(self.subfreq))
-        print("side     :   "+str(self.side))
+        lines = []
+        lines.append("type     :   "+str(self.type))
+        lines.append("id       :   "+str(self.id))
+        lines.append("net      :   "+str(self.net))
+        lines.append("sta      :   "+str(self.sta))
+        lines.append("loc      :   "+str(self.loc))
+        lines.append("chan     :   "+str(self.chan))
+        lines.append("lon      :   "+str(self.lon))
+        lines.append("lat      :   "+str(self.lat))
+        lines.append("ele      :   "+str(self.ele))
+        lines.append("cc_comp  :   "+str(self.cc_comp))
+        lines.append("dt       :   "+str(self.dt))
+        lines.append("dist     :   "+str(self.dist))
+        lines.append("az       :   "+str(self.az))
+        lines.append("baz      :   "+str(self.baz))
+        lines.append("window   :   "+str(self.window))
+        lines.append("normalize:   "+str(self.normalize))
+        lines.append("method   :  "+str(self.method))
+        lines.append("stack    :  "+str(self.stack_method))
+        lines.append("misc     :   "+str(self.misc))
+        lines.append("freq     :   "+str(self.freq))
+        lines.append("subfreq  :   "+str(self.subfreq))
+        lines.append("side     :   "+str(self.side))
 
         try:
-            print("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+            lines.append("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         except Exception as e:
-            print("time     :   None")
+            lines.append("time     :   None")
         if self.cc1 is not None:
-            print("cc1 [N]  :  "+str(self.cc1.shape))
+            lines.append("cc1 [N]  :  "+str(self.cc1.shape))
         else:
-            print("cc1 [N]:   none")
+            lines.append("cc1 [N]:   none")
         if self.cc2 is not None:
-            print("cc2 [P]  :  "+str(self.cc2.shape))
+            lines.append("cc2 [P]  :  "+str(self.cc2.shape))
         else:
-            print("cc2 [P]:   none")
+            lines.append("cc2 [P]:   none")
         if self.maxcc1 is not None:
-            print("maxcc1 [N]  :  "+str(self.maxcc1.shape))
+            lines.append("maxcc1 [N]  :  "+str(self.maxcc1.shape))
         else:
-            print("maxcc1 [N]:   none")
+            lines.append("maxcc1 [N]:   none")
         if self.maxcc2 is not None:
-            print("maxcc2 [P]  :  "+str(self.maxcc2.shape))
+            lines.append("maxcc2 [P]  :  "+str(self.maxcc2.shape))
         else:
-            print("maxcc2 [P]:   none")
+            lines.append("maxcc2 [P]:   none")
         if self.error1 is not None:
-            print("error1 [N]  :  "+str(self.error1.shape))
+            lines.append("error1 [N]  :  "+str(self.error1.shape))
         else:
-            print("error1 [N]:   none")
+            lines.append("error1 [N]:   none")
         if self.error2 is not None:
-            print("error2 [P]  :  "+str(self.error2.shape))
+            lines.append("error2 [P]  :  "+str(self.error2.shape))
         else:
-            print("error2 [P]:   none")
+            lines.append("error2 [P]:   none")
         if self.data1 is not None:
-            print("data1 [N]:   "+str(self.data1.shape))
+            lines.append("data1 [N]:   "+str(self.data1.shape))
         else:
-            print("data1 [N]:   none")
+            lines.append("data1 [N]:   none")
         if self.data2 is not None:
-            print("data2 [P]:   "+str(self.data2.shape))
+            lines.append("data2 [P]:   "+str(self.data2.shape))
         else:
-            print("data2 [P]:   none")
-        print("")
+            lines.append("data2 [P]:   none")
+        lines.append("")
 
-        return "<DvvData object>"
+        return "<DvvData object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
 
     ## method to get some info
     def get_info(self):
@@ -2166,35 +2179,38 @@ class HVSRData(object):
         self.id = f"{self.net}.{self.sta}.{self.loc}"
         self.misc = misc
 
-    def __str__(self):
+    def __repr__(self):
         """
         Display key content of the object.
         """
-        print("type     :   " + str(self.type))
-        print("id       :   " + str(self.id))
-        print("net      :   " + str(self.net))
-        print("sta      :   " + str(self.sta))
-        print("loc      :   " + str(self.loc))
-        print("lon      :   " + str(self.lon))
-        print("lat      :   " + str(self.lat))
-        print("ele      :   " + str(self.ele))
-        print("method   :   " + str(self.method))
-        print("freqmin  :   " + str(self.freqmin))
-        print("freqmax  :   " + str(self.freqmax))
-        print("win_len_s:   " + str(self.win_len_s))
-        print("step_s   :   " + str(self.step_s))
+        lines = []
+        lines.append("type     :   " + str(self.type))
+        lines.append("id       :   " + str(self.id))
+        lines.append("net      :   " + str(self.net))
+        lines.append("sta      :   " + str(self.sta))
+        lines.append("loc      :   " + str(self.loc))
+        lines.append("lon      :   " + str(self.lon))
+        lines.append("lat      :   " + str(self.lat))
+        lines.append("ele      :   " + str(self.ele))
+        lines.append("method   :   " + str(self.method))
+        lines.append("freqmin  :   " + str(self.freqmin))
+        lines.append("freqmax  :   " + str(self.freqmax))
+        lines.append("win_len_s:   " + str(self.win_len_s))
+        lines.append("step_s   :   " + str(self.step_s))
         if self.freqs is not None:
-            print("freqs    :   " + f"shape {self.freqs.shape}, range {self.freqs[0]:.3f} - {self.freqs[-1]:.3f} Hz")
+            lines.append("freqs    :   " + f"shape {self.freqs.shape}, range {self.freqs[0]:.3f} - {self.freqs[-1]:.3f} Hz")
         else:
-            print("freqs    :   None")
+            lines.append("freqs    :   None")
         if self.data is not None:
-            print("data     :   " + f"{self.data.shape}")
+            lines.append("data     :   " + f"{self.data.shape}")
         else:
-            print("data     :   None")
-        print("n_windows:   " + str(self.n_windows))
-        print("misc     :   " + str(self.misc))
-        print("")
-        return "<HVSRData object>"
+            lines.append("data     :   None")
+        lines.append("n_windows:   " + str(self.n_windows))
+        lines.append("misc     :   " + str(self.misc))
+        lines.append("")
+        return "<HVSRData object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
 
     def get_info(self):
         """
@@ -2442,3 +2458,535 @@ class Rotation(object):
         spectra.window = window
         spectra.overlap = overlap
         spectra.freq = freq
+
+################################################################
+######################## DISPERSION DATA ########################
+################################################################
+# DispData stores the output of a dispersion-measurement method (aftan(),
+# aftan_pmf(), and potentially others). The functions that actually PRODUCE DispData objects and the
+# free function that reads one back from an .h5 file (read_dispdata()) stay in
+# seisgo.dispersion.
+def _json_safe(obj):
+    """
+    Recursively convert numpy scalar/array types (which can leak into DispData's
+    `params` dict and `side` attribute from upstream dispersion-measurement code)
+    into native Python types, so the result is safe to json.dumps() for
+    DispData.save().
+    """
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return _json_safe(obj.tolist())
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    return obj
+
+
+class DispData(object):
+    """
+    Container for a surface-wave dispersion measurement. Meant to store the output of
+    any dispersion-measurement method in seisgo.dispersion (aftan(), aftan_pmf(), and
+    potentially others in the future), not just AFTAN specifically.
+
+    ===Attributes===
+    period: period vector (s), as sampled by the method that produced this object.
+    group_velocity: picked group velocity (km/s) for each period. NaN where no
+            acceptable pick could be made/tracked.
+    phase_velocity: picked phase velocity (km/s) for each period, when computed. NaN
+            (the whole array, if phase velocity was not requested/available) otherwise.
+    inst_period: instantaneous period (s) recovered from the local phase derivative at
+            the picked group-velocity arrival (slightly different from the nominal
+            filter period).
+    amplitude: envelope amplitude at the picked group-velocity arrival, for each period.
+    snr: estimated SNR (dB) of the picked arrival relative to the trailing noise window.
+    dist: source-receiver distance (km) used.
+    dt: sampling interval (s) of the analyzed waveform.
+    side: which lag ('p','n','sym', or as stored in the source CorrData) was analyzed.
+    method: name of the function that produced this object (e.g. 'aftan','aftan_pmf').
+    params: dict of the parameters the method was called with.
+    arrival_time,phase_pick: internal per-period group-arrival time (s) and measured
+            phase (rad) at that arrival; kept around because they are what
+            _phase_velocity() needs, and so phase velocity can be (re)computed later
+            (e.g. with a different reference curve) without rerunning the filtering.
+    envelope,phase_matrix: the full 2-D narrow-band-filtered envelope and unwrapped
+            phase matrices, shape (len(period), npts), i.e. one row per analyzed
+            period, one column per time sample of the analyzed waveform (see
+            _aftan_narrowband()) -- the same arrays group_velocity/phase_velocity were
+            picked from. Not just the single picked value per period: this is the full
+            time-period "image" needed to plot a classical AFTAN dispersion-energy
+            image (period/velocity vs. amplitude) or to do other image-based analysis
+            (e.g. multi-mode inspection, custom picking, ridge tracking). None unless
+            the method that produced this object was called with store_image=True
+            (the default in aftan()/aftan_pmf()). See get_image()/plot_image().
+    src_net,src_sta,src_lon,src_lat: network/station code and longitude/latitude (deg)
+            of the virtual source (station 1 of the pair). None if not supplied.
+    rcv_net,rcv_sta,rcv_lon,rcv_lat: network/station code and longitude/latitude (deg)
+            of the receiver (station 2 of the pair). None if not supplied.
+            These eight fields are optional, purely for bookkeeping -- nothing in the
+            group-/phase-velocity measurement itself uses them -- but they're what let
+            a DispData ensemble be turned into an eikonal-tomography phase-velocity
+            map (see seisgo.imaging.eikonal.eikonal_tomography()), which needs each
+            measurement tied back to actual station locations rather than only the
+            scalar `dist` used for the
+            dispersion picking itself. aftan()/aftan_pmf() populate these automatically
+            from `corrdata` (a seisgo.types.CorrData object stores exactly this as
+            net=[net1,net2],sta=[sta1,sta2],lon=[lon1,lon2],lat=[lat1,lat2]) when one is
+            given, or from the same-named keyword arguments when called with raw
+            data/dt/dist instead.
+    """
+    def __init__(self, period, group_velocity, amplitude, snr, inst_period, dist, dt, side,
+                 params, phase_velocity=None, method='aftan', arrival_time=None, phase_pick=None,
+                 envelope=None, phase_matrix=None,
+                 src_net=None, src_sta=None, src_lon=None, src_lat=None,
+                 rcv_net=None, rcv_sta=None, rcv_lon=None, rcv_lat=None):
+        self.type = 'Dispersion Data'
+        self.period = np.asarray(period, dtype=np.float64)
+        self.group_velocity = np.asarray(group_velocity, dtype=np.float64)
+        self.amplitude = np.asarray(amplitude, dtype=np.float64)
+        self.snr = np.asarray(snr, dtype=np.float64)
+        self.inst_period = np.asarray(inst_period, dtype=np.float64)
+        self.phase_velocity = np.full(len(self.period), np.nan) if phase_velocity is None \
+                                else np.asarray(phase_velocity, dtype=np.float64)
+        self.dist = dist
+        self.dt = dt
+        self.side = side
+        self.method = method
+        self.params = params
+        self.arrival_time = arrival_time
+        self.phase_pick = phase_pick
+        self.envelope = None if envelope is None else np.asarray(envelope, dtype=np.float64)
+        self.phase_matrix = None if phase_matrix is None else np.asarray(phase_matrix, dtype=np.float64)
+        self.src_net = src_net
+        self.src_sta = src_sta
+        self.src_lon = src_lon
+        self.src_lat = src_lat
+        self.rcv_net = rcv_net
+        self.rcv_sta = rcv_sta
+        self.rcv_lon = rcv_lon
+        self.rcv_lat = rcv_lat
+
+    def __repr__(self):
+        """
+        Display key content of the object, formatted the same way as
+        seisgo.types.CorrData.__str__() (one "label     :   value" line per
+        attribute) -- but, unlike that method, built and returned as a single
+        string rather than emitted via embedded print() calls. That's what makes
+        typing a bare object name at a REPL/notebook prompt show the formatted
+        block: Python calls __repr__() (not __str__()) to display a bare
+        expression's result, so the formatting has to actually be the *returned*
+        string, not a side effect of calling the method. __str__ is aliased to
+        this same method below, so print(d) and str(d) show identical output too.
+        """
+        n = len(self.period) if self.period is not None else 0
+        ng = int(np.sum(~np.isnan(self.group_velocity))) if self.group_velocity is not None else 0
+        npv = int(np.sum(~np.isnan(self.phase_velocity))) if self.phase_velocity is not None else 0
+        lines = []
+        lines.append("type          :   " + str(self.type))
+        lines.append("method        :   " + str(self.method))
+        if self.src_sta is not None or self.rcv_sta is not None:
+            src_id = "%s.%s" % (self.src_net, self.src_sta) if self.src_sta is not None else "?"
+            rcv_id = "%s.%s" % (self.rcv_net, self.rcv_sta) if self.rcv_sta is not None else "?"
+            lines.append("pair          :   %s -> %s" % (src_id, rcv_id))
+        lines.append("dist          :   " + str(self.dist))
+        lines.append("dt            :   " + str(self.dt))
+        lines.append("side          :   " + str(self.side))
+        if n > 0:
+            lines.append("period        :   " + str(self.period.shape) + "  (%.3g to %.3g s)" %
+                          (np.nanmin(self.period), np.nanmax(self.period)))
+        else:
+            lines.append("period        :   none")
+        lines.append("group_velocity:   %d/%d valid pick(s)" % (ng, n))
+        lines.append("phase_velocity:   %d/%d valid pick(s)" % (npv, n))
+        if self.snr is not None and len(self.snr) > 0 and np.any(~np.isnan(self.snr)):
+            lines.append("snr           :   min=%.2f, max=%.2f dB" %
+                          (np.nanmin(self.snr), np.nanmax(self.snr)))
+        else:
+            lines.append("snr           :   none")
+        lines.append("envelope      :   " + (str(self.envelope.shape) if self.envelope is not None else "none"))
+        lines.append("phase_matrix  :   " + (str(self.phase_matrix.shape) if self.phase_matrix is not None else "none"))
+        lines.append("params        :   " + str(self.params))
+        return "<DispData object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
+
+    def to_dataframe(self):
+        """
+        Return the dispersion measurements as a pandas DataFrame.
+        """
+        return pd.DataFrame({"period": self.period, "group_velocity": self.group_velocity,
+                              "phase_velocity": self.phase_velocity, "inst_period": self.inst_period,
+                              "amplitude": self.amplitude, "snr": self.snr})
+
+    def plot(self, ax=None, snr_min=None, show='both', figsize=(6, 4.5), **kwargs):
+        """
+        Quick-look plot of the dispersion curve(s).
+
+        ===PARAMETERS===
+        ax: existing matplotlib Axes to plot into. default None: creates a new figure.
+        snr_min: if given, mask (as gaps) periods with snr below this threshold (dB).
+        show: 'group','phase', or 'both' [default].
+        figsize: figure size when a new figure is created.
+        kwargs: passed to ax.plot().
+
+        ===RETURNS===
+        ax: the matplotlib Axes used.
+        """
+        show_fig = False
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+            show_fig = True
+        mask = self.snr >= snr_min if snr_min is not None else np.ones(len(self.period), dtype=bool)
+        if show.lower() in ('group', 'both'):
+            v = np.where(mask, self.group_velocity, np.nan)
+            ax.plot(self.period, v, '-o', ms=3, label='group velocity', **kwargs)
+        if show.lower() in ('phase', 'both'):
+            c = np.where(mask, self.phase_velocity, np.nan)
+            if np.any(~np.isnan(c)):
+                ax.plot(self.period, c, '-s', ms=3, label='phase velocity', **kwargs)
+        ax.set_xlabel('Period (s)')
+        ax.set_ylabel('Velocity (km/s)')
+        ax.set_title('%s dispersion: dist=%.1f km, side=%s' % (self.method, self.dist, str(self.side)))
+        ax.legend()
+        if show_fig:
+            plt.show()
+        return ax
+
+    def get_image(self, vmin=None, vmax=None, dv=0.02, normalize=True, normalize_mode='peak'):
+        """
+        Resample the stored envelope matrix from (period,time) onto (period,group
+        velocity), i.e. build the classical AFTAN dispersion-energy image. Requires
+        this object to have been created with store_image=True (the default).
+
+        ===PARAMETERS===
+        vmin,vmax: group-velocity axis range (km/s). default None: taken from
+                self.params['vmin']/['vmax'] (the search range used when this object
+                was created).
+        dv: velocity-axis sampling step (km/s). default 0.02.
+        normalize: normalize each period's (row's) energy, as is conventional for
+                an AFTAN image. default True.
+        normalize_mode: 'peak' [default] -- normalize each row by its largest
+                GENUINE interior local maximum (a sample strictly greater than
+                both neighbors), i.e. exactly the kind of peak
+                _pick_group_velocity() itself would consider a real detection;
+                falls back to the row's plain maximum only for a row with no
+                interior local max at all (purely monotonic across the window).
+                'max' -- the original, naive per-row maximum; kept for comparison/
+                backward compatibility.
+
+                Why this matters: a real ambient-noise correlation's near-zero-lag
+                samples often carry a large, non-physical pulse (direct-wave
+                leakage, cross-talk, instrument coupling -- not surface-wave
+                energy) whose envelope can still be substantial all the way out
+                to the fast (vmax) edge of the plotted window, without ever
+                forming an interior peak there (it's still rising/falling *into*
+                the edge, not peaking inside [vmin,vmax]). With mode='max' that
+                edge value sets the entire row's color scale, making the real,
+                smaller-but-genuine picked peak elsewhere in the row look
+                artificially dim -- so the picked curve can appear to run
+                through a "faint" part of the image even though it's correctly
+                sitting on the actual local maximum (this is what
+                _pick_group_velocity()'s own boundary-pick-rejection logic
+                already excludes when picking, so mode='peak' just makes the
+                *displayed* color scale consistent with what the curve was
+                actually picked against). Values at a genuinely monotonic edge
+                can end up >1 after mode='peak' normalization -- see
+                plot_image(), which clips the color scale to [0,1] so such
+                samples simply saturate rather than washing out the row's real
+                peak.
+
+        ===RETURNS===
+        vgrid: the group-velocity axis (km/s).
+        image: 2-D array, shape (len(self.period), len(vgrid)).
+        """
+        if self.envelope is None:
+            raise ValueError("This DispData has no stored envelope matrix -- create it with "
+                              "aftan()/aftan_pmf()'s default store_image=True.")
+        npts = self.envelope.shape[1]
+        t = np.arange(npts) * self.dt
+        if vmin is None:
+            vmin = self.params.get('vmin', 1.0)
+        if vmax is None:
+            vmax = self.params.get('vmax', 5.0)
+        vgrid = np.arange(vmin, vmax + 0.5 * dv, dv)
+        tgrid = self.dist / vgrid  # time corresponding to each velocity sample
+        image = np.full((len(self.period), len(vgrid)), np.nan)
+        for i in range(len(self.period)):
+            valid = (tgrid >= t[0]) & (tgrid <= t[-1])
+            image[i, valid] = np.interp(tgrid[valid], t, self.envelope[i])
+        if normalize:
+            if normalize_mode == 'peak':
+                row_peak = np.full(image.shape[0], np.nan)
+                for i in range(image.shape[0]):
+                    row = image[i]
+                    finite = np.isfinite(row)
+                    if finite.sum() < 3:
+                        row_peak[i] = np.nanmax(row) if np.any(finite) else np.nan
+                        continue
+                    inner = np.arange(1, len(row) - 1)
+                    inner = inner[finite[inner] & finite[inner - 1] & finite[inner + 1]]
+                    is_local_max = (row[inner] > row[inner - 1]) & (row[inner] > row[inner + 1])
+                    local_max_vals = row[inner[is_local_max]]
+                    # no genuine interior peak (row is monotonic across the window):
+                    # nothing better to normalize by than the plain max.
+                    row_peak[i] = np.max(local_max_vals) if len(local_max_vals) > 0 else np.nanmax(row)
+                row_peak = row_peak[:, None]
+            else:
+                row_peak = np.nanmax(image, axis=1, keepdims=True)
+            row_peak[~(row_peak > 0)] = 1.0
+            image = image / row_peak
+        return vgrid, image
+
+    def plot_image(self, ax=None, vmin=None, vmax=None, dv=0.02, cmap='jet',
+                    normalize=True, normalize_mode='peak',
+                    overlay_curve=True, snr_min=None, figsize=(7, 5)):
+        """
+        Plot the classical AFTAN dispersion-energy image (period vs. group velocity,
+        colored by normalized narrow-band envelope amplitude), optionally overlaid
+        with the picked group-velocity (and, if available, phase-velocity) curve(s).
+        Requires this object to have been created with store_image=True (the default).
+
+        ===PARAMETERS===
+        ax: existing matplotlib Axes to plot into. default None: creates a new figure.
+        vmin,vmax,dv: passed to get_image().
+        cmap: colormap. default 'jet' (the conventional AFTAN-image colormap).
+        normalize,normalize_mode: passed to get_image() -- see that method's
+                docstring for why normalize_mode='peak' (the default) makes this
+                plot's color scale consistent with what was actually picked,
+                rather than dominated by a non-physical near-zero-lag pulse's
+                tail bleeding into the vmax edge. When normalize=True, the color
+                scale is also explicitly clipped to [0,1] below, so any row's
+                edge-of-window sample that still exceeds its own interior peak
+                (an unremoved monotonic contamination) simply saturates instead
+                of stretching the colorbar and dimming everything else.
+        overlay_curve: overlay the picked group_velocity (and phase_velocity, if any
+                valid values exist) curve(s) on top of the image. default True.
+        snr_min: if given, mask (as gaps) overlaid-curve periods with snr below this
+                threshold (dB).
+        figsize: figure size when a new figure is created.
+
+        ===RETURNS===
+        ax: the matplotlib Axes used.
+        """
+        vgrid, image = self.get_image(vmin=vmin, vmax=vmax, dv=dv, normalize=normalize,
+                                       normalize_mode=normalize_mode)
+        show_fig = False
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+            show_fig = True
+        color_kw = dict(vmin=0, vmax=1) if normalize else {}
+        pc = ax.pcolormesh(self.period, vgrid, image.T, shading='auto', cmap=cmap, **color_kw)
+        plt.colorbar(pc, ax=ax, label='normalized amplitude' if normalize else 'amplitude')
+        if overlay_curve:
+            mask = self.snr >= snr_min if snr_min is not None else np.ones(len(self.period), dtype=bool)
+            gv = np.where(mask, self.group_velocity, np.nan)
+            ax.plot(self.period, gv, 'w--', lw=1.2, label='group velocity')
+            pv = np.where(mask, self.phase_velocity, np.nan)
+            if np.any(~np.isnan(pv)):
+                ax.plot(self.period, pv, 'k:', lw=1.2, label='phase velocity')
+            ax.legend(loc='best')
+        ax.set_xlabel('Period (s)')
+        ax.set_ylabel('Group velocity (km/s)')
+        ax.set_title('%s dispersion image: dist=%.1f km, side=%s' % (self.method, self.dist, str(self.side)))
+        if show_fig:
+            plt.show()
+        return ax
+
+    def save(self, filename, overwrite=True):
+        """
+        Save this DispData to a self-contained HDF5 file: the picked-curve arrays,
+        distance/sampling metadata, the full `params` dict the producing method
+        (aftan()/aftan_pmf()/...) was called with, and -- when present -- the full
+        envelope/phase_matrix dispersion image. Meant for batch dispersion runs over
+        many station pairs, where results are written to disk (one file per pair)
+        rather than kept in memory; reload with read_dispdata() (a module-level
+        function, not a method of this class -- see its docstring).
+
+        ===PARAMETERS===
+        filename: output .h5 path. Its parent directory is created if missing.
+        overwrite: if False and `filename` already exists, raise FileExistsError
+                instead of silently overwriting it. default True.
+        """
+        if not overwrite and os.path.exists(filename):
+            raise FileExistsError("%s already exists (overwrite=False)." % filename)
+        outdir = os.path.dirname(os.path.abspath(filename))
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+        with h5py.File(filename, 'w') as f:
+            f.attrs['dist'] = float(self.dist) if self.dist is not None else np.nan
+            f.attrs['dt'] = float(self.dt) if self.dt is not None else np.nan
+            f.attrs['method'] = self.method if self.method is not None else ''
+            # side/params can hold None/nested values h5py attrs can't store directly
+            # (and params may carry numpy scalars from upstream code) -- JSON-encode
+            # both, converting numpy types to native Python first.
+            f.attrs['side_json'] = json.dumps(_json_safe(self.side))
+            f.attrs['params_json'] = json.dumps(_json_safe(self.params))
+            # station-pair metadata (all optional -- see DispData's docstring); stored
+            # as one JSON blob rather than individual attrs since several entries are
+            # commonly None (net/sta strings, or lon/lat when unavailable).
+            f.attrs['station_json'] = json.dumps(_json_safe({
+                'src_net': self.src_net, 'src_sta': self.src_sta,
+                'src_lon': self.src_lon, 'src_lat': self.src_lat,
+                'rcv_net': self.rcv_net, 'rcv_sta': self.rcv_sta,
+                'rcv_lon': self.rcv_lon, 'rcv_lat': self.rcv_lat}))
+            for name in ('period', 'group_velocity', 'phase_velocity', 'amplitude', 'snr',
+                         'inst_period', 'arrival_time', 'phase_pick'):
+                arr = getattr(self, name)
+                if arr is None:
+                    continue
+                f.create_dataset(name, data=np.asarray(arr, dtype=np.float64))
+            for name in ('envelope', 'phase_matrix'):
+                arr = getattr(self, name)
+                if arr is not None:
+                    f.create_dataset(name, data=np.asarray(arr, dtype=np.float64),
+                                      compression='gzip', compression_opts=4)
+
+
+class PhaseVelocityMap(object):
+    """
+    Container for the output of seisgo.imaging.eikonal.eikonal_tomography():
+    gridded phase- or group-velocity maps as a function of period, assembled by
+    stacking many per-virtual-source eikonal travel-time-gradient maps built from
+    an ensemble of DispData station-pair dispersion measurements. See
+    eikonal_tomography()'s own docstring for the full method description.
+
+    ===Attributes===
+    period: 1-D period vector (s).
+    lon_grid,lat_grid: 1-D grid coordinate vectors (deg).
+    velocity: 3-D array, shape (len(period), len(lat_grid), len(lon_grid)) --
+            the stacked (mean-across-sources) phase or group velocity (km/s) at
+            each grid node/period. NaN where fewer than `min_sources_per_node`
+            sources contributed a valid value.
+    uncertainty: same shape as velocity -- the standard deviation across
+            contributing sources at each grid node/period (NaN wherever velocity
+            is NaN). Small does not by itself mean "well-resolved" if n_sources
+            there is also small (or, worse, 1) -- always check both together.
+    n_sources: same shape, int -- the number of independent virtual sources that
+            contributed a valid value at each grid node/period; the main
+            azimuthal-coverage/reliability diagnostic (see eikonal_tomography()'s
+            docstring).
+    vtype: 'phase' or 'group'.
+    method: name of the function that produced this object (currently always
+            'eikonal').
+    params: dict of the parameters eikonal_tomography() was called with.
+    """
+    def __init__(self, period, lon_grid, lat_grid, velocity, uncertainty, n_sources,
+                 vtype='phase', method='eikonal', params=None):
+        self.type = 'Phase Velocity Map'
+        self.period = np.asarray(period, dtype=np.float64)
+        self.lon_grid = np.asarray(lon_grid, dtype=np.float64)
+        self.lat_grid = np.asarray(lat_grid, dtype=np.float64)
+        self.velocity = np.asarray(velocity, dtype=np.float64)
+        self.uncertainty = np.asarray(uncertainty, dtype=np.float64)
+        self.n_sources = np.asarray(n_sources, dtype=np.int32)
+        self.vtype = vtype
+        self.method = method
+        self.params = params if params is not None else {}
+
+    def __repr__(self):
+        nper = len(self.period)
+        nlat, nlon = len(self.lat_grid), len(self.lon_grid)
+        valid_frac = (np.mean(np.isfinite(self.velocity)) if self.velocity.size else 0.0)
+        lines = []
+        lines.append("type          :   " + str(self.type))
+        lines.append("method        :   " + str(self.method))
+        lines.append("vtype         :   " + str(self.vtype))
+        if nper > 0:
+            lines.append("period        :   (%d,)  (%.3g to %.3g s)" %
+                          (nper, np.nanmin(self.period), np.nanmax(self.period)))
+        else:
+            lines.append("period        :   none")
+        lines.append("grid          :   %d lat x %d lon  (lon %.3f to %.3f, lat %.3f to %.3f)" %
+                      (nlat, nlon, np.nanmin(self.lon_grid), np.nanmax(self.lon_grid),
+                       np.nanmin(self.lat_grid), np.nanmax(self.lat_grid)))
+        lines.append("velocity      :   %s  (%.1f%% of nodes valid)" %
+                      (str(self.velocity.shape), 100.0 * valid_frac))
+        if np.any(self.n_sources > 0):
+            lines.append("n_sources     :   min=%d max=%d (at valid nodes)" %
+                          (int(np.min(self.n_sources[self.n_sources > 0])),
+                           int(np.max(self.n_sources))))
+        else:
+            lines.append("n_sources     :   none")
+        lines.append("params        :   " + str(self.params))
+        return "<PhaseVelocityMap object>\n" + "\n".join(lines)
+
+    __str__ = __repr__
+
+    def period_index(self, period):
+        """Index into self.period nearest the requested `period` (s)."""
+        return int(np.argmin(np.abs(self.period - period)))
+
+    def plot(self, period, ax=None, cmap='viridis_r', vmin=None, vmax=None,
+              show_coverage=True, min_sources=1, figsize=(7, 5.5)):
+        """
+        Map view of the stacked velocity at the period nearest `period`.
+
+        ===PARAMETERS===
+        period: target period (s); the nearest available period is used (see
+                period_index()).
+        ax: existing matplotlib Axes. default None: creates a new figure.
+        cmap,vmin,vmax: passed to pcolormesh.
+        show_coverage: overlay a contour at n_sources==min_sources-0.5, marking
+                the boundary of the region with at least `min_sources`
+                contributing virtual sources. default True.
+        min_sources: coverage-contour threshold (see show_coverage). default 1.
+        figsize: figure size when a new figure is created.
+
+        ===RETURNS===
+        ax: the matplotlib Axes used.
+        """
+        ip = self.period_index(period)
+        show_fig = False
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+            show_fig = True
+        pc = ax.pcolormesh(self.lon_grid, self.lat_grid, self.velocity[ip], shading='auto',
+                            cmap=cmap, vmin=vmin, vmax=vmax)
+        plt.colorbar(pc, ax=ax, label='%s velocity (km/s)' % self.vtype)
+        if show_coverage:
+            cov = self.n_sources[ip].astype(np.float64)
+            if np.any(cov >= min_sources) and np.any(cov < min_sources):
+                ax.contour(self.lon_grid, self.lat_grid, cov, levels=[min_sources - 0.5],
+                           colors='k', linewidths=0.8)
+        ax.set_xlabel('Longitude')
+        ax.set_ylabel('Latitude')
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_title('Eikonal %s-velocity map: T=%.2f s (nearest to requested %.2f s)' %
+                      (self.vtype, self.period[ip], period))
+        if show_fig:
+            plt.show()
+        return ax
+
+    def save(self, filename, overwrite=True):
+        """
+        Save to a self-contained HDF5 file. Reload with
+        seisgo.imaging.eikonal.read_phase_velocity_map().
+
+        ===PARAMETERS===
+        filename: output .h5 path. Its parent directory is created if missing.
+        overwrite: if False and `filename` already exists, raise FileExistsError.
+                default True.
+        """
+        if not overwrite and os.path.exists(filename):
+            raise FileExistsError("%s already exists (overwrite=False)." % filename)
+        outdir = os.path.dirname(os.path.abspath(filename))
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+        with h5py.File(filename, 'w') as f:
+            f.attrs['vtype'] = self.vtype
+            f.attrs['method'] = self.method
+            f.attrs['params_json'] = json.dumps(_json_safe(self.params))
+            f.create_dataset('period', data=self.period)
+            f.create_dataset('lon_grid', data=self.lon_grid)
+            f.create_dataset('lat_grid', data=self.lat_grid)
+            f.create_dataset('velocity', data=self.velocity, compression='gzip', compression_opts=4)
+            f.create_dataset('uncertainty', data=self.uncertainty, compression='gzip',
+                              compression_opts=4)
+            f.create_dataset('n_sources', data=self.n_sources, compression='gzip',
+                              compression_opts=4)
+
