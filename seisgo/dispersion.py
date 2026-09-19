@@ -116,7 +116,7 @@ def narrowband_waveforms(d, dt,pmin,pmax,dp=1,pscale='ln',extend=10):
     pout = 1/fout
     return dout, pout
 ##
-def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
+def ensemble_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
                         verbose=False,min_trace=5,min_wavelength=1.5,energy_type='power_sum',get_best_v=False,
                         plot=False,figsize=None,cmap='jet',clim=[0,1]):
     """
@@ -319,6 +319,9 @@ def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='
         return dout,vout,pout,best_v
     else:
         return dout,vout,pout
+
+# for backwards compatibility with the old name
+get_dispersion_image = ensemble_dispersion_image
 
 def forward_solver(vs, periods, thickness, wave_type='rayleigh', mode=1, velocity_type='group'):
     """
@@ -863,7 +866,8 @@ def _parabolic_peak(y, i):
 
 
 def _pick_group_velocity(envelope, phase, periods, dt, dist, vmin, vmax,
-                          snr_min=5.0, vg_step_max=0.5, noise_window=100.0, piover4=1.0):
+                          snr_min=5.0, vg_step_max=0.5, noise_window=100.0, piover4=1.0,
+                          ref_period=None, ref_velocity=None, ref_tol=None):
     """
     Pick and track the group-velocity dispersion curve from the narrow-band envelopes,
     scanning periods from long to short and favoring continuity (bounded group-velocity
@@ -915,6 +919,31 @@ def _pick_group_velocity(envelope, phase, periods, dt, dist, vmin, vmax,
     unambiguous SNR is far less likely to be sitting on a spurious peak in the
     first place, and both expansion directions inherit that good starting point
     instead of only one direction ever seeing it.
+
+    ===REFERENCE-GUIDED MODE (ref_period/ref_velocity)===
+    When a reference dispersion curve is supplied, tracking is not done at all --
+    ANCHOR-AND-CONTINUITY TRACKING IS BYPASSED ENTIRELY, and each period is instead
+    picked INDEPENDENTLY as whichever candidate lies closest to the reference
+    curve's own (spline-interpolated) velocity at that period, within `ref_tol`
+    (falling back to the single closest candidate, even if outside `ref_tol`, only
+    when nothing at all is within tolerance -- so periods with no plausible match
+    still get *something* rather than a silent gap, exactly as a poor-continuity
+    step previously fell back to "closest available" rather than leaving a gap).
+    This exists for aftan_pmf()'s second pass, where a decent preliminary curve is
+    already in hand and the real risk is different from plain aftan()'s: the
+    phase-matched-filtered/re-dispersed waveform can carry many small sidelobe
+    ripples (an artifact of isolating and re-dispersing a windowed compact pulse),
+    which continuity-based tracking can latch onto and never escape if the TRUE
+    dispersion curve has a jump anywhere close to vg_step_max (verified on real
+    data: a genuine ~0.28 km/s jump around period ~1.5s, comfortably tracked by
+    plain aftan() on the raw envelope, permanently derailed the continuity tracker
+    on the PMF-cleaned envelope, which offered a chain of tiny sidelobe candidates
+    within vg_step_max of each other at every period, so the tracker never even
+    attempted the jump back to the true, far larger-amplitude peak -- picking a
+    curve pinned near the noise floor for the entire band). Guiding every pick by
+    the already-known-decent reference curve sidesteps this class of failure
+    entirely, since each period's choice no longer depends on where the previous
+    (possibly already-wrong) pick landed.
 
     ===RETURNS===
     grvel,amp,snr,instper,arrival_time,phase_pick: 1-D arrays (len(periods)), in the
@@ -1014,6 +1043,57 @@ def _pick_group_velocity(envelope, phase, periods, dt, dist, vmin, vmax,
     # anchor scan below and the tracking pass, so no window/peak/SNR work is
     # ever repeated for a given period.
     cand_cache = [_candidates(idx) for idx in range(nper)]
+
+    # 0. Reference-guided mode: pick each period independently against a supplied
+    # reference curve instead of anchor-and-continuity tracking. See this
+    # function's docstring ("REFERENCE-GUIDED MODE") for why this exists.
+    if ref_period is not None and ref_velocity is not None and len(ref_period) >= 2:
+        rp_arr = np.asarray(ref_period, dtype=np.float64)
+        rv_arr = np.asarray(ref_velocity, dtype=np.float64)
+        srt = np.argsort(rp_arr)
+        rp_s, rv_s = rp_arr[srt], rv_arr[srt]
+        ref_spl = CubicSpline(rp_s, rv_s, extrapolate=True)
+        tol = ref_tol if ref_tol is not None else max(3.0 * vg_step_max, 0.5)
+
+        def _pick_guided(idx):
+            cand = cand_cache[idx]
+            if cand is None:
+                return
+            cand_t, cand_a, cand_snr, cand_delta, cand_v, local_idx = cand
+            vref = float(ref_spl(np.clip(periods[idx], rp_s[0], rp_s[-1])))
+            dv = np.abs(cand_v - vref)
+            good = np.where(dv <= tol)[0]
+            if len(good) == 0:
+                sel = int(np.argmin(dv))  # nothing within tolerance: closest anyway
+            elif len(good) == 1:
+                sel = good[0]
+            else:
+                # multiple candidates within tolerance: prefer the largest-amplitude
+                # one among them (closeness to the reference already screened out
+                # the far, spurious branch; amplitude is the right tiebreaker among
+                # what remains, same preference plain aftan()'s anchor pick uses).
+                sel = good[np.argmax(cand_a[good])]
+
+            grvel[idx] = cand_v[sel]
+            amp[idx] = cand_a[sel]
+            snr[idx] = cand_snr[sel]
+            arrival_time[idx] = cand_t[sel]
+
+            p = periods[idx]
+            pha = phase[idx]
+            li_pick = local_idx[sel]
+            if 0 < li_pick < npts - 1:
+                dphidt = (pha[li_pick + 1] - pha[li_pick - 1]) / (2 * dt)
+                phase_at_sample = pha[li_pick] + dphidt * cand_delta[sel] * dt
+            else:
+                dphidt = 2 * np.pi / p
+                phase_at_sample = pha[li_pick]
+            instper[idx] = 2 * np.pi / abs(dphidt) if dphidt != 0 else p
+            phase_pick[idx] = phase_at_sample + piover4 * np.pi / 4.0
+
+        for idx in range(nper):
+            _pick_guided(idx)
+        return grvel, amp, snr, instper, arrival_time, phase_pick
 
     # 1. Pick the tracking ANCHOR: the period with the single highest-SNR
     # candidate anywhere in the range (preferred), or, only if literally no
@@ -1634,6 +1714,7 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
               min_wavelengths=1.0, far_field_vel=None,
               filter_method='bandpass', pband_extend=5, filter_corners=4,
               pulse_min_ratio=0.05, pulse_taper_frac=0.05, store_image=True, verbose=False,
+              guided_pick=True, ref_tol=None,
               src_net=None, src_sta=None, src_lon=None, src_lat=None,
               rcv_net=None, rcv_sta=None, rcv_lon=None, rcv_lat=None):
     """
@@ -1701,6 +1782,24 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
             aftan()'s store_image for details. The internal preliminary aftan() call
             (when used) never stores its own image, regardless of this setting.
     verbose: print progress/one-line summaries. default False.
+    guided_pick: pick the final, PMF-cleaned dispersion curve by guiding each
+            period's choice with the preliminary/reference curve (rp,rv above),
+            instead of re-running the same anchor-and-continuity tracker aftan()
+            uses on raw data. default True -- see _pick_group_velocity()'s
+            "REFERENCE-GUIDED MODE" docstring section for why this matters here
+            specifically: the phase-matched-filtered/re-dispersed waveform can
+            carry small sidelobe ripples that a continuity tracker can lock onto
+            and never escape if the true curve has a jump anywhere near
+            vg_step_max, silently pinning the whole curve near the noise floor.
+            Set False to fall back to the old continuity-tracked behavior (e.g.
+            for comparison, or if you have reason to distrust the preliminary
+            curve more than usual).
+    ref_tol: when guided_pick=True, the maximum allowed deviation (km/s) between a
+            period's picked velocity and the reference curve's own value there.
+            default None: uses max(3*vg_step_max, 0.5) km/s -- generous enough to
+            let PMF recover real, sharper local detail than the (possibly
+            smoothed) reference curve, while still ruling out a spurious branch
+            that continuity tracking alone could have wandered onto.
 
     ===RETURNS===
     result: a DispData object (method='aftan_pmf') with the refined group- (and,
@@ -1778,7 +1877,7 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
     # 4. build + apply the phase-matched filter, isolate the compact pulse, and
     #    re-disperse it so the standard narrow-band AFTAN can be re-run on it.
     compressed, dphi, posmask, nfftused, t_ref = _phase_match_filter(d, dt, dist, rp, rv, pmin, pmax, nfft=nfft)
-    print(t_ref)
+
     # keep the pulse search anchored near where the filter was designed to compress
     # energy to (t_ref), not an unconstrained global search -- on real/noisy data the
     # single largest envelope sample in the whole record need not be the true compact
@@ -1803,7 +1902,9 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
         envelope, phase = _aftan_narrowband(cleaned, dt, periods, alpha=alpha, nfft=nfft)
     grvel, amp, snr, instper, arrtime, phpick = _pick_group_velocity(
         envelope, phase, periods, dt, dist, vmin, vmax,
-        snr_min=snr_min, vg_step_max=vg_step_max, noise_window=noise_window, piover4=piover4)
+        snr_min=snr_min, vg_step_max=vg_step_max, noise_window=noise_window, piover4=piover4,
+        ref_period=rp if guided_pick else None, ref_velocity=rv if guided_pick else None,
+        ref_tol=ref_tol)
 
     # 5b. near-field guard (same as aftan(); see there for details) -- done before
     # phase velocity so a discarded period is never used as its anchor.
@@ -1835,7 +1936,8 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
                   pulse_taper_frac=pulse_taper_frac, sym_weighted=sym_weighted,
                   sym_max_vel=sym_max_vel, min_wavelengths=min_wavelengths,
                   far_field_vel=far_field_vel, filter_method=filter_method,
-                  pband_extend=pband_extend, filter_corners=filter_corners)
+                  pband_extend=pband_extend, filter_corners=filter_corners,
+                  guided_pick=guided_pick, ref_tol=ref_tol)
     result = DispData(periods, grvel, amp, snr, instper, dist, dt, side, params,
                        phase_velocity=phvel, method='aftan_pmf', arrival_time=arrtime, phase_pick=phpick,
                        envelope=envelope if store_image else None,
