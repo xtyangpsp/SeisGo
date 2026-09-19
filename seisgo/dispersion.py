@@ -1252,7 +1252,25 @@ def _phase_match_filter(data, dt, dist, ref_period, ref_velocity, pmin, pmax, nf
     intphase = np.empty_like(om_pos)
     intphase[o_order] = intphase_s
 
-    t_ref = float(np.mean(tau))  # compress the pulse to sit near this reference time
+    # Reference time to compress the pulse onto: the group delay averaged over a
+    # grid of periods evenly spaced in log(period) across [pmin,pmax] -- NOT an
+    # average over FFT frequency bins (even restricted to the passband, as an
+    # earlier version of this fix did). FFT bins are spaced linearly in FREQUENCY,
+    # so converting to period (period=1/freq, a 1/x map) packs vastly more bins
+    # into the short-period end of any fixed period range than the long-period end
+    # (e.g. for pmin=1s, pmax=10s, the sub-band from 1-2s alone contains far more
+    # FFT bins than the whole 5-10s range). A per-bin average -- weighted by `band`
+    # or not -- is therefore dominated by the short-period/slow-velocity end almost
+    # regardless of band shape, pulling t_ref toward dist/vg(short period) rather
+    # than a value representative of the whole analyzed band (this was confirmed
+    # numerically: t_ref computed the band-weighted-FFT-bin way came out close to
+    # dist/vg(pmin) even when the band's OWN velocities spanned a much faster range
+    # at longer periods). Building an explicit, evenly-log-spaced period grid and
+    # averaging the reference curve there sidesteps FFT bin density entirely and
+    # gives a t_ref genuinely representative of the analyzed period range.
+    p_ref_grid = np.exp(np.linspace(np.log(pmin), np.log(pmax), 200))
+    vg_ref_grid = spl(np.clip(p_ref_grid, rp[0], rp[-1]))
+    t_ref = float(np.mean(dist / vg_ref_grid))
     dphi = intphase - t_ref * om_pos
     band = _band_taper(per_pos, pmin, pmax)
 
@@ -1760,6 +1778,7 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
     # 4. build + apply the phase-matched filter, isolate the compact pulse, and
     #    re-disperse it so the standard narrow-band AFTAN can be re-run on it.
     compressed, dphi, posmask, nfftused, t_ref = _phase_match_filter(d, dt, dist, rp, rv, pmin, pmax, nfft=nfft)
+    print(t_ref)
     # keep the pulse search anchored near where the filter was designed to compress
     # energy to (t_ref), not an unconstrained global search -- on real/noisy data the
     # single largest envelope sample in the whole record need not be the true compact
@@ -2048,7 +2067,7 @@ def plot_dispersion_matrix(assembled, ax=None, mode='lines', color_by='dist', cm
 
 
 ################################################################
-############## CONNECTOR TO seisgo.dispersion INVERSION ##############
+############## CONNECTOR TO INVERSION ##############
 ################################################################
 def dispersion_to_1d_model(disp, thickness, initial_vs, vtype='group', wave_type='rayleigh',
                             mode=1, iterations=8, damp=0.1, smooth=0.5, maxdv=0.02,
