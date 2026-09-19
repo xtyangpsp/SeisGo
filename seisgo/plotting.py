@@ -1165,8 +1165,12 @@ def plot_xcorr_moveout_wiggle(CCFDIR,sta,freq,ccomp,scale=1.0,lag=None,\
                 plt.plot(tt,scale[f]*tdata+dist[i2],'k',linewidth=0.8,alpha=0.75)
                 
         # set title and axis labels
-        stemp=figlabels[f].lower()   
-        plt.title('%s. %s: %g-%g Hz' % (stemp,sta,freqmin,freqmax),loc='left',fontsize=14)
+        stemp=figlabels[f].lower()
+        # if the highest frequency is less than 1 Hz, display the title in period (s) instead of frequency (Hz)
+        if freqmax < 1.0:
+            plt.title('%s. %s: %g-%g s' % (stemp,sta,1/freqmax,1/freqmin),loc='left',fontsize=14)
+        else:
+            plt.title('%s. %s: %g-%g Hz' % (stemp,sta,freqmin,freqmax),loc='left',fontsize=14)
         plt.xlabel('Time lag (s)',fontsize=14)
         plt.ylabel('Inter-station distance (km)',fontsize=14)
 
