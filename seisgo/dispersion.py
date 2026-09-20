@@ -354,7 +354,7 @@ def forward_solver(vs, periods, thickness, wave_type='rayleigh', mode=1, velocit
 def inversion(periods, velocity, thickness, initial_vs,
                   iterations=8, damp=0.1, smooth=0.5,
                   wave_type='rayleigh', mode=1, velocity_type='group',
-                  maxdv=0.02, max_backtrack=6, verbose=True):
+                  maxdv=0.02, max_backtrack=6, verbose=True, vs_bounds=(0.05, 12.0)):
     """
     Performs 1-D damped least-squares inversion with smoothness.
 
@@ -386,8 +386,13 @@ def inversion(periods, velocity, thickness, initial_vs,
     back to and no way to iterate at all.
 
     ==PARAMETER==
-    periods: wave periods in 1-d array
-    velocity: observed velocity from disperson analysis in km/s.
+    periods: wave periods in 1-d array. Any period whose `velocity` entry is
+            NaN/Inf (or that is itself non-finite) is dropped before inverting --
+            see the note above forward_solver()'s docstring, and _safe_forward()'s
+            docstring below, for why this matters far more than it looks like it
+            should (surf96 hangs, rather than erroring, on a non-finite model).
+    velocity: observed velocity from disperson analysis in km/s. May contain
+            NaN -- see `periods` above.
     thickness: layer thickness in 1-d array in km.
     initial_vs: stating Vs for each layer.
     iterations: maximum number of iterations. default 8.
@@ -401,11 +406,46 @@ def inversion(periods, velocity, thickness, initial_vs,
             up).
     verbose: print per-iteration RMSE (and any backtracking/skipped-layer
             messages) as before. default True; set False to silence all of it.
+    vs_bounds: (min_vs, max_vs) in km/s -- a candidate model with ANY layer's Vs
+            outside this range (including <= 0, i.e. physically impossible) is
+            treated as unstable, the same as one surf96 itself rejected, WITHOUT
+            ever being handed to surf96. default (0.05, 12.0), deliberately wide
+            (real crustal/upper-mantle Vs never approaches either edge) -- this
+            is a circuit breaker against a genuinely bad Gauss-Newton step, not a
+            physical constraint you should rely on to keep the inverted model
+            geologically sensible. It matters because a large enough (but still
+            finite) Vs, or a negative one, does not just give a poor fit -- it
+            can make surf96 HANG rather than error (see _safe_forward()'s
+            docstring below), the same failure mode a non-finite Vs causes.
 
     ==RETURN==
     vs_curr: inverted velocity for each layer (the last known-good model, if an
             iteration had to be skipped -- see above).
     """
+    periods = np.asarray(periods, dtype=np.float64)
+    velocity = np.asarray(velocity, dtype=np.float64)
+    finite = np.isfinite(periods) & np.isfinite(velocity)
+    if not np.all(finite):
+        # A NaN/Inf `velocity` entry (e.g. a period with no valid pick at a given
+        # grid node -- common when inverting individual eikonal-tomography map
+        # nodes rather than a filtered/averaged curve) would otherwise
+        # contaminate the residual/Jacobian solve below (any NaN in `residual`
+        # makes the ENTIRE `rhs = J.T @ residual` -- and hence `delta_m` --
+        # NaN), immediately producing a non-finite trial Vs model. See
+        # _safe_forward()'s docstring below for why that isn't merely a bad fit:
+        # calling surf96 with a non-finite Vs model doesn't raise an error, it
+        # HANGS forever. dispersion_to_1d_model() already filtered its own input
+        # this way before calling inversion(); doing it here too means a direct
+        # caller (e.g. looping inversion() over raw per-node dispersion curves)
+        # is protected as well.
+        if verbose:
+            print(f"inversion(): dropping {np.sum(~finite)}/{len(periods)} period(s) with "
+                  f"non-finite period/velocity before inverting.")
+        periods, velocity = periods[finite], velocity[finite]
+    if len(periods) < 3:
+        raise ValueError("inversion(): fewer than 3 finite (period, velocity) samples "
+                          "available after dropping non-finite entries -- not enough to invert.")
+
     vs_curr = np.copy(initial_vs)
     n = len(vs_curr)
     m = len(periods)
@@ -419,7 +459,21 @@ def inversion(periods, velocity, thickness, initial_vs,
         """forward_solver(), but returns None instead of raising Surf96Error --
         lets the caller decide how to handle an unphysical/unstable trial model
         (skip this Jacobian column, or backtrack this iteration's step) instead
-        of the whole inversion crashing on one bad probe."""
+        of the whole inversion crashing on one bad probe.
+
+        Also refuses to even CALL forward_solver() when `vs` already contains a
+        NaN/Inf, OR a value outside `vs_bounds` (including <= 0, i.e. physically
+        impossible) -- this is not just belt-and-suspenders: surf96 does not
+        raise Surf96Error on a non-finite OR a wildly out-of-range Vs model, it
+        HANGS indefinitely (verified against real data; this is a real failure
+        mode of the underlying Fortran root search, whose internal convergence
+        comparisons never terminate for these inputs). Either can reach here
+        even after inversion()'s own upfront NaN-period filtering above, e.g.
+        from an ill-conditioned Gauss-Newton step on a poorly-fitting curve --
+        so this check, not the upfront filtering alone, is what actually
+        prevents a hang."""
+        if not np.all(np.isfinite(vs)) or np.any(vs < vs_bounds[0]) or np.any(vs > vs_bounds[1]):
+            return None
         try:
             return forward_solver(vs, periods, thickness, wave_type=wave_type,
                                    mode=mode, velocity_type=velocity_type)
