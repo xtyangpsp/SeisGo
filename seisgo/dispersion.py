@@ -30,13 +30,21 @@ SeisGo CorrData class (seisgo/types.py) and the pyaftan source above.
 """
 import pycwt, json, h5py
 import numpy as np
-from scipy.signal import detrend, hilbert
+from scipy.signal import detrend, hilbert, savgol_filter
+from scipy.ndimage import median_filter
 from obspy.signal.invsim import cosine_taper
 from scipy.fftpack import fft,ifft,next_fast_len
 from obspy.signal.filter import bandpass
 from scipy.interpolate import CubicSpline, interp1d
 import matplotlib.pyplot as plt
 from pysurf96 import surf96
+# Surf96Error's import path has moved across pysurf96 versions (top-level export in
+# some, only under pysurf96.wrapper in others) -- try both so inversion() below can
+# catch it regardless of which version is installed.
+try:
+    from pysurf96 import Surf96Error
+except ImportError:
+    from pysurf96.wrapper import Surf96Error
 # alias used throughout the AFTAN block below
 _obspy_bandpass = bandpass
 # DispData lives in seisgo.types 
@@ -116,7 +124,7 @@ def narrowband_waveforms(d, dt,pmin,pmax,dp=1,pscale='ln',extend=10):
     pout = 1/fout
     return dout, pout
 ##
-def ensemble_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
+def get_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,pscale='ln',pband_extend=5,
                         verbose=False,min_trace=5,min_wavelength=1.5,energy_type='power_sum',get_best_v=False,
                         plot=False,figsize=None,cmap='jet',clim=[0,1]):
     """
@@ -320,9 +328,6 @@ def ensemble_dispersion_image(g,t,d,pmin,pmax,vmin,vmax,dp=1,dv=0.1,window=1,psc
     else:
         return dout,vout,pout
 
-# for backwards compatibility with the old name
-get_dispersion_image = ensemble_dispersion_image
-
 def forward_solver(vs, periods, thickness, wave_type='rayleigh', mode=1, velocity_type='group'):
     """
     Wrapper for surf96 to compute synthetic group velocity dispersion curve. 
@@ -346,12 +351,39 @@ def forward_solver(vs, periods, thickness, wave_type='rayleigh', mode=1, velocit
     return surf96(thickness, vp, vs, rho, periods, 
                   wave=wave_type, mode=mode, velocity=velocity_type)
 
-def inversion(periods, velocity, thickness, initial_vs, 
+def inversion(periods, velocity, thickness, initial_vs,
                   iterations=8, damp=0.1, smooth=0.5,
                   wave_type='rayleigh', mode=1, velocity_type='group',
-                  maxdv=0.02):
+                  maxdv=0.02, max_backtrack=6, verbose=True):
     """
     Performs 1-D damped least-squares inversion with smoothness.
+
+    A raw (undamped-enough) Gauss-Newton step here can push one or more layers'
+    Vs far enough, in a single iteration, to create an unphysical model -- most
+    often an induced low-velocity zone between adjacent thin layers -- that
+    surf96's mode-tracking simply cannot evaluate at all (see forward_solver()'s
+    docstring). Before this safeguard was added, that raised Surf96Error and
+    aborted the whole inversion, discarding every previous iteration's progress
+    even though the model right before the bad step was perfectly fine. This is
+    especially likely to happen when there are many free layers relative to how
+    much depth resolution the observed periods actually carry (e.g. dozens of
+    thin, evenly spaced layers fit against periods sensitive mainly to the top
+    few km), or when the observed dispersion curve itself has real jumps/reversals
+    (from noise, e.g. see DispData.continuity()/peak_alignment() for QC'ing that
+    upstream) that no smooth Vs(depth) profile can fit without overshooting.
+
+    To keep one bad step from crashing an otherwise-working inversion, each
+    iteration's step is now backtracked (repeatedly halved) until surf96 accepts
+    the resulting model, up to `max_backtrack` halvings; if every halving still
+    fails, that iteration's update is skipped, the model is left as it was after
+    the previous (known-good) iteration, and the loop stops early rather than
+    raising. A Jacobian probe (perturbing a single layer to estimate that
+    column's sensitivity) that itself lands on an unstable model is instead
+    treated as zero sensitivity for that layer this iteration -- again, so one
+    bad probe doesn't abort the whole inversion. If the STARTING model
+    (initial_vs/thickness) is itself unstable for surf96, this still raises
+    Surf96Error immediately, since there is no previous good iterate to fall
+    back to and no way to iterate at all.
 
     ==PARAMETER==
     periods: wave periods in 1-d array
@@ -362,41 +394,96 @@ def inversion(periods, velocity, thickness, initial_vs,
     damp: Damping (stability). default 0.1.
     smooth: Smoothness (geological plausibility). default 0.5.
     maxdv: maximum velocity perturbation in km/s.
+    max_backtrack: maximum number of times a single iteration's step is halved
+            (see above) before that iteration is given up on and the inversion
+            stops early, returning the last known-good model. default 6 (i.e. a
+            full step can be cut down to 1/64 of its original size before giving
+            up).
+    verbose: print per-iteration RMSE (and any backtracking/skipped-layer
+            messages) as before. default True; set False to silence all of it.
 
     ==RETURN==
-    vs_curr: inverted velocity for each layer.
+    vs_curr: inverted velocity for each layer (the last known-good model, if an
+            iteration had to be skipped -- see above).
     """
     vs_curr = np.copy(initial_vs)
     n = len(vs_curr)
     m = len(periods)
-    
+
     # Second-difference matrix for smoothness (L)
     L = np.zeros((n-2, n))
     for i in range(n-2):
         L[i, i] = 1; L[i, i+1] = -2; L[i, i+2] = 1
-        
+
+    def _safe_forward(vs):
+        """forward_solver(), but returns None instead of raising Surf96Error --
+        lets the caller decide how to handle an unphysical/unstable trial model
+        (skip this Jacobian column, or backtrack this iteration's step) instead
+        of the whole inversion crashing on one bad probe."""
+        try:
+            return forward_solver(vs, periods, thickness, wave_type=wave_type,
+                                   mode=mode, velocity_type=velocity_type)
+        except Surf96Error:
+            return None
+
+    pred_u = _safe_forward(vs_curr)
+    if pred_u is None:
+        raise Surf96Error(
+            "inversion(): the STARTING model (initial_vs/thickness) is already "
+            "unphysical/unstable for surf96 (e.g. an implied low-velocity zone or "
+            "too sharp a velocity contrast) -- surf96 failed on it before any "
+            "inversion iteration could run. Fix initial_vs/thickness before calling "
+            "inversion().")
+
     for i in range(iterations):
-        # Current prediction
-        pred_u = forward_solver(vs_curr, periods, thickness,
-                                wave_type=wave_type, mode=mode, velocity_type=velocity_type)
         residual = velocity - pred_u
-        
+
         # Build Numerical Jacobian (Sensitivity Matrix)
         J = np.zeros((m, n))
         for j in range(n):
             v_tmp = np.copy(vs_curr)
             v_tmp[j] += maxdv
-            up_u = forward_solver(v_tmp, periods, thickness)
+            up_u = _safe_forward(v_tmp)
+            if up_u is None:
+                # this layer's probe landed on a model surf96 can't evaluate --
+                # treat it as zero sensitivity this iteration rather than
+                # crashing; damp/smooth still regularize this layer's own entry.
+                if verbose:
+                    print(f"Iteration {i+1}: layer {j} perturbation is unstable for "
+                          f"surf96; treating its sensitivity as 0 this iteration.")
+                continue
             J[:, j] = (up_u - pred_u) / maxdv
-            
+
         # Solve: (J.T@J + damping + smoothness) * dm = J.T @ residual
         lhs = J.T @ J + damp * np.eye(n) + smooth * (L.T @ L)
         rhs = J.T @ residual
         delta_m = np.linalg.solve(lhs, rhs)
-        
-        vs_curr += delta_m
-        print(f"Iteration {i+1}: RMSE = {np.sqrt(np.mean(residual**2)):.5f}")
-        
+
+        # Backtracking line search: repeatedly halve the step until surf96
+        # accepts the resulting model, or give up on this iteration and keep
+        # the previous (known-good) model -- see docstring above.
+        step_scale = 1.0
+        vs_trial, pred_trial = None, None
+        for _ in range(max_backtrack):
+            candidate = vs_curr + step_scale * delta_m
+            candidate_pred = _safe_forward(candidate)
+            if candidate_pred is not None:
+                vs_trial, pred_trial = candidate, candidate_pred
+                break
+            step_scale *= 0.5
+        if vs_trial is None:
+            if verbose:
+                print(f"Iteration {i+1}: every backtracked step (down to "
+                      f"{step_scale*2:.4g}x the full step) was unstable for surf96; "
+                      f"stopping early and keeping the model from iteration {i}.")
+            break
+
+        vs_curr = vs_trial
+        pred_u = pred_trial
+        if verbose:
+            tag = "" if step_scale == 1.0 else f" (step scaled by {step_scale:.3g}x)"
+            print(f"Iteration {i+1}: RMSE = {np.sqrt(np.mean(residual**2)):.5f}{tag}")
+
     return vs_curr
 
 ################################################################
@@ -866,8 +953,7 @@ def _parabolic_peak(y, i):
 
 
 def _pick_group_velocity(envelope, phase, periods, dt, dist, vmin, vmax,
-                          snr_min=5.0, vg_step_max=0.5, noise_window=100.0, piover4=1.0,
-                          ref_period=None, ref_velocity=None, ref_tol=None):
+                          snr_min=5.0, vg_step_max=0.5, noise_window=100.0, piover4=1.0):
     """
     Pick and track the group-velocity dispersion curve from the narrow-band envelopes,
     scanning periods from long to short and favoring continuity (bounded group-velocity
@@ -919,31 +1005,6 @@ def _pick_group_velocity(envelope, phase, periods, dt, dist, vmin, vmax,
     unambiguous SNR is far less likely to be sitting on a spurious peak in the
     first place, and both expansion directions inherit that good starting point
     instead of only one direction ever seeing it.
-
-    ===REFERENCE-GUIDED MODE (ref_period/ref_velocity)===
-    When a reference dispersion curve is supplied, tracking is not done at all --
-    ANCHOR-AND-CONTINUITY TRACKING IS BYPASSED ENTIRELY, and each period is instead
-    picked INDEPENDENTLY as whichever candidate lies closest to the reference
-    curve's own (spline-interpolated) velocity at that period, within `ref_tol`
-    (falling back to the single closest candidate, even if outside `ref_tol`, only
-    when nothing at all is within tolerance -- so periods with no plausible match
-    still get *something* rather than a silent gap, exactly as a poor-continuity
-    step previously fell back to "closest available" rather than leaving a gap).
-    This exists for aftan_pmf()'s second pass, where a decent preliminary curve is
-    already in hand and the real risk is different from plain aftan()'s: the
-    phase-matched-filtered/re-dispersed waveform can carry many small sidelobe
-    ripples (an artifact of isolating and re-dispersing a windowed compact pulse),
-    which continuity-based tracking can latch onto and never escape if the TRUE
-    dispersion curve has a jump anywhere close to vg_step_max (verified on real
-    data: a genuine ~0.28 km/s jump around period ~1.5s, comfortably tracked by
-    plain aftan() on the raw envelope, permanently derailed the continuity tracker
-    on the PMF-cleaned envelope, which offered a chain of tiny sidelobe candidates
-    within vg_step_max of each other at every period, so the tracker never even
-    attempted the jump back to the true, far larger-amplitude peak -- picking a
-    curve pinned near the noise floor for the entire band). Guiding every pick by
-    the already-known-decent reference curve sidesteps this class of failure
-    entirely, since each period's choice no longer depends on where the previous
-    (possibly already-wrong) pick landed.
 
     ===RETURNS===
     grvel,amp,snr,instper,arrival_time,phase_pick: 1-D arrays (len(periods)), in the
@@ -1043,57 +1104,6 @@ def _pick_group_velocity(envelope, phase, periods, dt, dist, vmin, vmax,
     # anchor scan below and the tracking pass, so no window/peak/SNR work is
     # ever repeated for a given period.
     cand_cache = [_candidates(idx) for idx in range(nper)]
-
-    # 0. Reference-guided mode: pick each period independently against a supplied
-    # reference curve instead of anchor-and-continuity tracking. See this
-    # function's docstring ("REFERENCE-GUIDED MODE") for why this exists.
-    if ref_period is not None and ref_velocity is not None and len(ref_period) >= 2:
-        rp_arr = np.asarray(ref_period, dtype=np.float64)
-        rv_arr = np.asarray(ref_velocity, dtype=np.float64)
-        srt = np.argsort(rp_arr)
-        rp_s, rv_s = rp_arr[srt], rv_arr[srt]
-        ref_spl = CubicSpline(rp_s, rv_s, extrapolate=True)
-        tol = ref_tol if ref_tol is not None else max(3.0 * vg_step_max, 0.5)
-
-        def _pick_guided(idx):
-            cand = cand_cache[idx]
-            if cand is None:
-                return
-            cand_t, cand_a, cand_snr, cand_delta, cand_v, local_idx = cand
-            vref = float(ref_spl(np.clip(periods[idx], rp_s[0], rp_s[-1])))
-            dv = np.abs(cand_v - vref)
-            good = np.where(dv <= tol)[0]
-            if len(good) == 0:
-                sel = int(np.argmin(dv))  # nothing within tolerance: closest anyway
-            elif len(good) == 1:
-                sel = good[0]
-            else:
-                # multiple candidates within tolerance: prefer the largest-amplitude
-                # one among them (closeness to the reference already screened out
-                # the far, spurious branch; amplitude is the right tiebreaker among
-                # what remains, same preference plain aftan()'s anchor pick uses).
-                sel = good[np.argmax(cand_a[good])]
-
-            grvel[idx] = cand_v[sel]
-            amp[idx] = cand_a[sel]
-            snr[idx] = cand_snr[sel]
-            arrival_time[idx] = cand_t[sel]
-
-            p = periods[idx]
-            pha = phase[idx]
-            li_pick = local_idx[sel]
-            if 0 < li_pick < npts - 1:
-                dphidt = (pha[li_pick + 1] - pha[li_pick - 1]) / (2 * dt)
-                phase_at_sample = pha[li_pick] + dphidt * cand_delta[sel] * dt
-            else:
-                dphidt = 2 * np.pi / p
-                phase_at_sample = pha[li_pick]
-            instper[idx] = 2 * np.pi / abs(dphidt) if dphidt != 0 else p
-            phase_pick[idx] = phase_at_sample + piover4 * np.pi / 4.0
-
-        for idx in range(nper):
-            _pick_guided(idx)
-        return grvel, amp, snr, instper, arrival_time, phase_pick
 
     # 1. Pick the tracking ANCHOR: the period with the single highest-SNR
     # candidate anywhere in the range (preferred), or, only if literally no
@@ -1332,25 +1342,7 @@ def _phase_match_filter(data, dt, dist, ref_period, ref_velocity, pmin, pmax, nf
     intphase = np.empty_like(om_pos)
     intphase[o_order] = intphase_s
 
-    # Reference time to compress the pulse onto: the group delay averaged over a
-    # grid of periods evenly spaced in log(period) across [pmin,pmax] -- NOT an
-    # average over FFT frequency bins (even restricted to the passband, as an
-    # earlier version of this fix did). FFT bins are spaced linearly in FREQUENCY,
-    # so converting to period (period=1/freq, a 1/x map) packs vastly more bins
-    # into the short-period end of any fixed period range than the long-period end
-    # (e.g. for pmin=1s, pmax=10s, the sub-band from 1-2s alone contains far more
-    # FFT bins than the whole 5-10s range). A per-bin average -- weighted by `band`
-    # or not -- is therefore dominated by the short-period/slow-velocity end almost
-    # regardless of band shape, pulling t_ref toward dist/vg(short period) rather
-    # than a value representative of the whole analyzed band (this was confirmed
-    # numerically: t_ref computed the band-weighted-FFT-bin way came out close to
-    # dist/vg(pmin) even when the band's OWN velocities spanned a much faster range
-    # at longer periods). Building an explicit, evenly-log-spaced period grid and
-    # averaging the reference curve there sidesteps FFT bin density entirely and
-    # gives a t_ref genuinely representative of the analyzed period range.
-    p_ref_grid = np.exp(np.linspace(np.log(pmin), np.log(pmax), 200))
-    vg_ref_grid = spl(np.clip(p_ref_grid, rp[0], rp[-1]))
-    t_ref = float(np.mean(dist / vg_ref_grid))
+    t_ref = float(np.mean(tau))  # compress the pulse to sit near this reference time
     dphi = intphase - t_ref * om_pos
     band = _band_taper(per_pos, pmin, pmax)
 
@@ -1714,7 +1706,6 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
               min_wavelengths=1.0, far_field_vel=None,
               filter_method='bandpass', pband_extend=5, filter_corners=4,
               pulse_min_ratio=0.05, pulse_taper_frac=0.05, store_image=True, verbose=False,
-              guided_pick=True, ref_tol=None,
               src_net=None, src_sta=None, src_lon=None, src_lat=None,
               rcv_net=None, rcv_sta=None, rcv_lon=None, rcv_lat=None):
     """
@@ -1782,24 +1773,6 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
             aftan()'s store_image for details. The internal preliminary aftan() call
             (when used) never stores its own image, regardless of this setting.
     verbose: print progress/one-line summaries. default False.
-    guided_pick: pick the final, PMF-cleaned dispersion curve by guiding each
-            period's choice with the preliminary/reference curve (rp,rv above),
-            instead of re-running the same anchor-and-continuity tracker aftan()
-            uses on raw data. default True -- see _pick_group_velocity()'s
-            "REFERENCE-GUIDED MODE" docstring section for why this matters here
-            specifically: the phase-matched-filtered/re-dispersed waveform can
-            carry small sidelobe ripples that a continuity tracker can lock onto
-            and never escape if the true curve has a jump anywhere near
-            vg_step_max, silently pinning the whole curve near the noise floor.
-            Set False to fall back to the old continuity-tracked behavior (e.g.
-            for comparison, or if you have reason to distrust the preliminary
-            curve more than usual).
-    ref_tol: when guided_pick=True, the maximum allowed deviation (km/s) between a
-            period's picked velocity and the reference curve's own value there.
-            default None: uses max(3*vg_step_max, 0.5) km/s -- generous enough to
-            let PMF recover real, sharper local detail than the (possibly
-            smoothed) reference curve, while still ruling out a spurious branch
-            that continuity tracking alone could have wandered onto.
 
     ===RETURNS===
     result: a DispData object (method='aftan_pmf') with the refined group- (and,
@@ -1877,7 +1850,6 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
     # 4. build + apply the phase-matched filter, isolate the compact pulse, and
     #    re-disperse it so the standard narrow-band AFTAN can be re-run on it.
     compressed, dphi, posmask, nfftused, t_ref = _phase_match_filter(d, dt, dist, rp, rv, pmin, pmax, nfft=nfft)
-
     # keep the pulse search anchored near where the filter was designed to compress
     # energy to (t_ref), not an unconstrained global search -- on real/noisy data the
     # single largest envelope sample in the whole record need not be the true compact
@@ -1902,9 +1874,7 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
         envelope, phase = _aftan_narrowband(cleaned, dt, periods, alpha=alpha, nfft=nfft)
     grvel, amp, snr, instper, arrtime, phpick = _pick_group_velocity(
         envelope, phase, periods, dt, dist, vmin, vmax,
-        snr_min=snr_min, vg_step_max=vg_step_max, noise_window=noise_window, piover4=piover4,
-        ref_period=rp if guided_pick else None, ref_velocity=rv if guided_pick else None,
-        ref_tol=ref_tol)
+        snr_min=snr_min, vg_step_max=vg_step_max, noise_window=noise_window, piover4=piover4)
 
     # 5b. near-field guard (same as aftan(); see there for details) -- done before
     # phase velocity so a discarded period is never used as its anchor.
@@ -1936,8 +1906,7 @@ def aftan_pmf(corrdata=None, data=None, dt=None, dist=None, side=None, stack_ind
                   pulse_taper_frac=pulse_taper_frac, sym_weighted=sym_weighted,
                   sym_max_vel=sym_max_vel, min_wavelengths=min_wavelengths,
                   far_field_vel=far_field_vel, filter_method=filter_method,
-                  pband_extend=pband_extend, filter_corners=filter_corners,
-                  guided_pick=guided_pick, ref_tol=ref_tol)
+                  pband_extend=pband_extend, filter_corners=filter_corners)
     result = DispData(periods, grvel, amp, snr, instper, dist, dt, side, params,
                        phase_velocity=phvel, method='aftan_pmf', arrival_time=arrtime, phase_pick=phpick,
                        envelope=envelope if store_image else None,
@@ -2171,9 +2140,122 @@ def plot_dispersion_matrix(assembled, ax=None, mode='lines', color_by='dist', cm
 ################################################################
 ############## CONNECTOR TO INVERSION ##############
 ################################################################
+def smooth_dispersion_curve(periods, velocity, despike_window=5, smooth_window=7,
+                             polyorder=2, resample_n=None):
+    """
+    Smooth a picked/averaged dispersion curve -- e.g. a regional-average phase- or
+    group-velocity profile straight out of eikonal tomography -- before handing it
+    to inversion()/dispersion_to_1d_model(). inversion() fits the curve with a
+    smooth, physically-constrained layered Vs(depth) model; a curve with real
+    sample-to-sample noise (small sawtooth wiggles, single-period outliers) forces
+    that model to develop matching wiggles of its own to chase the noise, which is
+    exactly what can push a layer's Vs far enough to create an unphysical
+    low-velocity zone and make surf96 fail outright (see inversion()'s own
+    docstring). Smoothing the curve first, rather than only hardening inversion()
+    against the resulting crashes, addresses that at the source.
+
+    Two stages, both run on an internal grid uniformly spaced in log(period)
+    (`periods` is resampled onto it first with plain linear interpolation, so this
+    works whether the input periods are already log-spaced, as AFTAN/eikonal
+    tomography output typically is, or irregular):
+      1. despike -- a median filter (width `despike_window`, samples of the
+         internal grid) that knocks down isolated single/few-sample spikes
+         (like short sawtooth wiggles) without dragging down a genuine,
+         multi-sample-wide trend the way an average/mean filter would.
+      2. smooth -- a Savitzky-Golay filter (window `smooth_window`, polynomial
+         order `polyorder`) applied to the despiked curve, which smooths while
+         preserving real broad-scale shape (a genuine peak or trough survives;
+         a plain moving average would flatten it too).
+    The result is then linearly interpolated back onto the ORIGINAL `periods`
+    array, so the output lines up sample-for-sample with the input -- it is not
+    resampled/reordered/deduplicated in the returned array.
+
+    NaNs in `velocity` are dropped before building the internal grid (so a period
+    with no valid pick can't drag down its smoothed neighbors), and the
+    corresponding output samples are NaN again on return.
+
+    ===PARAMETERS===
+    periods: 1-D array of periods (s). Need not be sorted or evenly spaced.
+    velocity: 1-D array of velocities (km/s), same length as `periods`. May
+            contain NaN.
+    despike_window: median-filter width, in samples of the internal uniform-
+            log-period grid (bumped up by 1 if given even). default 5. Pass 1 (or
+            None) to skip despiking and only run the Savitzky-Golay smoother.
+    smooth_window: Savitzky-Golay window width, in samples of the internal grid
+            (bumped up by 1 if given even; must end up > polyorder). default 7.
+            Pass 1 (or None) to skip smoothing and only despike.
+    polyorder: Savitzky-Golay polynomial order. default 2 (quadratic -- follows a
+            broad peak/trough without fitting sample-to-sample noise).
+    resample_n: number of points in the internal uniform-log-period grid. default
+            None: 4x len(periods), rounded up to the next odd number -- dense
+            enough that `despike_window`/`smooth_window` (which are sample counts
+            on THIS grid, not the original one) behave predictably no matter how
+            many periods the curve was originally sampled at.
+
+    ===RETURNS===
+    Smoothed velocity array, same length and order as the input `periods` (NaN
+    wherever the input was NaN).
+
+    ===RAISES===
+    ValueError if fewer than 3 valid (non-NaN) (period, velocity) samples are
+    available, or if `despike_window`/`smooth_window` end up larger than the
+    internal grid.
+    """
+    periods = np.asarray(periods, dtype=np.float64)
+    velocity = np.asarray(velocity, dtype=np.float64)
+    if periods.shape != velocity.shape:
+        raise ValueError("smooth_dispersion_curve(): periods and velocity must have the "
+                          "same shape, got %s and %s" % (periods.shape, velocity.shape))
+
+    valid = np.isfinite(periods) & np.isfinite(velocity) & (periods > 0)
+    if np.sum(valid) < 3:
+        raise ValueError("smooth_dispersion_curve(): need at least 3 valid (period, velocity) "
+                          "samples, got %d" % np.sum(valid))
+
+    def _odd(w):
+        w = int(w)
+        return w + 1 if w % 2 == 0 else w
+
+    p_valid, v_valid = periods[valid], velocity[valid]
+    order = np.argsort(p_valid)
+    p_sorted, v_sorted = p_valid[order], v_valid[order]
+    log_p_sorted = np.log(p_sorted)
+
+    if resample_n is None:
+        resample_n = _odd(4 * len(p_sorted))
+    else:
+        resample_n = _odd(resample_n)
+
+    despike_window = None if despike_window is None or despike_window <= 1 else _odd(despike_window)
+    smooth_window = None if smooth_window is None or smooth_window <= 1 else _odd(smooth_window)
+    if despike_window is not None and despike_window > resample_n:
+        raise ValueError("smooth_dispersion_curve(): despike_window (%d) exceeds the internal "
+                          "grid size (%d) -- lower it or raise resample_n." %
+                          (despike_window, resample_n))
+    if smooth_window is not None:
+        if smooth_window <= polyorder:
+            smooth_window = _odd(polyorder + 1)
+        if smooth_window > resample_n:
+            raise ValueError("smooth_dispersion_curve(): smooth_window (%d) exceeds the internal "
+                              "grid size (%d) -- lower it or raise resample_n." %
+                              (smooth_window, resample_n))
+
+    log_p_grid = np.linspace(log_p_sorted[0], log_p_sorted[-1], resample_n)
+    v_grid = np.interp(log_p_grid, log_p_sorted, v_sorted)
+
+    if despike_window is not None:
+        v_grid = median_filter(v_grid, size=despike_window, mode='nearest')
+    if smooth_window is not None:
+        v_grid = savgol_filter(v_grid, window_length=smooth_window, polyorder=polyorder, mode='interp')
+
+    out = np.full(periods.shape, np.nan, dtype=np.float64)
+    out[valid] = np.interp(np.log(p_valid), log_p_grid, v_grid)
+    return out
+
+
 def dispersion_to_1d_model(disp, thickness, initial_vs, vtype='group', wave_type='rayleigh',
                             mode=1, iterations=8, damp=0.1, smooth=0.5, maxdv=0.02,
-                            snr_min=None, period=None):
+                            snr_min=None, period=None, presmooth=False, presmooth_kw=None):
     """
     Invert one measured dispersion curve for a 1-D layered Vs model, by calling this
     same module's OWN forward_solver()/inversion() functions (defined above, in the
@@ -2206,6 +2288,20 @@ def dispersion_to_1d_model(disp, thickness, initial_vs, vtype='group', wave_type
     period: optional explicit subset of periods to invert on (must match values
             present in `disp.period` / assembled['period']); default None uses
             every period with a finite velocity value.
+    presmooth: if True, run smooth_dispersion_curve() on the (period, velocity)
+            data actually being inverted -- after NaN/snr_min/period filtering,
+            before inversion() is called -- to despike/smooth it first (see that
+            function's own docstring for why: a jagged input curve can force
+            inversion()'s trial Vs models into an unphysical low-velocity zone
+            and either fail outright or converge to a geologically implausible
+            profile). default False, to keep this connector's default behavior
+            unchanged; turn it on for a curve you know is noisy (e.g. a
+            regional-average phase-velocity map output) rather than one you've
+            already vetted/smoothed yourself.
+    presmooth_kw: optional dict of keyword arguments passed through to
+            smooth_dispersion_curve() when presmooth=True (despike_window,
+            smooth_window, polyorder, resample_n); default None uses that
+            function's own defaults.
 
     ===RETURNS===
     a dict with:
@@ -2213,10 +2309,11 @@ def dispersion_to_1d_model(disp, thickness, initial_vs, vtype='group', wave_type
                 own return value, unmodified.
         thickness: the input `thickness` array, echoed back for convenience.
         periods,velocity: the (period, velocity) arrays actually used as
-                inversion()'s target data, after NaN/snr_min/period filtering and
-                sorting by period -- useful to check the fit, e.g. by comparing
-                against forward_solver(vs, periods, thickness, wave_type=...,
-                mode=..., velocity_type=vtype).
+                inversion()'s target data, after NaN/snr_min/period filtering,
+                sorting by period, and (if presmooth=True) smoothing -- useful to
+                check the fit, e.g. by comparing against
+                forward_solver(vs, periods, thickness, wave_type=..., mode=...,
+                velocity_type=vtype).
     """
     if isinstance(disp, dict) and 'velocity' in disp and 'period' in disp:
         periods_all = np.asarray(disp['period'], dtype=np.float64)
@@ -2238,6 +2335,9 @@ def dispersion_to_1d_model(disp, thickness, initial_vs, vtype='group', wave_type
                           "points available to invert (after NaN/snr_min/period filtering).")
     order = np.argsort(periods)
     periods, velocity = periods[order], velocity[order]
+
+    if presmooth:
+        velocity = smooth_dispersion_curve(periods, velocity, **(presmooth_kw or {}))
 
     vs = inversion(periods, velocity, thickness, initial_vs, iterations=iterations, damp=damp,
                     smooth=smooth, wave_type=wave_type, mode=mode, velocity_type=vtype,
