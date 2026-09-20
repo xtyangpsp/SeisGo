@@ -914,7 +914,12 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
                     comp = enz_system[icomp]
                     indx = np.where(cc_comp==comp)[0]
                     # jump if there are not enough data
-                    dstack,stamps_final=stacking(corrdict_all[cc_comp[indx[0]]],method=m)
+                    # pass a one-element list (not the bare string `m`) so stacking()/
+                    # stack_corrdata() takes its list-method branch and keeps returning
+                    # the (dstack, cc_time) tuple this call site unpacks -- see
+                    # stack_corrdata()'s docstring ("Two usage modes") for why a bare
+                    # string would instead try to overwrite corrdata in place here.
+                    dstack,stamps_final=stacking(corrdict_all[cc_comp[indx[0]]],method=[m])
                     bigstack[icomp]=dstack
                     tparameters['time']  = stamps_final[0]
                     ds.add_auxiliary_data(data=dstack, data_type=data_type, path=comp,
@@ -968,52 +973,159 @@ def do_stacking(ccfiles,pairlist=None,outdir='./STACK',method=['linear'],
         del corrdict_all
 
 ####
-def stacking(corrdata,method='linear',par=None):
+def _demean(d):
+    '''small helper for stack_corrdata(): demean each row of a 2-D array (or a 1-D
+    trace), used before the amplitude QC cut/stacking step below.'''
+    if d.ndim == 1:
+        return d - np.mean(d)
+    return d - np.mean(d, axis=1, keepdims=True)
+
+def stack_corrdata(corrdata, win_len=None, method='linear', overwrite=None, ampcut=20,
+                    demean=True, stack_par=None, verbose=False):
     '''
-    this function stacks the cross correlation data
+    Stack the substack windows in a CorrData object's .data attribute down to one (or
+    more) trace(s). This merges what used to be two separate functions:
+      - this module's own former `stacking()` (renamed to `stack_corrdata()` here;
+        the old name is kept working below as `stacking = stack_corrdata`, see that
+        line's own comment for the one call-site nuance that came with it): stacking
+        with SEVERAL methods at once (pass a list to `method`), returning one
+        stacked trace per method plus the retained-window timestamps, without
+        touching `corrdata` itself.
+      - load_corrdata.stack_corrdata() (a dependency-light stand-in written to
+        exercise aftan_dispersion.py without installing the full SeisGo stack): a
+        single-method interface that can instead overwrite `corrdata.data` (and
+        .substack/.time/.stack_method) in place and return `corrdata` itself --
+        mirroring seisgo.types.CorrData.stack()'s own interface -- plus an optional
+        `demean` step and an `ampcut=None` escape hatch to disable the amplitude QC
+        cut entirely (only requiring a non-zero trace) instead of always applying it.
+
+    Two USAGE MODES, selected by what `method` is:
+      - `method` is a LIST (even a single-element one, e.g. ['linear']): the former
+        `stacking()`'s mode. `overwrite` is forced to False regardless of what is
+        passed (there is no single trace to write back into `corrdata.data` when
+        multiple stacks are requested), and this returns (dstack, cc_time) with
+        dstack shape (n_methods, npts).
+      - `method` is a plain string (e.g. 'linear', the default): the
+        load_corrdata.stack_corrdata()/CorrData.stack()-style mode. Honors
+        `overwrite` (default True in this mode) and returns either the mutated
+        `corrdata` (overwrite=True) or the bare stacked 1-D array (overwrite=False).
 
     PARAMETERS:
     ----------------------
-    corrdata: CorrData object.
-    method: stacking method, could be: linear, robust, pws, acf, or nroot.
-    par: stacking parameters in a dictionary. See stacking.seisstack() for details.
+    corrdata: CorrData object (or anything exposing the same .data [1-D or 2-D,
+            shape (nwin,npts)], .substack, .time, .stack_method attributes).
+    win_len: must be None -- only full stacking (the whole substack collapsed to one
+            trace per method) is implemented; kept as an explicit parameter (matching
+            load_corrdata.stack_corrdata()'s signature) so passing win_len=None
+            explicitly, the normal case before dispersion analysis, is a drop-in
+            replacement for either of the two functions merged here. Windowed
+            sub-stacking raises NotImplementedError.
+    method: stacking method name, or a list of names: one of 'linear','pws','robust',
+            'acf','nroot','selective','cluster','tfpws','tfpws-dost' (passed straight
+            through to stacking.seisstack(); see that module for the full
+            list/parameter semantics). default 'linear'. See "Two usage modes" above
+            for how the str-vs-list choice changes this function's behavior.
+    overwrite: only used in the plain-string-method mode (a list forces this False
+            regardless). default None: resolved to True in that mode -- overwrite
+            `corrdata.data` (and .substack/.time/.stack_method) in place and return
+            `corrdata` itself. Pass False to instead leave `corrdata` untouched and
+            get the bare stacked 1-D array back.
+    ampcut: QC threshold -- only stack traces whose peak |amplitude| is less than
+            `ampcut` times the median peak amplitude across traces. default 20
+            (matching both functions merged here). Use None to disable this cut
+            entirely (traces are still required to be non-zero) -- the old
+            `stacking()` had no such escape hatch and always applied the cut.
+    demean: demean each trace before the QC/stacking step. default True -- carried
+            over from load_corrdata.stack_corrdata(); the old `stacking()` never
+            demeaned. This is a numeric behavior change for callers of the old name
+            (see `stacking = stack_corrdata` below); pass demean=False to reproduce
+            the old function's exact arithmetic if that matters for a comparison.
+    stack_par: dict of method-specific parameters passed to stacking.seisstack().
+            default None.
+    verbose: print a one-line summary. default False.
 
     RETURNS:
     ----------------------
-    dstack: 1D matrix of stacked cross-correlation functions over all the segments
-    cc_time: timestamps of the traces for the stack
+    method is a list: (dstack, cc_time) -- dstack shape (n_methods,npts); cc_time
+            the retained windows' timestamps (matches the old `stacking()`).
+    method is a string: `corrdata` (overwrite=True, the default in this mode) or the
+            stacked 1-D array (overwrite=False); None if corrdata was already a
+            single trace and overwrite was True, or if no trace passed QC.
     '''
-    if isinstance(method,str):method=[method]
-    # remove abnormal data
-    if corrdata.data.ndim==1:
-        cc_time  = [corrdata.time]
+    if win_len is not None:
+        raise NotImplementedError("win_len-based windowed sub-stacking is not implemented; pass "
+                                   "win_len=None to stack the whole substack into one trace per method.")
+    if corrdata.data is None:
+        raise ValueError("corrdata.data is empty.")
+    multi = isinstance(method, list)
+    methods = method if multi else [method]
+    if multi:
+        overwrite = False
+    elif overwrite is None:
+        overwrite = True
 
-        # do stacking
-        dstack = np.zeros((len(method),corrdata.data.shape[0]),dtype=np.float32)
-        for i in range(len(method)):
-            m =method[i]
-            dstack[i,:]=corrdata.data[:]
+    data = np.asarray(corrdata.data)
+    # already a single trace (1-D, or 2-D with only one row): nothing to stack.
+    if data.ndim < 2 or data.shape[0] < 2:
+        if verbose:
+            print('substack is False or has only 1 trace. No stacking applicable.')
+        if multi:
+            dstack = np.tile(np.asarray(data, dtype=np.float32).reshape(1, -1), (len(methods), 1))
+            cc_time = [corrdata.time]
+            return dstack, cc_time
+        return None if overwrite else np.asarray(data, dtype=np.float64)
+
+    cc_temp = _demean(data) if demean else np.asarray(data, dtype=np.float64)
+    ampmax = np.max(np.abs(cc_temp), axis=1)
+    if ampcut is None:
+        tindx = np.where(ampmax > 0)[0]
     else:
-        ampmax = np.max(corrdata.data,axis=1)
-        tindx  = np.where( (ampmax<20*np.median(ampmax)) & (ampmax>0))[0]
-        nstacks=len(tindx)
-        dstack=[]
-        cc_time=[]
-        if nstacks >0:
-            # remove ones with bad amplitude
-            cc_array = corrdata.data[tindx,:]
-            cc_time  = corrdata.time[tindx]
+        med = np.median(ampmax) if len(ampmax) else 0.0
+        tindx = np.where((ampmax < ampcut * med) & (ampmax > 0))[0]
+    nstacks = len(tindx)
+    if nstacks == 0:
+        if verbose:
+            print('no traces passed QC; nothing stacked.')
+        return (None, None) if multi else (None if overwrite else None)
 
-            # do stacking
-            dstack = np.zeros((len(method),corrdata.data.shape[1]),dtype=np.float32)
-            for i in range(len(method)):
-                m =method[i]
-                if nstacks==1: dstack[i,:]=cc_array
-                else:
-                    dstack[i,:] = stack.seisstack(cc_array,method=method,par=par)
+    cc_array = cc_temp[tindx, :]
+    cc_time = np.asarray(corrdata.time)[tindx] if getattr(corrdata, 'time', None) is not None else None
 
-    # good to return
-    return dstack,cc_time
+    if multi:
+        dstack = np.zeros((len(methods), cc_array.shape[1]), dtype=np.float32)
+        for i, m in enumerate(methods):
+            dstack[i, :] = cc_array[0] if nstacks == 1 else stack.seisstack(cc_array, method=m, par=stack_par)
+        if verbose:
+            print('stacked %s with %d/%d traces (methods=%s).' %
+                  (getattr(corrdata, 'id', ''), nstacks, data.shape[0], methods))
+        return dstack, cc_time
+
+    m = methods[0]
+    ds = cc_array[0].copy() if nstacks == 1 else stack.seisstack(cc_array, method=m, par=stack_par)
+    if verbose:
+        print('stacked %s with %d/%d traces (method=%s).' %
+              (getattr(corrdata, 'id', ''), nstacks, data.shape[0], m))
+    if overwrite:
+        corrdata.substack = False
+        if cc_time is not None:
+            try:
+                corrdata.time = cc_time[0]
+            except Exception:
+                pass
+        corrdata.data = ds
+        corrdata.stack_method = m
+        return corrdata
+    return ds
+
+# Backward-compatible alias: this function used to be named `stacking()` (a
+# single-method call used a plain string, e.g. `stacking(corrdata, method='linear')`,
+# but ALWAYS returned the (dstack, cc_time) tuple form regardless -- see the merged
+# docstring above). Existing code (including the one call site in do_stacking()
+# above that used a bare string method, now updated to pass a one-element list so
+# it keeps getting that tuple back) that calls `stacking(...)` continues to work
+# under this new name; only truly NEW code should rely on the plain-string-method
+# mode's different (overwrite-capable) behavior described above.
+stacking = stack_corrdata
 
 def get_locator(ds, sta):
     '''

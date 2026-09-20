@@ -2623,6 +2623,291 @@ class DispData(object):
                               "phase_velocity": self.phase_velocity, "inst_period": self.inst_period,
                               "amplitude": self.amplitude, "snr": self.snr})
 
+    def continuity(self, vtype='both', step=2, stat='mean', norm='auto'):
+        """
+        Quality index for the picked dispersion curve(s), meant for QC'ing a curve
+        (or batch-flagging many curves) before it's fed into imaging (e.g.
+        seisgo.imaging.eikonal.eikonal_tomography()). A dispersion curve should trace
+        one smooth physical branch; a curve whose picker has locked onto the wrong
+        branch for part of its length (the classic failure mode aftan_pmf()'s
+        guided-pick option was added to avoid -- see that function's docstring)
+        instead shows sudden, large relative jumps between nearby periods.
+
+        NOTE: this only measures period-to-period SMOOTHNESS of the picked curve
+        itself. A curve can be perfectly smooth while still consistently sitting
+        on the wrong (but locally continuous) branch of the dispersion image --
+        continuity() structurally cannot see that, since it never looks at the
+        underlying envelope image at all. Use peak_alignment() alongside this
+        method for that complementary check (see its docstring).
+
+        For each velocity array requested (group and/or phase), and for every pair
+        of valid (non-NaN) samples that are `delta` array-index steps apart along
+        the period axis (delta = 1, 2, ..., step), compute the relative jump
+
+            rel_jump = |v[i+delta] - v[i]| / (norm_scale * delta)
+
+        where `norm_scale` (a km/s velocity scale) is controlled by `norm` -- see
+        below; scaling by `delta` reflects that two periods twice as far apart are
+        allowed twice the excursion before it counts as equally "jumpy". Each
+        individual rel_jump is then IMMEDIATELY converted to a per-pair continuity
+        value
+
+            pair_continuity = 1 / (1 + rel_jump)
+
+        -- 1 for that one pair being perfectly smooth, shrinking toward 0 the
+        worse that one jump is -- before anything is combined across pairs. `stat`
+        is then applied to that whole pool of already-inverted, already
+        "higher is better" per-pair continuity values (pooled across every delta
+        from 1 to `step`), so `stat` names the aggregate exactly the way it reads:
+        stat='mean' is literally the mean continuity, stat='max' is literally the
+        best (highest, smoothest) local continuity found anywhere in the curve,
+        and so on. (This is a different, and generally different-VALUED,
+        computation than inverting a single aggregated discontinuity number --
+        e.g. mean-of-inverted-values != inverse-of-mean-value -- but it's what
+        makes each `stat` option mean what its name says.)
+
+        ===PARAMETERS===
+        vtype: 'group', 'phase', or 'both' [default] -- which curve(s) to score.
+        step: consider relative jumps between periods up to this many array-index
+                steps apart (default 2, i.e. pool both adjacent-period jumps and
+                next-adjacent-period jumps). Including delta=2 lets one single bad
+                pick sandwiched between two good ones (a 1-sample spike) still be
+                caught by comparing its neighbors to each other, and also means a
+                single NaN gap of length 1 doesn't fully block the jump from being
+                scored between the samples that bracket it.
+        stat: which summary statistic of the pooled per-pair continuity values
+                (see above -- each already in (0, 1], higher already meaning
+                smoother) is returned --
+                'mean' [default]: the average per-pair continuity; a fixed QC
+                    threshold behaves consistently across curves of different
+                    lengths.
+                'median': like 'mean' but robust to a single outlier jump -- use
+                    this when you want to judge the curve's overall smoothness
+                    without one bad period dominating the score.
+                'min': the single WORST per-pair continuity anywhere in the curve
+                    (i.e. driven by the single largest relative jump); catches one
+                    badly-picked period even when the rest of the curve is smooth
+                    (a 'mean'/'median' score can dilute a single bad jump away).
+                    This is the option to use for a strict "reject if any single
+                    jump is bad" QC gate.
+                'max': the single BEST per-pair continuity anywhere in the curve
+                    (its smoothest local step); mostly useful together with 'min'
+                    to see the full best/worst range, rarely useful alone as a QC
+                    gate since one good pair can't rescue a curve with many bad
+                    ones.
+                'sum': the total per-pair continuity; scales with the number of
+                    valid periods, so only meaningful when comparing curves of
+                    similar length, and not bounded by 1 the way the others are.
+        norm: how each relative jump's denominator (norm_scale, in km/s) is set --
+                'auto' [default]: use this curve's own params['vg_step_max'] (the
+                    same per-period maximum-jump tolerance _pick_group_velocity()
+                    itself enforced while picking), falling back to the
+                    aftan()/aftan_pmf() default of 0.5 km/s if that key isn't
+                    present in params (e.g. a hand-built or synthetic DispData).
+                    This ties "jumpy" directly to the picker's own notion of a
+                    suspiciously large per-period jump, which for typical real
+                    surface-wave velocities (order 2-5 km/s) is a substantially
+                    smaller scale than the curve's own velocity magnitude -- so a
+                    jump that looks clearly wrong by eye now actually drives the
+                    index down noticeably, instead of being swamped by dividing
+                    by an absolute velocity of several km/s.
+                'velocity': norm_scale is set, per pair, to the local 
+                    mean(|v[i+delta]|, |v[i]|) rather than one fixed scale. On
+                    real data this tends to make the index much less sensitive
+                    (see 'auto' above), since it divides by the curve's own
+                    (typically several km/s) magnitude rather than a tolerance
+                    tied to what counts as a bad jump.
+                a positive float: an explicit fixed km/s scale to use in place of
+                    either of the above, e.g. norm=0.3 to match a non-default
+                    vg_step_max the curve was actually picked with, or to make
+                    several curves picked with different settings directly
+                    comparable to each other.
+
+        ===RETURNS===
+        If vtype is 'group' or 'phase': a single float continuity index (NaN if
+        fewer than 2 valid, sufficiently-close picks are available to form any
+        jump -- or, for 'phase', if phase_velocity was never computed). In (0, 1]
+        for every `stat` except 'sum'.
+        If vtype is 'both' [default]: a dict {'group': <float>, 'phase': <float>},
+        each computed exactly as above (phase's entry is NaN when unavailable).
+        """
+        valid_stats = ('mean', 'median', 'sum', 'min', 'max')
+        if stat not in valid_stats:
+            raise ValueError("continuity(): stat must be one of %s, got %r" % (valid_stats, stat))
+        if step < 1:
+            raise ValueError("continuity(): step must be >= 1, got %r" % (step,))
+        if vtype not in ('group', 'phase', 'both'):
+            raise ValueError("continuity(): vtype must be 'group', 'phase', or 'both', got %r" % (vtype,))
+
+        base_scale = None  # None => 'velocity' mode: normalize per-pair by local |v|
+        if isinstance(norm, str):
+            if norm == 'velocity':
+                base_scale = None
+            elif norm == 'auto':
+                base_scale = None
+                if isinstance(self.params, dict):
+                    base_scale = self.params.get('vg_step_max', None)
+                if base_scale is None or not np.isfinite(base_scale) or base_scale <= 0:
+                    base_scale = 0.5  # aftan()/aftan_pmf()'s own default vg_step_max
+            else:
+                raise ValueError("continuity(): norm must be 'auto', 'velocity', or a positive "
+                                  "float (km/s), got %r" % (norm,))
+        elif isinstance(norm, (int, float)) and not isinstance(norm, bool):
+            if norm <= 0:
+                raise ValueError("continuity(): norm as a number must be > 0, got %r" % (norm,))
+            base_scale = float(norm)
+        else:
+            raise ValueError("continuity(): norm must be 'auto', 'velocity', or a positive "
+                              "float (km/s), got %r" % (norm,))
+        velocity_mode = (isinstance(norm, str) and norm == 'velocity')
+
+        def _score(v):
+            v = np.asarray(v, dtype=np.float64)
+            n = len(v)
+            jumps = []
+            for delta in range(1, step + 1):
+                if n <= delta:
+                    continue
+                v0, v1 = v[:-delta], v[delta:]
+                good = np.isfinite(v0) & np.isfinite(v1)
+                if not np.any(good):
+                    continue
+                if velocity_mode:
+                    denom = 0.5 * (np.abs(v0[good]) + np.abs(v1[good]))
+                    # guard the (degenerate) case of a near/exactly-zero velocity
+                    # pair, which would otherwise blow the relative jump up to inf/nan
+                    denom = np.where(denom > 0, denom, np.nan)
+                else:
+                    denom = base_scale * delta
+                jumps.append(np.abs(v1[good] - v0[good]) / denom)
+            if not jumps:
+                return np.nan
+            allj = np.concatenate(jumps)
+            allj = allj[np.isfinite(allj)]
+            if len(allj) == 0:
+                return np.nan
+            # per-pair continuity, inverted BEFORE aggregating -- see docstring
+            allc = 1.0 / (1.0 + allj)
+            if stat == 'mean':
+                return float(np.mean(allc))
+            elif stat == 'median':
+                return float(np.median(allc))
+            elif stat == 'sum':
+                return float(np.sum(allc))
+            elif stat == 'min':
+                return float(np.min(allc))
+            else:
+                return float(np.max(allc))
+
+        if vtype == 'group':
+            return _score(self.group_velocity)
+        if vtype == 'phase':
+            return _score(self.phase_velocity)
+        return {'group': _score(self.group_velocity), 'phase': _score(self.phase_velocity)}
+
+    def peak_alignment(self, vtype='group', stat='mean'):
+        """
+        Complementary QC metric to continuity(): whether the picked curve is
+        actually riding the dispersion image's own energy peak at each period, or
+        has quietly settled on a smoother-but-weaker secondary branch/sidelobe --
+        precisely the failure mode continuity() cannot see, since a curve can be
+        perfectly smooth from period to period while consistently sitting on the
+        wrong (but locally continuous) energy ridge the entire time. Requires this
+        object to have been created with store_image=True (the default, so
+        self.envelope is populated), since it is built directly from the stored
+        envelope image rather than from the picked curve alone.
+
+        For each period with a valid (non-NaN) pick, computes
+
+            alignment = amplitude_at_the_pick / that_period's_own_peak_amplitude
+
+        where "that period's own peak amplitude" is found the SAME way
+        get_image(normalize_mode='peak') normalizes each row -- the largest
+        GENUINE interior local maximum in that period's envelope (a sample
+        strictly greater than both neighbors), i.e. the strongest candidate
+        _pick_group_velocity() itself would have seen at that period, regardless
+        of which candidate was actually selected (see get_image()'s docstring for
+        why a plain row maximum is not a safe reference for a real ambient-noise
+        image). alignment is 1.0 (up to interpolation slack) when the pick sits
+        exactly on the period's own strongest peak, and drops toward 0 the more
+        amplitude is being left on the table by picking a weaker candidate
+        instead -- exactly the "pick is far from the energy peak" symptom
+        continuity() alone cannot catch.
+
+        ===PARAMETERS===
+        vtype: 'group' [default] or 'phase' -- which picked curve's amplitude to
+                score. 'group' uses self.amplitude (already stored at the exact
+                picked arrival by the analysis that produced this object).
+                'phase' has no independently stored amplitude of its own, so its
+                envelope amplitude is recovered by re-interpolating self.envelope
+                at dist/phase_velocity[i] for each period.
+        stat: how the per-period alignment values are combined -- 'mean'
+                [default], 'median', 'min' (the QC gate for "is any single period
+                sitting far off its own ridge" -- the direct counterpart of
+                continuity(stat='min')), 'max', or 'sum'.
+
+        ===RETURNS===
+        A single float, ordinarily in [0, 1] (very rarely a hair above 1, when the
+        picked amplitude and the peak-finding grid disagree slightly due to
+        interpolation -- harmless for QC purposes), or NaN if this object has no
+        stored envelope, or no valid picks/amplitudes are available.
+        """
+        valid_stats = ('mean', 'median', 'sum', 'min', 'max')
+        if stat not in valid_stats:
+            raise ValueError("peak_alignment(): stat must be one of %s, got %r" % (valid_stats, stat))
+        if vtype not in ('group', 'phase'):
+            raise ValueError("peak_alignment(): vtype must be 'group' or 'phase', got %r" % (vtype,))
+        if self.envelope is None:
+            return np.nan
+
+        npts = self.envelope.shape[1]
+        t = np.arange(npts) * self.dt
+        nper = len(self.period)
+
+        # this period's own peak amplitude, in the same "genuine interior local
+        # maximum" sense get_image(normalize_mode='peak') normalizes by -- see
+        # that method's docstring for why the plain row maximum is unsafe here.
+        row_peak = np.full(nper, np.nan)
+        for i in range(nper):
+            row = self.envelope[i]
+            finite = np.isfinite(row)
+            if finite.sum() < 3:
+                row_peak[i] = np.nanmax(row) if np.any(finite) else np.nan
+                continue
+            inner = np.arange(1, len(row) - 1)
+            inner = inner[finite[inner] & finite[inner - 1] & finite[inner + 1]]
+            is_local_max = (row[inner] > row[inner - 1]) & (row[inner] > row[inner + 1])
+            local_max_vals = row[inner[is_local_max]]
+            row_peak[i] = np.max(local_max_vals) if len(local_max_vals) > 0 else np.nanmax(row)
+
+        if vtype == 'group':
+            amp_at_pick = np.asarray(self.amplitude, dtype=np.float64)
+        else:
+            amp_at_pick = np.full(nper, np.nan)
+            pv = np.asarray(self.phase_velocity, dtype=np.float64)
+            for i in range(nper):
+                if not np.isfinite(pv[i]) or pv[i] <= 0:
+                    continue
+                tt = self.dist / pv[i]
+                if t[0] <= tt <= t[-1]:
+                    amp_at_pick[i] = np.interp(tt, t, self.envelope[i])
+
+        with np.errstate(invalid='ignore', divide='ignore'):
+            align = amp_at_pick / np.where(row_peak > 0, row_peak, np.nan)
+        align = align[np.isfinite(align)]
+        if len(align) == 0:
+            return np.nan
+        if stat == 'mean':
+            return float(np.mean(align))
+        elif stat == 'median':
+            return float(np.median(align))
+        elif stat == 'sum':
+            return float(np.sum(align))
+        elif stat == 'min':
+            return float(np.min(align))
+        else:
+            return float(np.max(align))
+
     def plot(self, ax=None, snr_min=None, show='both', figsize=(6, 4.5), **kwargs):
         """
         Quick-look plot of the dispersion curve(s).
