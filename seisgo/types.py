@@ -1,5 +1,5 @@
 #define key classes
-import os,sys,pickle,obspy,scipy,pyasdf,h5py, json
+import os,sys,pickle,obspy,scipy,pyasdf,h5py, json,warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -3205,6 +3205,81 @@ class PhaseVelocityMap(object):
     def period_index(self, period):
         """Index into self.period nearest the requested `period` (s)."""
         return int(np.argmin(np.abs(self.period - period)))
+
+    def spatial_stats(self, stat='mean', min_sources=None):
+        """
+        Summarize the velocity map across the (lat, lon) grid, independently at
+        each period -- i.e. generalizing the common pattern
+
+            avg_pv = []
+            for i in range(pvmap.velocity.shape[0]):
+                avg_pv.append(np.nanmean(pvmap.velocity[i, :, :]))
+            avg_pv = np.array(avg_pv)
+
+        (a per-period regional-average curve, e.g. as a target for
+        seisgo.dispersion.inversion()/dispersion_to_1d_model()) to any of several
+        statistics, computed in one call. NaN grid nodes at a given period
+        (below min_sources_per_node when this map was built -- see
+        eikonal_tomography()'s docstring) are ignored, exactly as
+        np.nanmean() ignores them above.
+
+        ===PARAMETERS===
+        stat: which statistic to compute at each period --
+                'mean' [default], 'median', 'min', 'max', 'std' (population
+                standard deviation across valid grid nodes), or 'count' (the
+                number of valid/finite grid nodes contributing, as a float array)
+                -- or 'all' to compute every one of these at once.
+        min_sources: if given, first mask out (set to NaN, per-period) any grid
+                node whose n_sources at that period is below this threshold
+                (the same coverage criterion plot()'s own min_sources/
+                show_coverage uses) before computing the statistic -- i.e.
+                restrict to well-covered nodes only. default None: use every
+                node velocity() already has a valid value for, with no
+                additional coverage filtering.
+
+        ===RETURNS===
+        If stat != 'all': a 1-D array, length len(self.period) -- same shape as
+                the `avg_pv` example above, for whichever statistic was chosen.
+        If stat == 'all': a dict {'mean':,'median':,'min':,'max':,'std':,
+                'count':}, each a 1-D array as above.
+        """
+        valid_stats = ('mean', 'median', 'min', 'max', 'std', 'count', 'all')
+        if stat not in valid_stats:
+            raise ValueError("spatial_stats(): stat must be one of %s, got %r" % (valid_stats, stat))
+
+        vel = np.array(self.velocity, dtype=np.float64, copy=True)
+        if min_sources is not None:
+            if self.n_sources is None:
+                raise ValueError("spatial_stats(): min_sources was given but this object has "
+                                  "no n_sources array.")
+            vel[np.asarray(self.n_sources) < min_sources] = np.nan
+
+        axes = (1, 2)
+
+        def _reduce(name):
+            with warnings.catch_warnings():
+                # every stat below is expected to hit periods with zero valid
+                # grid nodes (e.g. outside this map's actual coverage, or fully
+                # masked by min_sources) -- numpy warns on an all-NaN slice and
+                # correctly returns NaN for it, which is exactly what we want,
+                # so the warning itself is just noise here.
+                warnings.simplefilter('ignore', category=RuntimeWarning)
+                if name == 'mean':
+                    return np.nanmean(vel, axis=axes)
+                elif name == 'median':
+                    return np.nanmedian(vel, axis=axes)
+                elif name == 'min':
+                    return np.nanmin(vel, axis=axes)
+                elif name == 'max':
+                    return np.nanmax(vel, axis=axes)
+                elif name == 'std':
+                    return np.nanstd(vel, axis=axes)
+                else:  # 'count'
+                    return np.sum(np.isfinite(vel), axis=axes).astype(np.float64)
+
+        if stat == 'all':
+            return {name: _reduce(name) for name in ('mean', 'median', 'min', 'max', 'std', 'count')}
+        return _reduce(stat)
 
     def plot(self, period, ax=None, cmap='viridis_r', vmin=None, vmax=None,
               show_coverage=True, min_sources=1, figsize=(7, 5.5)):
