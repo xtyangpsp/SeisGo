@@ -1,3 +1,16 @@
+Updates in v2.0.0
+IMAGING:
+1. Added a "imaging" module that contains submodules on seismic imaging, currently only Eikonal tomographhy.
+
+DISPERSION:
+1. Added capability of doing AFTAN for ambient noise cross-correlations
+2. inversion() is more robust in handling bad phase velocities (very low or very high).
+
+TYPES:
+1. Added new classes for AFTAN and Eikonal tomography: DispData and PhaseVelocityMap to store the dispersion
+     and the eikonal tomo result.
+
+========================
 Updates in v1.1.0
 SETUP:
 1. Added pysurf96 for surface wave dispersion analysis.
