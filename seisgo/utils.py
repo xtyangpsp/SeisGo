@@ -260,7 +260,7 @@ def slice_list(flist,step,preserve_end=True):
     #
     return outlist
 #
-def correct_orientations(tr1,tr2,orient):
+def correct_orientations(tr1,tr2,orient,terror=0.05):
     """
     Correct horizontal orientations with given orientation data. The output traces
     are corrected and renamed to *E and *N convention.
@@ -273,6 +273,12 @@ def correct_orientations(tr1,tr2,orient):
         Dictionary containing the orientation information for the horizonal
         components for each station in the format of [orient_h1,orient_h2,orient_error].
         This information can be assembed by calling get_orientations().
+    terror: float
+        Allowed timing error between the two traces' sample grids, as a fraction
+        of one sample (dt). If tr1 and tr2 start at times that are not aligned
+        to within terror*dt of each other (i.e. one is genuinely offset by a
+        fraction of a sample, not just a whole number of samples), they can't be
+        safely paired sample-for-sample and an error is raised instead. Default 0.05.
     Output
     ---------
     trE, trN :class:`~obspy.core.Trace`
@@ -301,8 +307,99 @@ def correct_orientations(tr1,tr2,orient):
 
     chan1=tr1.stats.channel
     chan2=tr2.stats.channel
+
+    # work on copies so the caller's original tr1/tr2 are never mutated.
+    tr1=tr1.copy()
+    tr2=tr2.copy()
     data1=tr1.data
     data2=tr2.data
+
+    # 1) both arrays must be simple 1-D time series. A >1-D array (e.g. a
+    #    masked/gappy trace that wasn't merged, or an accidental Stream)
+    #    is what makes np.array([data2,data1]) build an inhomogeneous/object
+    #    array instead of raising a clear error.
+    if data1.ndim != 1 or data2.ndim != 1:
+        raise ValueError("correct_orientations() - "+netsta+": expected 1-D trace "
+                        "data, got shapes "+str(data1.shape)+" ("+chan1+") and "
+                        +str(data2.shape)+" ("+chan2+"). Merge/split the traces "
+                        "so each is a single continuous segment before calling "
+                        "correct_orientations().")
+
+    # 2) sampling rates must match. A rate mismatch can't be fixed by
+    #    trimming samples -- it means the two channels aren't really
+    #    comparable (or one needs resampling first), so fail loudly instead
+    #    of silently rotating misaligned data.
+    sps1=tr1.stats.sampling_rate
+    sps2=tr2.stats.sampling_rate
+    if sps1 != sps2:
+        raise ValueError("correct_orientations() - "+netsta+": sampling rate "
+                        "mismatch between "+chan1+" ("+str(sps1)+" Hz) and "
+                        +chan2+" ("+str(sps2)+" Hz). Resample to a common rate "
+                        "before calling correct_orientations().")
+
+    # 3) align to the overlapping time window before trimming by length alone.
+    #    If an upstream step didn't line up the two traces' start times (not
+    #    just their lengths), naively keeping "the first N samples of each"
+    #    would pair up samples that were never recorded at the same instant --
+    #    silently corrupting the rotation. Cut both traces down to the time
+    #    span they actually share instead.
+    dt=1.0/sps1
+    tstart1=tr1.stats.starttime
+    tstart2=tr2.stats.starttime
+    tend1=tr1.stats.endtime
+    tend2=tr2.stats.endtime
+
+    common_start=max(tstart1,tstart2)
+    common_end=min(tend1,tend2)
+    if common_start>=common_end:
+        raise ValueError("correct_orientations() - "+netsta+": "+chan1+" ("
+                        +str(tstart1)+" to "+str(tend1)+") and "+chan2+" ("
+                        +str(tstart2)+" to "+str(tend2)+") do not overlap in time.")
+
+    # how far off the two traces' sample grids are from each other, as a
+    # fraction of one sample -- a whole-sample offset (e.g. tr2 simply starts
+    # 3 samples later) is fine and handled by trimming below; a *sub-sample*
+    # offset means the two channels were never sampled simultaneously and
+    # can't be fixed by trimming alone (that needs interpolation/resampling).
+    grid_offset=abs((tstart2-tstart1)/dt) % 1.0
+    grid_offset=min(grid_offset,1.0-grid_offset)
+    if grid_offset>terror:
+        raise ValueError("correct_orientations() - "+netsta+": "+chan1+" and "
+                        +chan2+" sample grids are offset by "
+                        +str(round(grid_offset*dt,6))+"s ("+str(round(grid_offset,3))
+                        +" of a sample), larger than the allowed timing error ("
+                        +str(terror)+" samples). Resample/align the traces to a "
+                        "common time grid before calling correct_orientations().")
+
+    if tstart1 != common_start or tend1 != common_end:
+        tr1.trim(starttime=common_start,endtime=common_end,nearest_sample=True)
+    if tstart2 != common_start or tend2 != common_end:
+        tr2.trim(starttime=common_start,endtime=common_end,nearest_sample=True)
+    data1=tr1.data
+    data2=tr2.data
+
+    # 4) fall back to a plain length trim for any residual off-by-one sample
+    #    left over from the two trims above rounding to their own nearest
+    #    sample independently, so v12 = [data2,data1] is always a clean
+    #    (2,N) array.
+    n1=len(data1)
+    n2=len(data2)
+    if n1 != n2:
+        n=min(n1,n2)
+        print("Warning correct_orientations() - "+netsta+": "+chan1+" has "
+            +str(n1)+" samples, "+chan2+" has "+str(n2)+" samples after "
+            "aligning to their overlapping time window. Trimming both to the "
+            "shorter length ("+str(n)+" samples).")
+        tr1.data=data1[:n]
+        tr2.data=data2[:n]
+        # obspy's Trace.data setter updates stats.npts (and therefore
+        # stats.endtime, which is computed from starttime+npts/sampling_rate)
+        # automatically, but set it explicitly too for safety/clarity in
+        # case a duck-typed Trace-like object is ever passed in.
+        tr1.stats.npts=n
+        tr2.stats.npts=n
+        data1=tr1.data
+        data2=tr2.data
 
     trE=tr2.copy()
     trE.stats.channel=chan2[0:2]+'E'

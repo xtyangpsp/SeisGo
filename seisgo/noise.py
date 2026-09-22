@@ -699,6 +699,16 @@ def correlate(fftdata1,fftdata2,maxlag,method='xcorr',substack=False,
     Nfft = fftdata1.Nfft
     Nfft2 = Nfft//2
 
+    # sanity check to make sure the dt and length match.
+    if fftdata1.dt != fftdata2.dt:
+        raise ValueError(f"correlate() - sampling interval mismatch: "
+                        f"{fftdata1.net}.{fftdata1.sta} dt={fftdata1.dt} vs "
+                        f"{fftdata2.net}.{fftdata2.sta} dt={fftdata2.dt}")
+    if fftdata1.Nfft != fftdata2.Nfft:
+        raise ValueError(f"correlate() - Nfft mismatch: "
+                        f"{fftdata1.net}.{fftdata1.sta} Nfft={fftdata1.Nfft} vs "
+                        f"{fftdata2.net}.{fftdata2.sta} Nfft={fftdata2.Nfft}")
+
     fft1=np.conj(fftdata1.data[bb_data1,:Nfft2]) #get the conjugate of fft1
     nwin  = fft1.shape[0]
     fft2=fftdata2.data[bb_data2,:Nfft2]
