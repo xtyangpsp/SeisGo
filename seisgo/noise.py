@@ -1270,7 +1270,7 @@ def rotation_enz2rtz(sraw, rraw, channels=None):
 
 def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_egf=False,
             stack=False,stack_method='linear',stack_win_len=None,split=False,taper=True,
-            taper_frac=0.01,taper_maxlen=10,ignore_channel_type=False):
+            taper_frac=0.01,taper_maxlen=10,ignore_channel_type=False,channel_pairs=None):
     """
     This is a wrapper function that merges all data for the same station pair
     to a single CorrData object. It calls CorrData.merge() to assemble all CorrData.
@@ -1289,6 +1289,14 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
     stack_win_len: window length in seconds for stacking, only used when stack is True.
             When stack_win_len is not None, the stacking will be done over the specified
             windown lengths, instead of the entire data set.
+    split: split two sides after merging before saving. Default: False.
+    taper: apply take after splitting. default True.
+    taper_frac: taper fraction. default 0.01 (1% length)
+    taper_maxlen: maximum length in number of samples. default 10.
+    ignore_channel_type: e.g., BH and EH will be mergable. default False.
+    channel_pairs: list of subset channel pairs to merge, skip the rest of channel pairs. 
+            Default None (merge all available channel pairs).
+    
     """
     # source folder
     if pairlist is None:
@@ -1321,10 +1329,13 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
             corrdict=extract_corrdata(ifile,pair=pair)
             # txtract[i]=time.time()-tt00
             if len(list(corrdict.keys()))>0:
-                comp_list=list(corrdict[pair].keys())
+                if channel_pairs is None:
+                    comp_list=list(corrdict[pair].keys())
 
-                if len(comp_list)==0:
-                    continue
+                    if len(comp_list)==0:
+                        continue
+                else:
+                    comp_list = channel_pairs #only do the specified channel pairs.
                 ### merge same component corrdata.
                 # tt11=time.time()
                 for c in comp_list:
