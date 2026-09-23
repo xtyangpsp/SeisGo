@@ -10,6 +10,9 @@ TYPES:
 1. Added new classes for AFTAN and Eikonal tomography: DispData and PhaseVelocityMap to store the dispersion
      and the eikonal tomo result.
 
+NOISE:
+1. Added channel_pairs in merge_pairs() to only merge a subset of the channel pairs.
+
 ========================
 Updates in v1.1.0
 SETUP:
