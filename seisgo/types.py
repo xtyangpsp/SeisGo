@@ -350,8 +350,11 @@ class FFTData(object):
             lines.append("std          :   "+str(len(self.std)))
         else:
             lines.append("std          :   none")
-        if self.time is not None and len(self.time)>0:
-            lines.append("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
+        if self.time is not None:
+            if isinstance(self.time, (float, np.floating)):
+                lines.append("time         :   "+str(obspy.UTCDateTime(self.time)))
+            else:
+                lines.append("time         :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
         else:
             lines.append("time         :   none")
         lines.append("Nfft         :   "+str(self.Nfft))
@@ -529,7 +532,7 @@ class CorrData(object):
         lines.append("az       :   "+str(self.az))
         lines.append("baz      :   "+str(self.baz))
         lines.append("side     :   "+str(self.side))
-        if self.time is not None and len(self.time)>0:
+        if self.time is not None:
             if self.substack:
                 lines.append("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
             else:
