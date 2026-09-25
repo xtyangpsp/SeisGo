@@ -532,21 +532,21 @@ class CorrData(object):
         lines.append("az       :   "+str(self.az))
         lines.append("baz      :   "+str(self.baz))
         lines.append("side     :   "+str(self.side))
-        if self.time is not None:
+        if self.time is not None and self.time.size > 0:
             if self.substack:
                 lines.append("time     :   "+str(obspy.UTCDateTime(self.time[0]))+" to "+str(obspy.UTCDateTime(self.time[-1])))
             else:
                 lines.append("time     :   "+str(obspy.UTCDateTime(self.time)))
         else:
-            lines.append("time     :   none")
+            lines.append("time     :   none or empty")
         lines.append("substack :   "+str(self.substack))
         if self.stack_method is not None:
             lines.append("stack_method:"+str(self.stack_method))
-        if self.data is not None:
+        if self.data is not None and self.data.size > 0:
             lines.append("data     :   "+str(self.data.shape))
             lines.append(str(self.data))
         else:
-            lines.append("data     :   none")
+            lines.append("data     :   none or empty")
         lines.append("")
 
         return "<CorrData object>\n" + "\n".join(lines)
