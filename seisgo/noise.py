@@ -1339,9 +1339,16 @@ def merge_pairs(ccfiles,pairlist=None,outdir='./MERGED_PAIRS',verbose=False,to_e
                 ### merge same component corrdata.
                 # tt11=time.time()
                 for c in comp_list:
+                    #print("all keys")
+                    #print(corrdict_all.keys())
                     if c in list(corrdict_all.keys()):
-                        corrdict_all[c].merge(corrdict[pair][c],ignore_channel_type=ignore_channel_type)
-                    else:corrdict_all[c]=corrdict[pair][c]
+                        if c in list(corrdict[pair].keys()):
+                            corrdict_all[c].merge(corrdict[pair][c],ignore_channel_type=ignore_channel_type)
+                    else:
+                       # print("--> current keys")
+                       # print(corrdict[pair].keys())
+                        if c in list(corrdict[pair].keys()):
+                            corrdict_all[c]=corrdict[pair][c]
             del corrdict
                 # tmerge[i]=time.time()-tt11
 
