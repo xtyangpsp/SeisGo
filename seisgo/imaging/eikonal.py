@@ -272,7 +272,8 @@ def _local_plane_fit_grid(lon_grid, lat_grid, lon_obs, lat_obs, tt_obs,
 # ---------------------------------------------------------------------------
 # ensemble loading + curve interpolation
 # ---------------------------------------------------------------------------
-def load_dispdata_ensemble(sources):
+def load_dispdata_ensemble(sources, get_image=True, qc=False, qc_kw=None, qc_filter=None,
+                            verbose=False):
     """
     Load an ensemble of DispData objects for eikonal_tomography(), from a
     directory (recursively globbed for "*.h5", matching the layout
@@ -281,6 +282,35 @@ def load_dispdata_ensemble(sources):
     already-loaded DispData objects (mirroring assemble_dispersion()'s own
     `sources` convention in dispersion_dev.py). Entries that fail to load are
     skipped with a printed warning rather than raising.
+
+    ===PARAMETERS===
+    get_image, qc, qc_kw: passed straight through to read_dispdata() for every
+        filename entry (see its docstring) -- get_image=False keeps only the
+        curve/metadata on each returned DispData (envelope/phase_matrix, the
+        dominant per-file memory cost, are never kept), and qc=True computes
+        continuity()/peak_alignment() once per file and stores them in
+        params['qc'] so they don't need to be recomputed later. Ignored for
+        entries that are already-loaded DispData objects (not filenames) --
+        those are used as given, whatever state they're already in.
+
+        eikonal_tomography() itself never touches envelope/phase_matrix, so
+        get_image=False, qc=True is the recommended combination for large
+        projects: each file's image is read once (needed for peak_alignment()),
+        the QC verdict is kept, and the image is dropped before the object
+        is added to the returned list -- e.g. for a 300 GB dispersion-data
+        project, this keeps resident memory bounded by the (much smaller)
+        curves + QC dict rather than every station pair's full image.
+    qc_filter: optional callable, called as qc_filter(dispdata) -> bool, for
+        every entry with qc=True (a dict of the form described in
+        read_dispdata()'s docstring is available at dispdata.params['qc']).
+        Entries for which it returns False are dropped from the returned list
+        (counted separately from load failures). None (default): no filtering,
+        every successfully-loaded entry is kept regardless of its QC scores.
+        Ignored if qc=False. Example:
+            qc_filter=lambda d: d.params['qc']['continuity_group'] >= 0.7 and
+                                 d.params['qc']['peak_alignment_group'] >= 0.75
+    verbose: if True, print a one-line summary of how many entries were loaded,
+        skipped (failed to load), and dropped (qc_filter).
     """
     import os
     import glob as _glob
@@ -291,13 +321,25 @@ def load_dispdata_ensemble(sources):
         entries = list(sources)
 
     out = []
+    n_failed = 0
+    n_dropped = 0
     for entry in entries:
         try:
-            d = entry if isinstance(entry, DispData) else read_dispdata(entry)
+            if isinstance(entry, DispData):
+                d = entry
+            else:
+                d = read_dispdata(entry, get_image=get_image, qc=qc, qc_kw=qc_kw)
         except Exception as e:
             print("load_dispdata_ensemble(): skipping entry %r (%s)" % (entry, e))
+            n_failed += 1
+            continue
+        if qc and qc_filter is not None and not qc_filter(d):
+            n_dropped += 1
             continue
         out.append(d)
+    if verbose:
+        print("load_dispdata_ensemble(): loaded %d, failed %d, dropped by qc_filter %d "
+              "(out of %d entries)." % (len(out), n_failed, n_dropped, len(entries)))
     return out
 
 

@@ -543,17 +543,59 @@ def inversion(periods, velocity, thickness, initial_vs,
 ################################################################
 ###################### AFTAN FUNCTIONS ##########################
 ################################################################
-def read_dispdata(filename):
+def read_dispdata(filename, get_image=True, qc=False, qc_kw=None):
     """
     Load a DispData object from an input .h file.
 
     ===PARAMETERS===
     filename: input .h5 path, as written by DispData.save().
+    get_image: if True (default), the returned object keeps the envelope/
+        phase_matrix datasets (the classical AFTAN dispersion-energy image)
+        when present in the file. If False, the returned object's envelope
+        and phase_matrix are None regardless of whether the file contains
+        them.
+
+        These two arrays are typically the dominant per-file memory/IO cost
+        (each shaped (n_periods, n_samples)), while the 1-D dispersion curve
+        arrays (period, group_velocity, phase_velocity, amplitude, snr,
+        inst_period, arrival_time, phase_pick) and the station-pair metadata
+        are tiny by comparison. Eikonal/Helmholtz tomography, curve-only
+        plotting, and DispData.continuity() all work purely off the curve
+        arrays and never touch envelope/phase_matrix, so set get_image=False
+        for those workflows to substantially cut memory use when reading many
+        files (e.g. building a large ensemble for tomography over a big
+        project).
+
+        Note this only controls what the RETURNED object retains -- see `qc`
+        below for how to still get an image-dependent QC check (e.g.
+        peak_alignment()) without paying to hold every image in memory
+        afterward.
+    qc: if True, compute DispData.continuity() and DispData.peak_alignment()
+        once right after loading -- while the image (read from `filename`
+        for this one pass regardless of `get_image`) is still available --
+        and stash the results in the returned object's params dict under the
+        key 'qc', e.g.:
+            dispdata.params['qc'] == {
+                'continuity_group': 0.93, 'continuity_phase': 0.88,
+                'peak_alignment_group': 0.81, 'peak_alignment_phase': 0.77,
+            }
+        so downstream QC filtering (e.g. in a batch ensemble loader) can read
+        these off params without needing self.envelope at all, and without
+        recomputing them. If get_image=False, envelope/phase_matrix are
+        discarded (set to None) immediately after this QC pass, so the file's
+        image is read exactly once and never held onto -- get the QC
+        verdict, drop the memory, keep only the curve.
+    qc_kw: optional dict of overrides for the QC calls above -- any of
+        'continuity_step' (default 2), 'continuity_stat' (default 'mean'),
+        'continuity_norm' (default 'auto'), 'peak_alignment_stat' (default
+        'mean'); see DispData.continuity()/peak_alignment() for what each
+        means. Ignored if qc=False.
 
     ===RETURNS===
-    a DispData object, equivalent to the one that was saved (envelope/phase_matrix
-    are present only if the saved object had them, i.e. it was created with
-    store_image=True).
+    a DispData object, equivalent to the one that was saved (envelope/
+    phase_matrix are present only if the saved object had them, i.e. it was
+    created with store_image=True, AND get_image=True was used here),
+    with params['qc'] additionally populated if qc=True.
     """
     with h5py.File(filename, 'r') as f:
         dist = float(f.attrs['dist'])
@@ -577,16 +619,39 @@ def read_dispdata(filename):
         inst_period = _get('inst_period')
         arrival_time = _get('arrival_time')
         phase_pick = _get('phase_pick')
-        envelope = _get('envelope')
-        phase_matrix = _get('phase_matrix')
-    return DispData(period, group_velocity, amplitude, snr, inst_period, dist, dt, side,
-                     params, phase_velocity=phase_velocity, method=method,
-                     arrival_time=arrival_time, phase_pick=phase_pick,
-                     envelope=envelope, phase_matrix=phase_matrix,
-                     src_net=station.get('src_net'), src_sta=station.get('src_sta'),
-                     src_lon=station.get('src_lon'), src_lat=station.get('src_lat'),
-                     rcv_net=station.get('rcv_net'), rcv_sta=station.get('rcv_sta'),
-                     rcv_lon=station.get('rcv_lon'), rcv_lat=station.get('rcv_lat'))
+        # the image is read whenever the caller wants to keep it (get_image=True)
+        # OR needs it transiently to compute QC (qc=True, e.g. peak_alignment()
+        # requires the envelope) -- in the latter case it is dropped below,
+        # after QC has been computed, if get_image=False.
+        if get_image or qc:
+            envelope = _get('envelope')
+            phase_matrix = _get('phase_matrix')
+        else:
+            envelope = None
+            phase_matrix = None
+    dd = DispData(period, group_velocity, amplitude, snr, inst_period, dist, dt, side,
+                  params, phase_velocity=phase_velocity, method=method,
+                  arrival_time=arrival_time, phase_pick=phase_pick,
+                  envelope=envelope, phase_matrix=phase_matrix,
+                  src_net=station.get('src_net'), src_sta=station.get('src_sta'),
+                  src_lon=station.get('src_lon'), src_lat=station.get('src_lat'),
+                  rcv_net=station.get('rcv_net'), rcv_sta=station.get('rcv_sta'),
+                  rcv_lon=station.get('rcv_lon'), rcv_lat=station.get('rcv_lat'))
+    if qc:
+        qc_kw = qc_kw or {}
+        cont = dd.continuity(vtype='both', step=qc_kw.get('continuity_step', 2),
+                              stat=qc_kw.get('continuity_stat', 'mean'),
+                              norm=qc_kw.get('continuity_norm', 'auto'))
+        pa_stat = qc_kw.get('peak_alignment_stat', 'mean')
+        dd.params['qc'] = {
+            'continuity_group': cont['group'], 'continuity_phase': cont['phase'],
+            'peak_alignment_group': dd.peak_alignment(vtype='group', stat=pa_stat),
+            'peak_alignment_phase': dd.peak_alignment(vtype='phase', stat=pa_stat),
+        }
+    if not get_image:
+        dd.envelope = None
+        dd.phase_matrix = None
+    return dd
 
 def _simple_snr(d, dt, dist, max_vel=6.0, noise_window=None):
     """
