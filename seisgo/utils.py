@@ -163,7 +163,7 @@ def gaussian(dt,width,shift):
     return t,g
 ##
 def ricker(dt,fc,shift):
-    """
+    r"""
     Produce Ricker shaping wavelet.
 
     Here the equation is consistent with the source time function in FWANT.
