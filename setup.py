@@ -87,7 +87,7 @@ setup(
     #
     #packages=find_packages(where='src'),  # Required
 
-    packages=['seisgo'],
+    packages=['seisgo','seisgo/imaging'],
     include_package_data = True,
     package_data={"":["data","figs","notebooks"]},
     # Specify which Python versions you support. In contrast to the
